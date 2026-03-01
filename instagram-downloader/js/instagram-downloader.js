@@ -200,11 +200,21 @@ async function downloadFile(urlOrBase64, filename, format, mediaType) {
     try {
         let downloadData;
         if (mediaType === 'video') {
+            // Use our backend proxy to avoid CORS issues with Instagram CDN URLs
+            const proxyUrl = `${API_CONFIG.BACKEND_URL}/api/instagram/proxy?url=${encodeURIComponent(urlOrBase64)}`;
             try {
-                const response = await fetch(urlOrBase64);
-                const blob = await response.blob();
-                downloadData = URL.createObjectURL(blob);
+                const response = await fetch(proxyUrl);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    downloadData = URL.createObjectURL(blob);
+                } else {
+                    // Fallback: try direct fetch
+                    const directResp = await fetch(urlOrBase64);
+                    const blob = await directResp.blob();
+                    downloadData = URL.createObjectURL(blob);
+                }
             } catch {
+                // Last resort: open URL directly (won't trigger save-as but user can right-click save)
                 downloadData = urlOrBase64;
             }
         } else {

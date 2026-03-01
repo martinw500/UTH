@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Converter — Useful Tool Hub</title>
+    <meta name="description" content="Convert videos between MP4, WEBM, and GIF. Trim, compress, resize. Free, runs entirely in your browser using FFmpeg.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">Video Converter</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(168, 85, 247, 0.12); color: #c084fc;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>Video Converter</h1>
+                    <p>Convert, trim, compress, and resize videos — powered by FFmpeg, runs in your browser</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <!-- Notice -->
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>All processing happens in your browser using FFmpeg. Large files may take a while. First use downloads ~30 MB of FFmpeg libraries.</span>
+                </div>
+
+                <!-- Dropzone -->
+                <div class="converter-dropzone" id="dropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <div class="dropzone-text">
+                        <strong>Drop a video here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">Supports MP4, WEBM, MOV, AVI, MKV, OGG (max 500 MB)</div>
+                    <input type="file" id="fileInput" accept="video/*,.mkv,.avi" hidden>
+                </div>
+
+                <!-- Editor workspace (hidden until video loaded) -->
+                <div class="editor-workspace" id="editorWorkspace" style="display: none;">
+
+                    <!-- Video Info Bar -->
+                    <div class="editor-info-bar">
+                        <div class="editor-file-info">
+                            <span class="editor-filename" id="editorFilename"></span>
+                            <span class="editor-file-meta" id="editorMeta"></span>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" id="clearFileBtn" title="Remove video">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            Remove
+                        </button>
+                    </div>
+
+                    <!-- Video Preview -->
+                    <div class="editor-canvas-area">
+                        <video id="videoPreview" controls class="video-preview-player"></video>
+                    </div>
+
+                    <!-- Trim Section -->
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Trim</h3>
+                        <div class="trim-controls">
+                            <div class="trim-row">
+                                <div class="trim-field">
+                                    <label class="input-label">Start Time</label>
+                                    <input type="text" class="input-field input-sm" id="trimStart" placeholder="00:00:00" value="00:00:00" spellcheck="false">
+                                </div>
+                                <div class="trim-field">
+                                    <label class="input-label">End Time</label>
+                                    <input type="text" class="input-field input-sm" id="trimEnd" placeholder="00:00:00" spellcheck="false">
+                                </div>
+                                <div class="trim-field">
+                                    <label class="input-label">Duration</label>
+                                    <span class="trim-duration" id="trimDuration">—</span>
+                                </div>
+                            </div>
+                            <div class="trim-hint">
+                                Format: HH:MM:SS or MM:SS or seconds. Leave as-is for no trim.
+                            </div>
+                            <div class="trim-quick-btns">
+                                <button class="preset-btn" id="setStartBtn">Set Start to Current</button>
+                                <button class="preset-btn" id="setEndBtn">Set End to Current</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Format & Quality -->
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Format &amp; Quality</h3>
+                        <div class="export-grid">
+                            <div class="setting-group">
+                                <label class="input-label">Output Format</label>
+                                <select class="format-select" id="outputFormat">
+                                    <option value="mp4">MP4</option>
+                                    <option value="webm">WEBM</option>
+                                    <option value="gif">GIF</option>
+                                    <option value="mp3">MP3 (audio only)</option>
+                                    <option value="wav">WAV (audio only)</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="qualityGroup">
+                                <label class="input-label">Quality / Compression</label>
+                                <select class="format-select" id="qualitySelect">
+                                    <option value="high">High (best quality, larger file)</option>
+                                    <option value="medium" selected>Medium (balanced)</option>
+                                    <option value="low">Low (smaller file)</option>
+                                    <option value="verylow">Very Low (tiny file)</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="resolutionGroup">
+                                <label class="input-label">Resolution</label>
+                                <select class="format-select" id="resolutionSelect">
+                                    <option value="original">Original</option>
+                                    <option value="1920">1920p (1080p)</option>
+                                    <option value="1280">1280p (720p)</option>
+                                    <option value="854">854p (480p)</option>
+                                    <option value="640">640p (360p)</option>
+                                    <option value="426">426p (240p)</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="targetSizeGroup">
+                                <label class="input-label">Target File Size (optional)</label>
+                                <div class="target-size-row">
+                                    <input type="number" class="input-field input-sm" id="targetSizeInput" placeholder="e.g. 8" min="1">
+                                    <select class="format-select input-sm" id="targetSizeUnit">
+                                        <option value="mb">MB</option>
+                                        <option value="kb">KB</option>
+                                    </select>
+                                </div>
+                                <div class="target-size-hint">Will calculate bitrate to match target</div>
+                            </div>
+                            <div class="setting-group" id="fpsGroup">
+                                <label class="input-label">Frame Rate</label>
+                                <select class="format-select" id="fpsSelect">
+                                    <option value="original">Original</option>
+                                    <option value="60">60 FPS</option>
+                                    <option value="30">30 FPS</option>
+                                    <option value="24">24 FPS</option>
+                                    <option value="15">15 FPS</option>
+                                    <option value="10">10 FPS</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="muteGroup">
+                                <label class="input-label">Audio</label>
+                                <select class="format-select" id="audioSelect">
+                                    <option value="keep">Keep Audio</option>
+                                    <option value="mute">Remove Audio</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Convert button -->
+                        <div class="export-actions">
+                            <button class="btn btn-primary" id="convertBtn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                                Convert
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Progress -->
+                    <div class="converter-progress" id="progress" style="display: none;">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progressBar"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">Loading FFmpeg...</div>
+                    </div>
+
+                    <!-- Error -->
+                    <div class="error-msg" id="errorMsg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                        <span id="errorText"></span>
+                    </div>
+
+                    <!-- Result -->
+                    <div class="converter-results" id="results" style="display: none;">
+                        <div class="results-header">
+                            <span class="results-count" id="resultsInfo"></span>
+                        </div>
+                        <div class="output-item">
+                            <div class="output-item-info">
+                                <div class="output-item-name" id="outputName"></div>
+                                <div class="output-item-meta">
+                                    <span id="outputSize"></span>
+                                    <span class="output-savings" id="outputSavings"></span>
+                                </div>
+                            </div>
+                            <a href="#" id="downloadBtn" class="btn btn-primary btn-sm" download>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js"></script>
+    <script src="js/video-converter.js"></script>
+</body>
+</html>

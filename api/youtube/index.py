@@ -14,6 +14,15 @@ def get_ydl_opts():
         'no_warnings': True,
         'extract_flat': False,
         'socket_timeout': 30,
+        # Use alternative player clients to bypass YouTube bot detection on cloud IPs
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['mediaconnect', 'android', 'web'],
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+        },
     }
 
 @app.route('/api/youtube', methods=['GET', 'OPTIONS'])

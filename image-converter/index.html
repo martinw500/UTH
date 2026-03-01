@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Editor / Converter — Useful Tool Hub</title>
+    <meta name="description" content="Edit, crop, compress, and convert images between formats. Free, fast, and runs entirely in your browser.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">Image Editor / Converter</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(34, 197, 94, 0.12); color: #4ade80;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>Image Editor / Converter</h1>
+                    <p>Edit, crop, compress, and convert images — runs entirely in your browser</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <!-- Notice -->
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>All processing happens locally in your browser. Your images are never uploaded to any server.</span>
+                </div>
+
+                <!-- Dropzone -->
+                <div class="converter-dropzone" id="dropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <div class="dropzone-text">
+                        <strong>Drop an image here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">Supports JPG, PNG, WEBP, BMP, GIF, SVG, AVIF</div>
+                    <input type="file" id="fileInput" accept="image/*" hidden>
+                </div>
+
+                <!-- Editor (hidden until image loaded) -->
+                <div class="editor-workspace" id="editorWorkspace" style="display: none;">
+
+                    <!-- Image Info Bar -->
+                    <div class="editor-info-bar">
+                        <div class="editor-file-info">
+                            <span class="editor-filename" id="editorFilename"></span>
+                            <span class="editor-file-meta" id="editorMeta"></span>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" id="removeImageBtn" title="Remove image">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            Remove
+                        </button>
+                    </div>
+
+                    <!-- Canvas Preview -->
+                    <div class="editor-canvas-area">
+                        <div class="editor-canvas-wrapper" id="canvasWrapper">
+                            <canvas id="previewCanvas"></canvas>
+                            <!-- Crop overlay -->
+                            <div class="crop-overlay" id="cropOverlay" style="display: none;">
+                                <div class="crop-selection" id="cropSelection">
+                                    <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+                                    <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+                                    <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+                                    <div class="crop-handle crop-handle-se" data-handle="se"></div>
+                                    <div class="crop-handle crop-handle-n" data-handle="n"></div>
+                                    <div class="crop-handle crop-handle-s" data-handle="s"></div>
+                                    <div class="crop-handle crop-handle-e" data-handle="e"></div>
+                                    <div class="crop-handle crop-handle-w" data-handle="w"></div>
+                                    <div class="crop-size-label" id="cropSizeLabel"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editor Toolbar -->
+                    <div class="editor-toolbar">
+                        <button class="toolbar-btn" id="cropBtn" title="Crop">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+                            <span>Crop</span>
+                        </button>
+                        <button class="toolbar-btn" id="rotateLeftBtn" title="Rotate Left">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.5 8C5.5 3.5 11 2 15.5 4s7.5 7 6.5 12-5 9-10 9S3.5 21.5 2.5 18"/></svg>
+                            <span>Rotate Left</span>
+                        </button>
+                        <button class="toolbar-btn" id="rotateRightBtn" title="Rotate Right">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.5 8C18.5 3.5 13 2 8.5 4S1 11 2 16s5 9 10 9 8.5-3.5 9.5-7"/></svg>
+                            <span>Rotate Right</span>
+                        </button>
+                        <button class="toolbar-btn" id="flipHBtn" title="Flip Horizontal">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><line x1="12" y1="20" x2="12" y2="4"/></svg>
+                            <span>Flip H</span>
+                        </button>
+                        <button class="toolbar-btn" id="flipVBtn" title="Flip Vertical">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+                            <span>Flip V</span>
+                        </button>
+                        <button class="toolbar-btn" id="resetBtn" title="Reset to Original">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+
+                    <!-- Crop confirm bar (shown when cropping) -->
+                    <div class="crop-confirm-bar" id="cropConfirmBar" style="display: none;">
+                        <span class="crop-info" id="cropInfo">Drag on the image to select crop area</span>
+                        <div class="crop-confirm-actions">
+                            <button class="btn btn-primary btn-sm" id="applyCropBtn">Apply Crop</button>
+                            <button class="btn btn-secondary btn-sm" id="cancelCropBtn">Cancel</button>
+                        </div>
+                    </div>
+
+                    <!-- Adjustments -->
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Adjustments</h3>
+                        <div class="adjustment-grid">
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label>Brightness</label>
+                                    <span class="adjustment-value" id="brightnessValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="brightnessSlider" min="-100" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label>Contrast</label>
+                                    <span class="adjustment-value" id="contrastValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="contrastSlider" min="-100" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label>Saturation</label>
+                                    <span class="adjustment-value" id="saturationValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="saturationSlider" min="-100" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label>Blur</label>
+                                    <span class="adjustment-value" id="blurValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="blurSlider" min="0" max="20" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resize -->
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Resize</h3>
+                        <div class="resize-row">
+                            <div class="resize-field">
+                                <label class="input-label">Width (px)</label>
+                                <input type="number" class="input-field input-sm" id="resizeWidth" placeholder="Width" min="1">
+                            </div>
+                            <span class="resize-x">×</span>
+                            <div class="resize-field">
+                                <label class="input-label">Height (px)</label>
+                                <input type="number" class="input-field input-sm" id="resizeHeight" placeholder="Height" min="1">
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="applyResizeBtn">Resize</button>
+                        </div>
+                        <div class="resize-presets">
+                            <button class="preset-btn" data-w="1920" data-h="1080">1920×1080</button>
+                            <button class="preset-btn" data-w="1280" data-h="720">1280×720</button>
+                            <button class="preset-btn" data-w="800" data-h="600">800×600</button>
+                            <button class="preset-btn" data-w="500" data-h="500">500×500</button>
+                            <button class="preset-btn" data-w="256" data-h="256">256×256</button>
+                            <button class="preset-btn" data-percent="50">50%</button>
+                            <button class="preset-btn" data-percent="25">25%</button>
+                        </div>
+                    </div>
+
+                    <!-- Export Settings -->
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Export</h3>
+                        <div class="export-grid">
+                            <div class="setting-group">
+                                <label class="input-label">Output Format</label>
+                                <select class="format-select" id="outputFormat">
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/webp">WEBP</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="qualityGroup">
+                                <label class="input-label">Quality: <span id="qualityValue">92</span>%</label>
+                                <input type="range" class="quality-slider" id="qualitySlider" min="1" max="100" value="92">
+                            </div>
+                            <div class="setting-group" id="compressionGroup">
+                                <label class="input-label">Compression Preset</label>
+                                <select class="format-select" id="compressionSelect">
+                                    <option value="none">None (Original Quality)</option>
+                                    <option value="light">Light (~80%)</option>
+                                    <option value="medium" selected>Medium (~60%)</option>
+                                    <option value="heavy">Heavy (~40%)</option>
+                                    <option value="extreme">Extreme (~20%)</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="targetSizeGroup">
+                                <label class="input-label">Target File Size (optional)</label>
+                                <div class="target-size-row">
+                                    <input type="number" class="input-field input-sm" id="targetSizeInput" placeholder="e.g. 500" min="1">
+                                    <select class="format-select input-sm" id="targetSizeUnit">
+                                        <option value="kb">KB</option>
+                                        <option value="mb">MB</option>
+                                    </select>
+                                </div>
+                                <div class="target-size-hint">Will iteratively compress to hit target size</div>
+                            </div>
+                        </div>
+
+                        <div class="export-actions">
+                            <button class="btn btn-primary" id="exportBtn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Export &amp; Download
+                            </button>
+                            <div class="export-estimate" id="exportEstimate"></div>
+                        </div>
+                    </div>
+
+                    <!-- Result -->
+                    <div class="converter-results" id="results" style="display: none;">
+                        <div class="results-header">
+                            <span class="results-count" id="resultsInfo"></span>
+                        </div>
+                        <div class="output-item" id="outputItem">
+                            <div class="output-item-preview">
+                                <img id="outputPreview" alt="Exported image">
+                            </div>
+                            <div class="output-item-info">
+                                <div class="output-item-name" id="outputName"></div>
+                                <div class="output-item-meta">
+                                    <span id="outputSize"></span>
+                                    <span class="output-savings" id="outputSavings"></span>
+                                </div>
+                            </div>
+                            <a href="#" id="downloadBtn" class="btn btn-primary btn-sm" download>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script src="js/image-converter.js"></script>
+</body>
+</html>

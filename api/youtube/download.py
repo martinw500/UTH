@@ -5,6 +5,7 @@ import re
 import traceback
 import tempfile
 import os
+import shutil
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type"]}})
@@ -29,7 +30,13 @@ def download_youtube():
             video_url = f'https://www.youtube.com/watch?v={video_id}'
         
         height = quality.replace('p', '')
-        format_string = f'bestvideo[height<={height}]+bestaudio/best[height<={height}]'
+        has_ffmpeg = shutil.which('ffmpeg') is not None
+        
+        if has_ffmpeg:
+            format_string = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
+        else:
+            # No ffmpeg available (e.g. Vercel serverless) - use combined formats only
+            format_string = f'best[height<={height}][ext=mp4]/best[height<={height}]/best'
         
         temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, 'video.%(ext)s')
@@ -39,9 +46,20 @@ def download_youtube():
             'outtmpl': output_path,
             'quiet': True,
             'no_warnings': True,
-            'merge_output_format': 'mp4',
             'socket_timeout': 30,
+            # Use alternative player clients to bypass bot detection
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mediaconnect', 'android', 'web'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+            },
         }
+        
+        if has_ffmpeg:
+            ydl_opts['merge_output_format'] = 'mp4'
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])

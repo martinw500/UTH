@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colour Picker — Useful Tool Hub</title>
+    <meta name="description" content="Pick and convert colours between HEX, RGB, and HSL. Free colour picker tool.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">Colour Picker</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(59,130,246,0.12)); color: #f472b6;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>Colour Picker</h1>
+                    <p>Pick and convert colours between HEX, RGB, and HSL</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <!-- Color Picker & Preview -->
+                <div class="color-top-row">
+                    <div class="color-swatch-large" id="colorSwatch"></div>
+                    <div class="color-picker-wrap">
+                        <label class="input-label">Pick a Color</label>
+                        <input type="color" id="colorPicker" class="color-picker-input" value="#6366f1">
+                        <div class="color-picker-hint">Click to open the color picker</div>
+                    </div>
+                </div>
+
+                <!-- HEX -->
+                <div class="color-format-group">
+                    <div class="color-format-header">
+                        <label class="input-label">HEX</label>
+                        <button class="btn btn-ghost btn-sm copy-btn" data-target="hexInput" title="Copy">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Copy
+                        </button>
+                    </div>
+                    <input type="text" class="input-field" id="hexInput" placeholder="#6366f1" maxlength="7" spellcheck="false" autocomplete="off">
+                </div>
+
+                <!-- RGB -->
+                <div class="color-format-group">
+                    <div class="color-format-header">
+                        <label class="input-label">RGB</label>
+                        <button class="btn btn-ghost btn-sm copy-btn" data-target="rgbText" title="Copy">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Copy
+                        </button>
+                    </div>
+                    <div class="color-inputs-row">
+                        <div class="color-input-group">
+                            <label class="color-input-label">R</label>
+                            <input type="number" class="input-field input-sm" id="rInput" min="0" max="255" value="99">
+                        </div>
+                        <div class="color-input-group">
+                            <label class="color-input-label">G</label>
+                            <input type="number" class="input-field input-sm" id="gInput" min="0" max="255" value="102">
+                        </div>
+                        <div class="color-input-group">
+                            <label class="color-input-label">B</label>
+                            <input type="number" class="input-field input-sm" id="bInput" min="0" max="255" value="241">
+                        </div>
+                    </div>
+                    <div class="color-text-output" id="rgbText">rgb(99, 102, 241)</div>
+                </div>
+
+                <!-- HSL -->
+                <div class="color-format-group">
+                    <div class="color-format-header">
+                        <label class="input-label">HSL</label>
+                        <button class="btn btn-ghost btn-sm copy-btn" data-target="hslText" title="Copy">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Copy
+                        </button>
+                    </div>
+                    <div class="color-inputs-row">
+                        <div class="color-input-group">
+                            <label class="color-input-label">H</label>
+                            <input type="number" class="input-field input-sm" id="hInput" min="0" max="360" value="239">
+                        </div>
+                        <div class="color-input-group">
+                            <label class="color-input-label">S%</label>
+                            <input type="number" class="input-field input-sm" id="sInput" min="0" max="100" value="84">
+                        </div>
+                        <div class="color-input-group">
+                            <label class="color-input-label">L%</label>
+                            <input type="number" class="input-field input-sm" id="lInput" min="0" max="100" value="67">
+                        </div>
+                    </div>
+                    <div class="color-text-output" id="hslText">hsl(239, 84%, 67%)</div>
+                </div>
+
+                <!-- CSS Variable -->
+                <div class="color-format-group">
+                    <div class="color-format-header">
+                        <label class="input-label">CSS</label>
+                        <button class="btn btn-ghost btn-sm copy-btn" data-target="cssOutput" title="Copy">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            Copy
+                        </button>
+                    </div>
+                    <div class="color-text-output" id="cssOutput" style="font-family: monospace; font-size: 0.85rem;">
+                        --color: #6366f1;
+                    </div>
+                </div>
+
+                <!-- Color History -->
+                <div class="color-history-section">
+                    <div class="color-format-header">
+                        <label class="input-label">Recent Colors</label>
+                        <button class="btn btn-ghost btn-sm" id="clearHistory">Clear</button>
+                    </div>
+                    <div class="color-history" id="colorHistory"></div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script src="js/color-converter.js"></script>
+</body>
+</html>

@@ -191,6 +191,12 @@ def get_youtube():
             'no_warnings': True,
             'extract_flat': False,
             'socket_timeout': 30,
+            # Use alternative player clients to bypass bot detection
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mediaconnect', 'android', 'web'],
+                }
+            },
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -295,7 +301,8 @@ def download_youtube():
         
         # Build format string based on quality
         height = quality.replace('p', '')
-        format_string = f'bestvideo[height<={height}]+bestaudio/best[height<={height}]'
+        # Prefer MP4 containers with audio; merge video+audio streams with ffmpeg
+        format_string = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
         
         # Create temp directory
         temp_dir = tempfile.mkdtemp()
@@ -308,6 +315,12 @@ def download_youtube():
             'no_warnings': False,
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
+            # Use alternative player clients to bypass bot detection
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['mediaconnect', 'android', 'web'],
+                }
+            },
             # Fix metadata so video files are playable
             'postprocessor_args': {
                 'ffmpeg': ['-movflags', 'faststart'],
@@ -316,6 +329,10 @@ def download_youtube():
             'writethumbnail': False,
             'embedthumbnail': False,
             'postprocessors': [
+                {
+                    'key': 'FFmpegVideoRemuxer',
+                    'preferedformat': 'mp4',
+                },
                 {
                     'key': 'FFmpegMetadata',
                     'add_metadata': True,

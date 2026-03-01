@@ -55,7 +55,7 @@
 
             <div class="hero-stats">
                 <div class="stat">
-                    <div class="stat-value" id="toolCount">2</div>
+                    <div class="stat-value" id="toolCount">5</div>
                     <div class="stat-label">Tools Available</div>
                 </div>
                 <div class="stat">
@@ -75,7 +75,7 @@
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">All Tools</h2>
-                <span class="section-count" id="visibleCount">2 tools</span>
+                <span class="section-count" id="visibleCount">5 tools</span>
             </div>
 
             <div class="tools-grid" id="toolsGrid">
@@ -110,20 +110,50 @@
                     </div>
                 </a>
 
-                <!-- Image Editor (Coming Soon) -->
-                <div class="tool-card" data-keywords="image edit resize crop compress convert" style="cursor: default;" onclick="alert('Image Editor — Coming Soon!')">
+                <!-- Image Editor / Converter -->
+                <a href="image-converter/index.html" class="tool-card" data-keywords="image edit convert crop compress resize jpg jpeg png webp bmp gif format editor">
                     <div class="tool-card-icon image">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                     </div>
                     <div class="tool-card-content">
-                        <div class="tool-card-title">Image Editor</div>
-                        <div class="tool-card-desc">Resize, crop, compress, and convert images right in your browser</div>
+                        <div class="tool-card-title">Image Editor / Converter</div>
+                        <div class="tool-card-desc">Edit, crop, compress, and convert images — all in your browser</div>
                     </div>
                     <div class="tool-card-footer">
-                        <span class="tool-card-status soon">Coming Soon</span>
+                        <span class="tool-card-status live">Live</span>
                         <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                     </div>
-                </div>
+                </a>
+
+                <!-- Video Converter -->
+                <a href="video-converter/index.html" class="tool-card" data-keywords="video convert mp4 webm gif mp3 wav audio ffmpeg format">
+                    <div class="tool-card-icon" style="background: rgba(168, 85, 247, 0.12); color: #c084fc;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+                    </div>
+                    <div class="tool-card-content">
+                        <div class="tool-card-title">Video Converter</div>
+                        <div class="tool-card-desc">Convert videos between MP4, WEBM, GIF, and extract audio — powered by FFmpeg</div>
+                    </div>
+                    <div class="tool-card-footer">
+                        <span class="tool-card-status live">Live</span>
+                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </a>
+
+                <!-- Colour Picker -->
+                <a href="color-converter/index.html" class="tool-card" data-keywords="colour color picker hex rgb hsl css palette">
+                    <div class="tool-card-icon" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(59,130,246,0.12)); color: #f472b6;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                    </div>
+                    <div class="tool-card-content">
+                        <div class="tool-card-title">Colour Picker</div>
+                        <div class="tool-card-desc">Pick and convert colours between HEX, RGB, and HSL formats</div>
+                    </div>
+                    <div class="tool-card-footer">
+                        <span class="tool-card-status live">Live</span>
+                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </a>
 
             </div>
         </div>

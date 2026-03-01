@@ -109,12 +109,13 @@ def fetch_via_embed_page(shortcode):
                     thumbnail_base64 = fetch_image_as_base64(display_url)
 
                     if is_video:
-                        video_url = node.get('video_url', display_url)
+                        video_url = node.get('video_url', '')
                         media.append({
                             'type': 'video',
-                            'url_high': video_url,
-                            'url_low': video_url,
-                            'thumbnail': thumbnail_base64 or display_url
+                            'url_high': video_url or display_url,
+                            'url_low': video_url or display_url,
+                            'thumbnail': thumbnail_base64 or display_url,
+                            'is_proxied': False
                         })
                     else:
                         media.append({
@@ -130,12 +131,13 @@ def fetch_via_embed_page(shortcode):
                 if display_url:
                     thumbnail_base64 = fetch_image_as_base64(display_url)
                     if is_video:
-                        video_url = shortcode_media.get('video_url', display_url)
+                        video_url = shortcode_media.get('video_url', '')
                         media.append({
                             'type': 'video',
-                            'url_high': video_url,
-                            'url_low': video_url,
-                            'thumbnail': thumbnail_base64 or display_url
+                            'url_high': video_url or display_url,
+                            'url_low': video_url or display_url,
+                            'thumbnail': thumbnail_base64 or display_url,
+                            'is_proxied': False
                         })
                     else:
                         media.append({
@@ -145,7 +147,55 @@ def fetch_via_embed_page(shortcode):
                             'thumbnail': thumbnail_base64 or display_url
                         })
 
-    # Strategy 2: If JSON parsing didn't work, try scraping image URLs from HTML
+    # Strategy 2: Look for video URLs directly in HTML (video tags, og:video meta)
+    if not media or all(m['type'] != 'video' for m in media):
+        # Check for og:video meta tag
+        og_video = re.search(
+            r'<meta[^>]+(?:property|name)=["\']og:video["\'][^>]+content=["\']([^"\']+)["\']',
+            html, re.IGNORECASE
+        )
+        if not og_video:
+            og_video = re.search(
+                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:video["\']',
+                html, re.IGNORECASE
+            )
+        
+        if og_video:
+            video_url = og_video.group(1)
+            print(f'Found og:video URL: {video_url[:80]}...')
+            # Get thumbnail from og:image
+            og_image = re.search(
+                r'<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+                html, re.IGNORECASE
+            )
+            thumb_url = og_image.group(1) if og_image else video_url
+            thumbnail_base64 = fetch_image_as_base64(thumb_url)
+            media = [{
+                'type': 'video',
+                'url_high': video_url,
+                'url_low': video_url,
+                'thumbnail': thumbnail_base64 or thumb_url,
+                'is_proxied': False
+            }]
+        
+        # Also check for <video> tags with src
+        if not media:
+            video_tags = re.findall(
+                r'<video[^>]+src=["\']([^"\']+)["\']',
+                html, re.IGNORECASE
+            )
+            for vid_url in video_tags:
+                if 'cdninstagram.com' in vid_url or 'fbcdn.net' in vid_url:
+                    print(f'Found video tag URL: {vid_url[:80]}...')
+                    media.append({
+                        'type': 'video',
+                        'url_high': vid_url,
+                        'url_low': vid_url,
+                        'thumbnail': vid_url,
+                        'is_proxied': False
+                    })
+
+    # Strategy 3: If no video found, try scraping image URLs from HTML
     if not media:
         # Look for high-res image URLs in the embed HTML (Instagram CDN pattern)
         img_urls = re.findall(
@@ -182,6 +232,58 @@ def fetch_via_embed_page(shortcode):
 
     if media:
         return media
+    return None
+
+
+# ── Fallback 1b: Direct page og:video scraping ───────────────────
+def fetch_via_page_meta(shortcode):
+    """Try fetching the actual Instagram post page for og:video meta tag.
+    This can get video URLs for reels and video posts when embed page fails."""
+    post_url = f'https://www.instagram.com/p/{shortcode}/'
+    print(f'Trying direct page meta fallback: {post_url}')
+
+    try:
+        resp = requests.get(post_url, headers=BROWSER_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            print(f'Direct page returned {resp.status_code}')
+            return None
+
+        html = resp.text
+
+        # Look for og:video meta tag
+        og_video = re.search(
+            r'<meta[^>]+(?:property|name)=["\']og:video(?::url)?["\'][^>]+content=["\']([^"\']+)["\']',
+            html, re.IGNORECASE
+        )
+        if not og_video:
+            og_video = re.search(
+                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:video(?::url)?["\']',
+                html, re.IGNORECASE
+            )
+
+        if og_video:
+            video_url = og_video.group(1)
+            print(f'Found og:video in direct page: {video_url[:80]}...')
+
+            # Get thumbnail
+            og_image = re.search(
+                r'<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+                html, re.IGNORECASE
+            )
+            thumb_url = og_image.group(1) if og_image else ''
+            thumbnail_base64 = fetch_image_as_base64(thumb_url) if thumb_url else None
+
+            return [{
+                'type': 'video',
+                'url_high': video_url,
+                'url_low': video_url,
+                'thumbnail': thumbnail_base64 or thumb_url or video_url,
+                'is_proxied': False
+            }]
+
+    except Exception as e:
+        print(f'Direct page meta fallback failed: {e}')
+
     return None
 
 
@@ -316,9 +418,18 @@ def get_instagram():
             print(f'=== Embed page fallback success: {len(media)} items ===\n')
             return jsonify({'success': True, 'media': media})
     except Exception as e:
-        print(f'Embed page fallback failed, trying oEmbed: {e}')
+        print(f'Embed page fallback failed, trying direct page: {e}')
     
-    # 3) Last resort: oEmbed API (first image only, no video)
+    # 3) Try direct page og:video meta (works for reels/video posts)
+    try:
+        media = fetch_via_page_meta(shortcode)
+        if media:
+            print(f'=== Direct page meta success: {len(media)} items ===\n')
+            return jsonify({'success': True, 'media': media})
+    except Exception as e:
+        print(f'Direct page meta failed, trying oEmbed: {e}')
+    
+    # 4) Last resort: oEmbed API (first image only, no video)
     try:
         media = fetch_via_oembed(shortcode)
         if media:

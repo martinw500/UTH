@@ -10,10 +10,14 @@ Will be updated with more tools as I build them out.
 ## Tools
 - **YouTube Downloader** — Download YouTube videos in multiple formats and qualities
 - **Instagram Downloader** — Save photos and videos from public Instagram posts and reels
+- **Image Editor / Converter** — Edit, crop, compress, and convert images between formats (client-side)
+- **Video Converter** — Convert videos between MP4, WEBM, GIF, and extract audio using FFmpeg.wasm (client-side)
+- **Colour Picker** — Pick and convert colours between HEX, RGB, and HSL with a live colour picker
 
 ## Architecture
 - **Frontend** — Static HTML/CSS/JS hosted on GitHub Pages
 - **Backend** — Python serverless functions on Vercel (Instagram via instaloader, YouTube via yt-dlp)
+- **Client-side Tools** — Image editor, video converter, and colour picker run entirely in the browser (Canvas API, FFmpeg.wasm)
 - **Local Dev** — Unified Flask backend (`backend.py`) for local testing
 
 ## Local Development
@@ -52,6 +56,15 @@ Open any tool HTML file in your browser. The frontend auto-detects localhost and
 ├── youtube-downloader/
 │   ├── index.html              # YouTube tool UI
 │   └── js/youtube-downloader.js
+├── image-converter/
+│   ├── index.html              # Image editor/converter UI
+│   └── js/image-converter.js   # Client-side Canvas API editing & conversion
+├── video-converter/
+│   ├── index.html              # Video converter UI
+│   └── js/video-converter.js   # Client-side FFmpeg.wasm conversion
+├── color-converter/
+│   ├── index.html              # Colour picker UI
+│   └── js/color-converter.js   # HEX/RGB/HSL conversion
 ```
 
 ## Deployment
