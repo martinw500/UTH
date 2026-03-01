@@ -105,6 +105,14 @@
     }
 
     // --- FFmpeg Setup ---
+    // Helper: fetch a URL and convert to a same-origin blob URL (fixes CORS worker issues on GitHub Pages)
+    async function toBlobURL(url, mimeType) {
+        const response = await fetch(url);
+        const buf = await response.arrayBuffer();
+        const blob = new Blob([buf], { type: mimeType });
+        return URL.createObjectURL(blob);
+    }
+
     async function loadFFmpeg() {
         if (ffmpegLoaded) return;
 
@@ -124,9 +132,18 @@
         progressText.textContent = 'Loading FFmpeg (first time may take a moment)...';
         progressBar.style.width = '0%';
 
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
+
+        // Use blob URLs to avoid cross-origin worker restriction on GitHub Pages
+        const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+        const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+        const workerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript');
+
         await ffmpegInstance.load({
-            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-            wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+            coreURL,
+            wasmURL,
+            classWorkerURL: workerURL,
         });
 
         ffmpegLoaded = true;

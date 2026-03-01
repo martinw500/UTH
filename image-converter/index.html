@@ -131,6 +131,10 @@
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="M3 16v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
                             <span>Flip V</span>
                         </button>
+                        <button class="toolbar-btn" id="undoBtn" title="Undo" disabled>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                            <span>Undo</span>
+                        </button>
                         <button class="toolbar-btn" id="resetBtn" title="Reset to Original">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                             <span>Reset</span>
@@ -189,12 +193,15 @@
                                 <label class="input-label">Width (px)</label>
                                 <input type="number" class="input-field input-sm" id="resizeWidth" placeholder="Width" min="1">
                             </div>
-                            <span class="resize-x">×</span>
+                            <button class="toolbar-btn aspect-lock-btn active" id="aspectLockBtn" title="Aspect ratio locked" type="button">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </button>
                             <div class="resize-field">
                                 <label class="input-label">Height (px)</label>
                                 <input type="number" class="input-field input-sm" id="resizeHeight" placeholder="Height" min="1">
                             </div>
                             <button class="btn btn-secondary btn-sm" id="applyResizeBtn">Resize</button>
+                            <button class="btn btn-ghost btn-sm" id="resetSizeBtn" title="Reset to original dimensions" type="button">Reset</button>
                         </div>
                         <div class="resize-presets">
                             <button class="preset-btn" data-w="1920" data-h="1080">1920×1080</button>

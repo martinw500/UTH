@@ -150,6 +150,46 @@
                     <div class="color-history" id="colorHistory"></div>
                 </div>
 
+                <!-- Image Color Picker -->
+                <div class="color-format-group" style="margin-top: 16px;">
+                    <div class="color-format-header">
+                        <label class="input-label">Pick Color from Image</label>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 12px 0;">
+                        Upload an image and click anywhere on it to pick the exact pixel color.
+                    </p>
+                    <div class="eyedropper-upload-area" id="eyedropperDropzone">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <div class="dropzone-text" style="font-size: 0.85rem;">
+                            <strong>Drop an image</strong> or <button type="button" class="dropzone-browse" id="eyedropperBrowseBtn">browse</button>
+                        </div>
+                        <input type="file" id="eyedropperFileInput" accept="image/*" hidden>
+                    </div>
+                    <!-- Image canvas (hidden until image loaded) -->
+                    <div class="eyedropper-canvas-area" id="eyedropperCanvasArea" style="display: none;">
+                        <div class="eyedropper-info-bar">
+                            <span class="eyedropper-filename" id="eyedropperFilename"></span>
+                            <button class="btn btn-ghost btn-sm" id="eyedropperRemoveBtn" type="button">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                Remove
+                            </button>
+                        </div>
+                        <div class="eyedropper-canvas-wrapper" id="eyedropperCanvasWrapper">
+                            <canvas id="eyedropperCanvas"></canvas>
+                            <div class="eyedropper-magnifier" id="eyedropperMagnifier" style="display: none;">
+                                <canvas id="magnifierCanvas" width="100" height="100"></canvas>
+                                <div class="magnifier-crosshair"></div>
+                                <div class="magnifier-color-label" id="magnifierColorLabel">#000000</div>
+                            </div>
+                        </div>
+                        <div class="eyedropper-hint" id="eyedropperHint">Click on the image to pick a color</div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </main>

@@ -70,6 +70,13 @@
     const outputSavings = document.getElementById('outputSavings');
     const downloadBtn = document.getElementById('downloadBtn');
 
+    // Aspect ratio lock
+    const aspectLockBtn = document.getElementById('aspectLockBtn');
+    const resetSizeBtn = document.getElementById('resetSizeBtn');
+
+    // Undo
+    const undoBtn = document.getElementById('undoBtn');
+
     // --- State ---
     let originalImage = null;         // original Image element
     let originalFileName = '';
@@ -80,6 +87,11 @@
     let cropRect = { x: 0, y: 0, w: 0, h: 0 };
     let cropDrag = null;
     let outputUrl = null;
+    let aspectLocked = true;           // Aspect ratio lock state
+    let originalWidth = 0;             // Original image dimensions
+    let originalHeight = 0;
+    let undoStack = [];                // Undo history
+    const MAX_UNDO = 20;
 
     // --- Helpers ---
     function escapeHtml(str) {
@@ -130,6 +142,10 @@
             URL.revokeObjectURL(url);
             originalImage = img;
 
+            // Store original dimensions
+            originalWidth = img.naturalWidth;
+            originalHeight = img.naturalHeight;
+
             // Initialize edit canvas
             editCanvas = document.createElement('canvas');
             editCanvas.width = img.naturalWidth;
@@ -137,15 +153,26 @@
             editCtx = editCanvas.getContext('2d');
             editCtx.drawImage(img, 0, 0);
 
+            // Clear undo stack
+            undoStack = [];
+            updateUndoBtn();
+
             // Update UI
-            editorFilename.textContent = escapeHtml(file.name);
+            editorFilename.textContent = file.name;
             editorMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight} · ${formatSize(file.size)}`;
+
+            // Set actual default values in resize inputs
+            resizeWidth.value = img.naturalWidth;
+            resizeHeight.value = img.naturalHeight;
             resizeWidth.placeholder = img.naturalWidth;
             resizeHeight.placeholder = img.naturalHeight;
 
             dropzone.style.display = 'none';
             editorWorkspace.style.display = '';
             results.style.display = 'none';
+
+            // Clear previous export result
+            if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
 
             resetAdjustments();
             renderPreview();
@@ -162,12 +189,69 @@
         originalImage = null;
         editCanvas = null;
         editCtx = null;
+        undoStack = [];
+        updateUndoBtn();
         cancelCrop();
         dropzone.style.display = '';
         editorWorkspace.style.display = 'none';
         results.style.display = 'none';
         if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
+        // Reset resize inputs
+        resizeWidth.value = '';
+        resizeHeight.value = '';
     });
+
+    // --- Undo ---
+    function saveUndoState() {
+        if (!editCanvas) return;
+        const snapshot = document.createElement('canvas');
+        snapshot.width = editCanvas.width;
+        snapshot.height = editCanvas.height;
+        snapshot.getContext('2d').drawImage(editCanvas, 0, 0);
+        undoStack.push({
+            canvas: snapshot,
+            brightness: brightnessSlider.value,
+            contrast: contrastSlider.value,
+            saturation: saturationSlider.value,
+            blur: blurSlider.value
+        });
+        if (undoStack.length > MAX_UNDO) undoStack.shift();
+        updateUndoBtn();
+    }
+
+    function updateUndoBtn() {
+        if (undoBtn) {
+            undoBtn.disabled = undoStack.length === 0;
+            undoBtn.title = undoStack.length > 0 ? `Undo (${undoStack.length} steps)` : 'Nothing to undo';
+        }
+    }
+
+    if (undoBtn) {
+        undoBtn.addEventListener('click', () => {
+            if (undoStack.length === 0 || !editCanvas) return;
+            const state = undoStack.pop();
+            editCanvas.width = state.canvas.width;
+            editCanvas.height = state.canvas.height;
+            editCtx.drawImage(state.canvas, 0, 0);
+
+            brightnessSlider.value = state.brightness;
+            brightnessValue.textContent = state.brightness;
+            contrastSlider.value = state.contrast;
+            contrastValue.textContent = state.contrast;
+            saturationSlider.value = state.saturation;
+            saturationValue.textContent = state.saturation;
+            blurSlider.value = state.blur;
+            blurValue.textContent = state.blur;
+
+            // Update resize inputs to current dimensions
+            resizeWidth.value = editCanvas.width;
+            resizeHeight.value = editCanvas.height;
+
+            updateUndoBtn();
+            updateMetaDisplay();
+            renderPreview();
+        });
+    }
 
     // --- Preview Rendering (with CSS filters for live preview) ---
     function renderPreview() {
@@ -247,6 +331,7 @@
     flipVBtn.addEventListener('click', () => flip('v'));
 
     function rotate(deg) {
+        saveUndoState();
         bakeFilters();
         const temp = document.createElement('canvas');
         const isRightAngle = Math.abs(deg) === 90;
@@ -267,6 +352,7 @@
     }
 
     function flip(dir) {
+        saveUndoState();
         bakeFilters();
         const temp = document.createElement('canvas');
         temp.width = editCanvas.width;
@@ -289,11 +375,15 @@
 
     function updateMetaDisplay() {
         editorMeta.textContent = `${editCanvas.width} × ${editCanvas.height} · ${formatSize(originalFileSize)}`;
+        // Keep resize inputs synced with current dimensions
+        resizeWidth.value = editCanvas.width;
+        resizeHeight.value = editCanvas.height;
     }
 
     // --- Reset ---
     resetBtn.addEventListener('click', () => {
         if (!originalImage) return;
+        saveUndoState();
         cancelCrop();
 
         editCanvas.width = originalImage.naturalWidth;
@@ -303,6 +393,9 @@
         resetAdjustments();
         updateMetaDisplay();
         renderPreview();
+
+        // Also hide results since we reset the image
+        results.style.display = 'none';
     });
 
     // ==============================================
@@ -344,6 +437,7 @@
     applyCropBtn.addEventListener('click', () => {
         if (!isCropping) return;
 
+        saveUndoState();
         bakeFilters();
 
         // Convert crop rect from preview coords to actual image coords
@@ -510,17 +604,65 @@
     // ==============================================
     // RESIZE
     // ==============================================
+    // --- Aspect Ratio Lock ---
+    if (aspectLockBtn) {
+        aspectLockBtn.addEventListener('click', () => {
+            aspectLocked = !aspectLocked;
+            aspectLockBtn.classList.toggle('active', aspectLocked);
+            aspectLockBtn.title = aspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked';
+            // Update icon
+            aspectLockBtn.innerHTML = aspectLocked
+                ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+                : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+        });
+        // Set initial state
+        aspectLockBtn.classList.add('active');
+    }
+
+    // Width/Height sync when aspect locked
+    resizeWidth.addEventListener('input', () => {
+        if (aspectLocked && editCanvas) {
+            const w = parseInt(resizeWidth.value);
+            if (w > 0) {
+                const ratio = editCanvas.height / editCanvas.width;
+                resizeHeight.value = Math.round(w * ratio);
+            }
+        }
+    });
+
+    resizeHeight.addEventListener('input', () => {
+        if (aspectLocked && editCanvas) {
+            const h = parseInt(resizeHeight.value);
+            if (h > 0) {
+                const ratio = editCanvas.width / editCanvas.height;
+                resizeWidth.value = Math.round(h * ratio);
+            }
+        }
+    });
+
+    // --- Reset to Default Size ---
+    if (resetSizeBtn) {
+        resetSizeBtn.addEventListener('click', () => {
+            if (!originalImage) return;
+            resizeWidth.value = originalWidth;
+            resizeHeight.value = originalHeight;
+        });
+    }
+
     applyResizeBtn.addEventListener('click', () => {
         const w = parseInt(resizeWidth.value);
         const h = parseInt(resizeHeight.value);
         if (!w && !h) return;
 
-        bakeFilters();
-
+        // Don't resize if dimensions are the same
         let targetW = w || Math.round((h / editCanvas.height) * editCanvas.width);
         let targetH = h || Math.round((w / editCanvas.width) * editCanvas.height);
 
         if (targetW < 1 || targetH < 1) return;
+        if (targetW === editCanvas.width && targetH === editCanvas.height) return;
+
+        saveUndoState();
+        bakeFilters();
 
         const temp = document.createElement('canvas');
         temp.width = targetW;
@@ -532,8 +674,6 @@
         editCanvas.height = targetH;
         editCtx.drawImage(temp, 0, 0);
 
-        resizeWidth.value = '';
-        resizeHeight.value = '';
         updateMetaDisplay();
         renderPreview();
     });
@@ -591,6 +731,12 @@
         exportBtn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div> Exporting...';
         exportEstimate.textContent = '';
 
+        // Always revoke old output first to ensure fresh export
+        if (outputUrl) {
+            URL.revokeObjectURL(outputUrl);
+            outputUrl = null;
+        }
+
         // Bake adjustments into a final export canvas
         const exportCanvas = document.createElement('canvas');
         exportCanvas.width = editCanvas.width;
@@ -619,15 +765,14 @@
             return;
         }
 
-        // Display result
-        if (outputUrl) URL.revokeObjectURL(outputUrl);
+        // Display result — create fresh blob URL
         outputUrl = URL.createObjectURL(blob);
 
         const ext = FORMAT_EXT[format] || 'png';
         const outFileName = stripExtension(originalFileName) + '.' + ext;
 
         outputPreview.src = outputUrl;
-        outputName.textContent = escapeHtml(outFileName);
+        outputName.textContent = outFileName;
         outputSize.textContent = formatSize(blob.size);
 
         const savingsNum = originalFileSize > 0 ? ((originalFileSize - blob.size) / originalFileSize) * 100 : 0;
