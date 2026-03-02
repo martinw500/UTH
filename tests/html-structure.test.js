@@ -233,7 +233,7 @@ describe('Video Converter page structure', () => {
 
     test('loads FFmpeg scripts with crossorigin', () => {
         expect(html).toMatch(/ffmpeg\.js[^>]*crossorigin/);
-        expect(html).toMatch(/util\.js[^>]*crossorigin/);
+        expect(html).toMatch(/index\.js[^>]*crossorigin/);
     });
 
     test('has COOP/COEP service worker registration', () => {

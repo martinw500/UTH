@@ -493,14 +493,9 @@
     console.log('Video Converter initialized');
 
     // --- Startup compatibility check ---
+    // Show a warning if SharedArrayBuffer isn't available yet.
+    // Don't hard-disable the button — the COI service worker may activate after a reload.
     if (!isSharedArrayBufferAvailable()) {
-        showError(
-            'Your browser environment does not support SharedArrayBuffer, which is required for video conversion. ' +
-            'This usually means the page is missing required security headers (COOP/COEP). ' +
-            'If using GitHub Pages, try the Vercel deployment instead. ' +
-            'On some browsers, you may need to enable the feature in flags.'
-        );
-        convertBtn.disabled = true;
-        convertBtn.title = 'SharedArrayBuffer not available — video conversion is disabled';
+        console.warn('SharedArrayBuffer not available on initial load. The COI service worker may fix this after reload.');
     }
 })();

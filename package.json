@@ -4,8 +4,9 @@
   "description": "A collection of useful tools in one place.",
   "main": "script.js",
   "scripts": {
-    "test": "jest --verbose",
-    "test:ci": "jest --ci --coverage --verbose"
+    "test": "jest --verbose --testPathIgnorePatterns=deployed-site",
+    "test:ci": "jest --ci --coverage --verbose --testPathIgnorePatterns=deployed-site",
+    "test:e2e": "jest tests/deployed-site.test.js --verbose"
   },
   "jest": {
     "testEnvironment": "jsdom",

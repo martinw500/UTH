@@ -56,7 +56,7 @@
                 <!-- Notice -->
                 <div class="tool-panel-notice">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                    <span>All processing happens in your browser using FFmpeg. Large files may take a while. First use downloads ~30 MB of FFmpeg libraries. <strong>Requires HTTPS with proper security headers.</strong></span>
+                    <span>All processing happens in your browser using FFmpeg. Large files may take a while. The first conversion downloads ~30 MB of processing libraries (cached after that). <strong>Requires a modern browser with HTTPS.</strong></span>
                 </div>
 
                 <!-- Dropzone -->
@@ -247,7 +247,7 @@
     </footer>
 
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/util.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
     <!-- Service worker to enable SharedArrayBuffer on GitHub Pages (adds COOP/COEP headers) -->
     <script>
         // Only register the COI service worker if not already cross-origin isolated
