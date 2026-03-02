@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "npm ci && npm run test:ci",
+  "buildCommand": "npm run test:ci",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/api/(.*)",
