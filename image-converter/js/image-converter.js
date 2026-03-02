@@ -257,7 +257,10 @@
     function renderPreview() {
         if (!editCanvas) return;
 
-        const maxW = canvasWrapper.clientWidth || 800;
+        // Use the parent container's width to avoid a shrinking feedback loop
+        // (canvasWrapper is inline-block so its width follows the canvas)
+        const container = canvasWrapper.parentElement;
+        const maxW = (container ? container.clientWidth : 0) || 800;
         const maxH = 500;
         const scale = Math.min(1, maxW / editCanvas.width, maxH / editCanvas.height);
 
@@ -389,6 +392,10 @@
         editCanvas.width = originalImage.naturalWidth;
         editCanvas.height = originalImage.naturalHeight;
         editCtx.drawImage(originalImage, 0, 0);
+
+        // Restore original dimensions for resize inputs
+        originalWidth = originalImage.naturalWidth;
+        originalHeight = originalImage.naturalHeight;
 
         resetAdjustments();
         updateMetaDisplay();
@@ -859,6 +866,10 @@
 
     // Initialize — hide quality/compression for PNG (default)
     qualityGroup.style.display = 'none';
+
+    // Sync compression preset to quality slider on init
+    // (default compression preset is 'medium' which = 60%)
+    onCompressionChange();
 
     console.log('Image Editor / Converter initialized');
 })();

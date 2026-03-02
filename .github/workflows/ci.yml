@@ -1,0 +1,113 @@
+name: CI — Run Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:ci
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  validate:
+    name: Validate Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check all HTML files exist
+        run: |
+          files=(
+            "index.html"
+            "feedback.html"
+            "image-converter/index.html"
+            "video-converter/index.html"
+            "color-converter/index.html"
+            "youtube-downloader/index.html"
+            "instagram-downloader/index.html"
+          )
+          for f in "${files[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "ERROR: Missing file: $f"
+              exit 1
+            fi
+          done
+          echo "All HTML files present."
+
+      - name: Check required JS files exist
+        run: |
+          files=(
+            "script.js"
+            "js/config.js"
+            "styles.css"
+            "image-converter/js/image-converter.js"
+            "video-converter/js/video-converter.js"
+            "color-converter/js/color-converter.js"
+            "youtube-downloader/js/youtube-downloader.js"
+            "instagram-downloader/js/instagram-downloader.js"
+          )
+          for f in "${files[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "ERROR: Missing file: $f"
+              exit 1
+            fi
+          done
+          echo "All JS files present."
+
+      - name: Validate vercel.json
+        run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf-8')); console.log('vercel.json is valid JSON')"
+
+      - name: Check for console.error/debugger statements
+        run: |
+          echo "Checking for leftover debugger statements..."
+          if grep -rn "debugger;" --include="*.js" --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "WARNING: Found debugger statements"
+            exit 1
+          fi
+          echo "No debugger statements found."
+
+      - name: Validate HTML has required meta tags
+        run: |
+          for f in index.html feedback.html image-converter/index.html video-converter/index.html color-converter/index.html youtube-downloader/index.html instagram-downloader/index.html; do
+            if ! grep -q 'charset="UTF-8"' "$f"; then
+              echo "ERROR: $f missing charset meta tag"
+              exit 1
+            fi
+            if ! grep -q 'name="viewport"' "$f"; then
+              echo "ERROR: $f missing viewport meta tag"
+              exit 1
+            fi
+            if ! grep -q '<title>' "$f"; then
+              echo "ERROR: $f missing title tag"
+              exit 1
+            fi
+          done
+          echo "All HTML files have required meta tags."

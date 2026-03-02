@@ -108,13 +108,41 @@
     // Helper: fetch a URL and convert to a same-origin blob URL (fixes CORS worker issues on GitHub Pages)
     async function toBlobURL(url, mimeType) {
         const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
         const buf = await response.arrayBuffer();
         const blob = new Blob([buf], { type: mimeType });
         return URL.createObjectURL(blob);
     }
 
+    // Check if SharedArrayBuffer is available (required by ffmpeg.wasm in some environments)
+    function isSharedArrayBufferAvailable() {
+        try {
+            return typeof SharedArrayBuffer !== 'undefined';
+        } catch (e) {
+            return false;
+        }
+    }
+
     async function loadFFmpeg() {
         if (ffmpegLoaded) return;
+
+        // Check for SharedArrayBuffer support
+        if (!isSharedArrayBufferAvailable()) {
+            throw new Error(
+                'SharedArrayBuffer is not available in this browser context. ' +
+                'This is required for video conversion. ' +
+                'This can happen if the site is not served with the correct security headers (COOP/COEP). ' +
+                'Try using the site on the Vercel deployment or a modern browser with HTTPS.'
+            );
+        }
+
+        // Check for required globals
+        if (typeof FFmpegWASM === 'undefined') {
+            throw new Error('FFmpeg library failed to load. Please refresh the page and try again.');
+        }
+        if (typeof FFmpegUtil === 'undefined') {
+            throw new Error('FFmpeg utilities failed to load. Please refresh the page and try again.');
+        }
 
         const { FFmpeg } = FFmpegWASM;
         ffmpegInstance = new FFmpeg();
@@ -135,16 +163,24 @@
         const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
         const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
 
-        // Use blob URLs to avoid cross-origin worker restriction on GitHub Pages
-        const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-        const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-        const workerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript');
+        try {
+            // Use blob URLs to avoid cross-origin worker restriction on GitHub Pages
+            const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+            const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+            const workerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript');
 
-        await ffmpegInstance.load({
-            coreURL,
-            wasmURL,
-            classWorkerURL: workerURL,
-        });
+            await ffmpegInstance.load({
+                coreURL,
+                wasmURL,
+                classWorkerURL: workerURL,
+            });
+        } catch (loadErr) {
+            ffmpegInstance = null;
+            throw new Error(
+                'Failed to load FFmpeg engine: ' + (loadErr.message || 'Unknown error') +
+                '. This may be caused by missing security headers. Try using the Vercel deployment.'
+            );
+        }
 
         ffmpegLoaded = true;
     }
@@ -262,6 +298,10 @@
         try {
             await loadFFmpeg();
 
+            if (!ffmpegInstance) {
+                throw new Error('FFmpeg failed to initialize. Please refresh and try again.');
+            }
+
             const { fetchFile } = FFmpegUtil;
             const fmt = outputFormat.value;
             const quality = qualitySelect.value;
@@ -271,22 +311,40 @@
             progressText.textContent = 'Reading file...';
             progressBar.style.width = '5%';
 
-            await ffmpegInstance.writeFile(inputName, await fetchFile(currentFile));
+            const fileData = await fetchFile(currentFile);
+            await ffmpegInstance.writeFile(inputName, fileData);
 
             progressText.textContent = 'Converting...';
             progressBar.style.width = '10%';
 
             const args = buildFFmpegArgs(inputName, outName, fmt, quality);
             console.log('[FFmpeg] Command:', args.join(' '));
-            await ffmpegInstance.exec(args);
+
+            const exitCode = await ffmpegInstance.exec(args);
+            if (exitCode !== 0) {
+                console.warn('[FFmpeg] Non-zero exit code:', exitCode);
+            }
 
             progressText.textContent = 'Reading output...';
             progressBar.style.width = '95%';
 
             if (currentOutputUrl) URL.revokeObjectURL(currentOutputUrl);
 
-            const data = await ffmpegInstance.readFile(outName);
+            let data;
+            try {
+                data = await ffmpegInstance.readFile(outName);
+            } catch (readErr) {
+                throw new Error(
+                    'Conversion produced no output. The input format or selected settings may not be supported. ' +
+                    'Try a different output format or quality setting.'
+                );
+            }
+
             const blob = new Blob([data.buffer], { type: getMimeType(fmt) });
+            if (blob.size === 0) {
+                throw new Error('Conversion produced an empty file. Try different settings or a different format.');
+            }
+
             const url = URL.createObjectURL(blob);
             currentOutputUrl = url;
 
@@ -433,4 +491,16 @@
     }
 
     console.log('Video Converter initialized');
+
+    // --- Startup compatibility check ---
+    if (!isSharedArrayBufferAvailable()) {
+        showError(
+            'Your browser environment does not support SharedArrayBuffer, which is required for video conversion. ' +
+            'This usually means the page is missing required security headers (COOP/COEP). ' +
+            'If using GitHub Pages, try the Vercel deployment instead. ' +
+            'On some browsers, you may need to enable the feature in flags.'
+        );
+        convertBtn.disabled = true;
+        convertBtn.title = 'SharedArrayBuffer not available — video conversion is disabled';
+    }
 })();
