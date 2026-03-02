@@ -3,7 +3,7 @@
 // enabling SharedArrayBuffer on environments that can't set headers (e.g. GitHub Pages).
 // Source: https://github.com/niceegg/coi-serviceworker
 
-let coepCredentialless = false;
+let coepCredentialless = true;
 if (typeof window === 'undefined') {
     self.addEventListener("install", () => self.skipWaiting());
     self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));

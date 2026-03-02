@@ -169,15 +169,35 @@
             const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
             const workerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript');
 
-            await ffmpegInstance.load({
-                coreURL,
-                wasmURL,
-                classWorkerURL: workerURL,
-            });
+            try {
+                // Primary: load with classWorkerURL (needed when ffmpeg.js is loaded from CDN)
+                await ffmpegInstance.load({
+                    coreURL,
+                    wasmURL,
+                    classWorkerURL: workerURL,
+                });
+            } catch (primaryErr) {
+                console.warn('[FFmpeg] Primary load failed, retrying without classWorkerURL:', primaryErr);
+                // Retry: some environments work better without classWorkerURL
+                ffmpegInstance = new FFmpeg();
+                ffmpegInstance.on('progress', ({ progress: p }) => {
+                    const pct = Math.min(100, Math.max(0, Math.round(p * 100)));
+                    progressBar.style.width = pct + '%';
+                    progressText.textContent = `Converting... ${pct}%`;
+                });
+                ffmpegInstance.on('log', ({ message }) => {
+                    console.log('[FFmpeg]', message);
+                });
+                await ffmpegInstance.load({
+                    coreURL,
+                    wasmURL,
+                });
+            }
         } catch (loadErr) {
+            console.error('[FFmpeg] Load error:', loadErr);
             ffmpegInstance = null;
             throw new Error(
-                'Failed to load FFmpeg engine: ' + (loadErr.message || 'Unknown error') +
+                'Failed to load FFmpeg engine: ' + (loadErr.message || String(loadErr) || 'Unknown error') +
                 '. This may be caused by missing security headers. Try using the Vercel deployment.'
             );
         }

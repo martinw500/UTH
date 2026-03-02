@@ -256,14 +256,28 @@
             navigator.serviceWorker.register('coi-serviceworker.js').then(
                 function (reg) {
                     if (reg.active && !navigator.serviceWorker.controller) {
-                        // SW active but no controller — need a reload to intercept requests
+                        // SW active but not controlling this page — reload to get COOP/COEP headers
                         window.location.reload();
+                    } else if (reg.installing || reg.waiting) {
+                        // SW is still installing — wait for it to activate, then reload
+                        var sw = reg.installing || reg.waiting;
+                        sw.addEventListener('statechange', function () {
+                            if (this.state === 'activated') {
+                                window.location.reload();
+                            }
+                        });
                     }
                 },
                 function (err) {
                     console.warn('COI service worker registration failed:', err);
                 }
             );
+            // Fallback: if clients.claim() fires before statechange, catch the controller change
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                if (!window.crossOriginIsolated) {
+                    window.location.reload();
+                }
+            });
         }
     </script>
     <script src="js/video-converter.js"></script>
