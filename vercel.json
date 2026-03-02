@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "npm ci && npm run test:ci",
   "headers": [
     {
       "source": "/api/(.*)",
@@ -11,6 +12,13 @@
     },
     {
       "source": "/video-converter/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    },
+    {
+      "source": "/video-converter/index.html",
       "headers": [
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
         { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
