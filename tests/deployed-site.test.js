@@ -9,7 +9,10 @@
 // elements are present, headers are correct, and features work.
 // ============================================
 
-const SITE = 'https://useful-tool-hub.vercel.app';
+// Override with SITE_URL to run against a Vercel preview deployment or a local
+// server, e.g. `SITE_URL=https://uth-abc123.vercel.app npm run test:e2e`.
+// Without this these tests can only ever validate what is already in production.
+const SITE = (process.env.SITE_URL || 'https://useful-tool-hub.vercel.app').replace(/\/$/, '');
 
 // Increase timeout — network requests to the live site
 jest.setTimeout(30000);

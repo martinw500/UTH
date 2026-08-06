@@ -4,8 +4,11 @@
   "description": "A collection of useful tools in one place.",
   "main": "script.js",
   "scripts": {
+    "dev": "npx --yes serve -l 5500 .",
+    "dev:api": "python backend.py",
     "test": "jest --verbose --testPathIgnorePatterns=deployed-site",
     "test:ci": "jest --ci --coverage --verbose --testPathIgnorePatterns=deployed-site",
+    "test:build": "jest --ci --silent --testPathIgnorePatterns=deployed-site",
     "test:e2e": "jest tests/deployed-site.test.js --verbose"
   },
   "jest": {

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run test:ci",
+  "buildCommand": "npm run test:build",
   "outputDirectory": ".",
   "headers": [
     {
