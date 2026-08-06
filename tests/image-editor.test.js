@@ -3,17 +3,10 @@
 // Tests for helper functions and logic
 // ============================================
 
-// Replicate pure helper functions from image-converter.js for testing
-
-function formatSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-}
-
-function stripExtension(name) {
-    return name.replace(/\.[^.]+$/, '');
-}
+// Imports the real shared module. These assertions are unchanged from when
+// they tested copy-pasted clones, so a green run proves the extraction into
+// js/shared/format.js preserved behaviour.
+import { formatBytes as formatSize, stripExtension } from '../js/shared/format.js';
 
 function buildFilterString(brightness, contrast, saturation, blur) {
     let filter = '';

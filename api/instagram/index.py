@@ -30,6 +30,35 @@ def get_instaloader():
     )
     return loader
 
+# Instagram CDN paths carry a resize segment like /s640x640/ (and sometimes
+# /p1080x1080/). Rewriting it upward often yields the larger derivative.
+SIZE_SEGMENT_RE = re.compile(r'/([sp])\d{2,4}x\d{2,4}/')
+TARGET_SIZE_SEGMENT = 1080
+
+
+def upgrade_cdn_url(url, target=TARGET_SIZE_SEGMENT):
+    """Rewrite a size-capped Instagram CDN URL to request a larger derivative.
+
+    Returns the upgraded URL if it actually serves, otherwise the original.
+    Instagram signs these URLs, so the rewrite is not guaranteed to validate.
+    """
+    if not url or not SIZE_SEGMENT_RE.search(url):
+        return url
+
+    candidate = SIZE_SEGMENT_RE.sub(f'/\\g<1>{target}x{target}/', url)
+    if candidate == url:
+        return url
+
+    try:
+        resp = requests.head(candidate, headers=BROWSER_HEADERS, timeout=5, allow_redirects=True)
+        if resp.status_code == 200:
+            print(f'Upgraded CDN URL to {target}px')
+            return candidate
+    except Exception as e:
+        print(f'CDN upgrade probe failed: {e}')
+    return url
+
+
 def fetch_image_as_base64(url):
     """Fetch an image and convert to base64 data URL"""
     try:
@@ -215,8 +244,14 @@ def fetch_via_embed_page(shortcode):
 
         # Filter out tiny profile pics / icons (they usually have s150x150 or similar)
         full_urls = [u for u in unique_urls if not re.search(r's\d{2,3}x\d{2,3}', u)]
+        degraded = False
         if not full_urls:
-            full_urls = unique_urls
+            # Every candidate is size-capped. Try to rewrite them upward rather
+            # than silently handing back a 640px preview as "the download".
+            full_urls = [upgrade_cdn_url(u) for u in unique_urls]
+            degraded = any(re.search(r's\d{2,3}x\d{2,3}', u) for u in full_urls)
+            if degraded:
+                print('Warning: only size-capped image URLs available')
 
         if full_urls:
             print(f'Found {len(full_urls)} images via HTML scraping')
@@ -227,7 +262,8 @@ def fetch_via_embed_page(shortcode):
                         'type': 'image',
                         'url_high': img_url,
                         'url_low': img_url,
-                        'thumbnail': thumbnail_base64
+                        'thumbnail': thumbnail_base64,
+                        'degraded': degraded,
                     })
 
     if media:
@@ -293,7 +329,12 @@ def fetch_via_oembed(shortcode):
     Only returns the first image (no carousel/video support) but works
     when everything else is rate-limited on cloud IPs."""
     post_url = f'https://www.instagram.com/p/{shortcode}/'
-    oembed_url = f'https://i.instagram.com/api/v1/oembed/?url={post_url}'
+    # Without maxwidth, oEmbed returns a ~640px thumbnail. 1080 is the largest
+    # Instagram honours; it may still hand back something smaller.
+    oembed_url = (
+        f'https://i.instagram.com/api/v1/oembed/?url={post_url}'
+        f'&maxwidth=1080&omitscript=true'
+    )
     print(f'Trying oEmbed fallback: {oembed_url}')
 
     resp = requests.get(oembed_url, headers={
@@ -310,7 +351,9 @@ def fetch_via_oembed(shortcode):
     if not thumbnail_url:
         return None
 
-    print(f'oEmbed thumbnail: {thumbnail_url[:80]}...')
+    thumbnail_url = upgrade_cdn_url(thumbnail_url)
+    width = data.get('thumbnail_width') or 0
+    print(f'oEmbed thumbnail ({width}px): {thumbnail_url[:80]}...')
     thumbnail_base64 = fetch_image_as_base64(thumbnail_url)
 
     if not thumbnail_base64:
@@ -320,7 +363,11 @@ def fetch_via_oembed(shortcode):
         'type': 'image',
         'url_high': thumbnail_url,
         'url_low': thumbnail_url,
-        'thumbnail': thumbnail_base64
+        'thumbnail': thumbnail_base64,
+        # oEmbed is a social-card thumbnail, not the original upload. Say so
+        # rather than passing a downscale off as the real file.
+        'degraded': True,
+        'width': width or None,
     }]
 
 
@@ -401,43 +448,32 @@ def get_instagram():
     
     shortcode = match.group(2)
     print(f'\n=== Fetching Instagram post: {shortcode} ===')
-    
-    # 1) Try instaloader (full quality, carousel support)
-    try:
-        media = fetch_via_instaloader(shortcode)
+
+    strategies = [
+        ('instaloader', fetch_via_instaloader),   # full quality, carousel support
+        ('embed_page', fetch_via_embed_page),     # carousel support, less rate-limited
+        ('page_meta', fetch_via_page_meta),       # og:video, works for reels
+        ('oembed', fetch_via_oembed),             # last resort, first image only
+    ]
+
+    for name, strategy in strategies:
+        try:
+            media = strategy(shortcode)
+        except Exception as e:
+            print(f'Strategy {name} failed: {e}')
+            continue
+
         if media:
-            print(f'=== Instaloader success: {len(media)} items ===\n')
-            return jsonify({'success': True, 'media': media})
-    except Exception as e:
-        print(f'Instaloader failed, trying embed page fallback: {e}')
-    
-    # 2) Try embed page scraping (carousel support, less rate-limited)
-    try:
-        media = fetch_via_embed_page(shortcode)
-        if media:
-            print(f'=== Embed page fallback success: {len(media)} items ===\n')
-            return jsonify({'success': True, 'media': media})
-    except Exception as e:
-        print(f'Embed page fallback failed, trying direct page: {e}')
-    
-    # 3) Try direct page og:video meta (works for reels/video posts)
-    try:
-        media = fetch_via_page_meta(shortcode)
-        if media:
-            print(f'=== Direct page meta success: {len(media)} items ===\n')
-            return jsonify({'success': True, 'media': media})
-    except Exception as e:
-        print(f'Direct page meta failed, trying oEmbed: {e}')
-    
-    # 4) Last resort: oEmbed API (first image only, no video)
-    try:
-        media = fetch_via_oembed(shortcode)
-        if media:
-            print(f'=== oEmbed fallback success: {len(media)} items ===\n')
-            return jsonify({'success': True, 'media': media})
-    except Exception as e:
-        print(f'oEmbed fallback also failed: {e}')
-    
+            print(f'=== {name} success: {len(media)} items ===\n')
+            return jsonify({
+                'success': True,
+                'media': media,
+                'source': name,
+                # True when Instagram only gave us a size-capped preview, so the
+                # UI can say that instead of passing it off as the original.
+                'degraded': any(m.get('degraded') for m in media),
+            })
+
     return jsonify({
         'error': 'Could not retrieve media from this Instagram post. Instagram may be blocking requests. Please try again in a few minutes.'
     }), 502

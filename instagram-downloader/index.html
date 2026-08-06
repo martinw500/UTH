@@ -95,6 +95,11 @@
                         <span class="results-count" id="resultsCount">0 items found</span>
                         <button class="btn btn-secondary btn-sm" id="selectAllBtn">Select All</button>
                     </div>
+                    <p class="quality-notice" id="qualityNotice" role="status" hidden>
+                        Instagram only served a reduced-size preview for this post, so these
+                        files are lower resolution than the original upload. Trying again in a
+                        few minutes sometimes gets the full-size version.
+                    </p>
                     <div class="media-grid" id="imageGrid"></div>
                     <div class="download-panel">
                         <h3>Download Options</h3>
@@ -105,6 +110,7 @@
                             </button>
                             <div class="format-group" id="imageFormatGroup">
                                 <select class="format-select" id="formatSelect">
+                                    <option value="original" selected>Original (best quality)</option>
                                     <option value="jpg">JPG</option>
                                     <option value="png">PNG</option>
                                     <option value="webp">WebP</option>
@@ -112,12 +118,15 @@
                             </div>
                             <div class="format-group" id="videoFormatGroup" style="display: none;">
                                 <select class="format-select" id="videoFormatSelect">
-                                    <option value="mp4">MP4</option>
-                                    <option value="mov">MOV</option>
-                                    <option value="avi">AVI</option>
+                                    <option value="original" selected>Original (MP4)</option>
                                 </select>
                             </div>
                         </div>
+                        <p class="download-hint" id="downloadHint">
+                            <strong>Original</strong> saves Instagram's own file untouched &mdash; any other
+                            format re-encodes it and loses a little quality. To convert a downloaded video,
+                            use the <a href="../video-converter/index.html">video converter</a>.
+                        </p>
                     </div>
                 </div>
 

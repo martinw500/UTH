@@ -886,6 +886,34 @@ body::before {
     color: var(--text-secondary);
 }
 
+.quality-notice {
+    display: flex;
+    gap: 10px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.quality-notice[hidden] {
+    display: none;
+}
+
+.download-hint {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin-top: 14px;
+}
+
+.download-hint a {
+    color: var(--primary-light);
+}
+
 .media-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

@@ -4,8 +4,9 @@ Combines Instagram and YouTube downloaders for easy local testing
 Run with: python backend.py
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
+from urllib.parse import urlparse
 import instaloader
 import requests
 import base64
@@ -20,6 +21,15 @@ CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS
 # =============================================================================
 # INSTAGRAM DOWNLOADER
 # =============================================================================
+
+BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.instagram.com/',
+    'Origin': 'https://www.instagram.com',
+}
+
 
 def get_instaloader():
     """Create a fresh Instaloader instance per request to avoid stale sessions"""
@@ -159,6 +169,96 @@ def get_instagram():
     except Exception as e:
         print(f'Error: {str(e)}')
         return jsonify({'error': f'Failed to fetch Instagram post: {str(e)}'}), 500
+
+
+# NOTE: duplicated from api/instagram/proxy.py so local dev has the route at all.
+# Both copies move to api/_lib/ once cross-directory imports are verified on a
+# Vercel preview deploy.
+ALLOWED_HOST_SUFFIXES = ('cdninstagram.com', 'fbcdn.net', 'instagram.com')
+UNSAFE_FILENAME_CHARS = re.compile(r'[^A-Za-z0-9._-]')
+
+
+def is_allowed_media_url(media_url):
+    """Allow only https URLs whose *hostname* is an Instagram CDN host.
+
+    A substring check over the whole URL would let
+    ``https://evil.com/?x=instagram.com`` through, making this an open relay.
+    """
+    try:
+        parsed = urlparse(media_url)
+    except ValueError:
+        return False
+
+    if parsed.scheme != 'https' or not parsed.hostname:
+        return False
+
+    host = parsed.hostname.lower().rstrip('.')
+    return any(
+        host == suffix or host.endswith('.' + suffix)
+        for suffix in ALLOWED_HOST_SUFFIXES
+    )
+
+
+def safe_filename(name, fallback):
+    if not name:
+        return fallback
+    cleaned = UNSAFE_FILENAME_CHARS.sub('_', name).strip('._')
+    return cleaned[:100] or fallback
+
+
+@app.route('/api/instagram/proxy', methods=['GET', 'OPTIONS'])
+def proxy_media():
+    """Stream Instagram media through us so the browser can fetch() it.
+
+    Instagram's CDN sends no CORS headers, so a direct fetch()->Blob download
+    fails; <img>/<video> rendering is unaffected and should not come through here.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    media_url = request.args.get('url')
+    if not media_url:
+        return jsonify({'error': 'URL parameter required'}), 400
+
+    if not is_allowed_media_url(media_url):
+        return jsonify({'error': 'Only Instagram media URLs are allowed'}), 403
+
+    try:
+        upstream = requests.get(media_url, headers=BROWSER_HEADERS, stream=True, timeout=30)
+        if upstream.status_code != 200:
+            return jsonify({'error': f'Instagram returned status {upstream.status_code}'}), 502
+
+        content_type = upstream.headers.get('Content-Type', 'application/octet-stream')
+        if 'video' in content_type:
+            ext = 'mp4'
+        elif 'image' in content_type:
+            ext = content_type.split('/')[-1].replace('jpeg', 'jpg')
+        else:
+            ext = 'bin'
+
+        basename = safe_filename(request.args.get('filename'), 'instagram_media')
+        headers = {
+            'Content-Type': content_type,
+            'Content-Disposition': f'attachment; filename="{basename}.{ext}"',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=300, s-maxage=86400',
+        }
+        content_length = upstream.headers.get('Content-Length')
+        if content_length:
+            headers['Content-Length'] = content_length
+
+        def generate():
+            for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                if chunk:
+                    yield chunk
+
+        return Response(generate(), status=200, headers=headers)
+
+    except requests.Timeout:
+        return jsonify({'error': 'Request to Instagram timed out'}), 504
+    except Exception as e:
+        print(f'Proxy error: {e}')
+        return jsonify({'error': f'Failed to proxy media: {str(e)}'}), 500
 
 
 # =============================================================================
