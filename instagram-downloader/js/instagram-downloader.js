@@ -23,6 +23,33 @@ function isValidInstagramUrl(url) {
     return /^https?:\/\/(www\.)?instagram\.com\/(p|reel)\/[A-Za-z0-9_-]+\/?/.test(url);
 }
 
+// ── Media URL selection ───────────────────────────────────────────
+// Previews and downloads need different URLs. An <img>/<video> src needs no
+// CORS, so previews can point straight at the Instagram CDN. A fetch() -> Blob
+// download does need CORS, so it must go through our proxy.
+
+function proxyUrl(url, filename) {
+    const params = new URLSearchParams({ url });
+    if (filename) params.set('filename', filename);
+    return `${API_CONFIG.BACKEND_URL}/api/instagram/proxy?${params}`;
+}
+
+// The full-resolution source. Never the base64 thumbnail: that is a downscaled
+// preview, and downloading it was the cause of blurry saved files.
+function pickDownloadUrl(media, filename) {
+    const src = media.url_high || media.url_low;
+    if (!src) return media.thumbnail || null;
+    // Already-inlined data: URLs cannot be proxied; use them verbatim.
+    if (src.startsWith('data:')) return src;
+    return proxyUrl(src, filename);
+}
+
+// Prefer the direct CDN URL so previews cost us no proxy bandwidth. Callers
+// fall back to the proxy via onerror if Instagram blocks the hotlink.
+function pickPreviewUrl(media) {
+    return media.url_high || media.url_low || media.thumbnail || null;
+}
+
 function showError(message) {
     errorText.innerHTML = `${message} <a href="troubleshooting.html" target="_blank" style="color: var(--primary-light); text-decoration: underline;">Need help?</a>`;
     errorMsg.classList.add('active');
@@ -30,6 +57,14 @@ function showError(message) {
 
 function hideError() {
     errorMsg.classList.remove('active');
+}
+
+// Instagram sometimes only serves a size-capped preview from a cloud IP. Say so
+// rather than letting a downscale look like the original file.
+function showQualityNotice(degraded) {
+    const notice = document.getElementById('qualityNotice');
+    if (!notice) return;
+    notice.hidden = !degraded;
 }
 
 async function fetchInstagramMedia(url) {
@@ -51,7 +86,7 @@ async function fetchInstagramMedia(url) {
             throw new Error('No media found in this post');
         }
 
-        displayMedia(data.media);
+        displayMedia(data.media, data);
     } catch (error) {
         if (error instanceof TypeError) {
             showError('Cannot connect to backend server. Please wait a moment and try again. The server may be starting up (cold start takes ~10s). <a href="troubleshooting.html" target="_blank" style="color: var(--primary-light); text-decoration: underline;">Need help?</a>');
@@ -65,10 +100,11 @@ async function fetchInstagramMedia(url) {
     }
 }
 
-function displayMedia(mediaArray) {
+function displayMedia(mediaArray, meta = {}) {
     currentMedia = mediaArray;
     selectedIndices.clear();
     imageGrid.innerHTML = '';
+    showQualityNotice(meta.degraded || mediaArray.some(m => m.degraded));
 
     mediaArray.forEach((media, index) => {
         const item = document.createElement('div');
@@ -91,20 +127,35 @@ function displayMedia(mediaArray) {
             updateDownloadButtons();
         });
 
+        const previewSrc = pickPreviewUrl(media);
+
         let mediaElement;
         if (media.type === 'video') {
             mediaElement = document.createElement('video');
-            mediaElement.src = media.url_high;
+            mediaElement.src = previewSrc;
             mediaElement.controls = true;
-            mediaElement.poster = media.thumbnail;
+            mediaElement.poster = media.thumbnail || '';
             mediaElement.style.width = '100%';
             mediaElement.style.display = 'block';
         } else {
             mediaElement = document.createElement('img');
-            mediaElement.src = media.thumbnail;
+            mediaElement.src = previewSrc;
             mediaElement.alt = `Instagram ${media.type} ${index + 1}`;
             mediaElement.loading = 'lazy';
         }
+
+        // If Instagram blocks the hotlink, retry through the proxy, then fall
+        // back to whatever thumbnail the server gave us.
+        let previewFallback = 0;
+        mediaElement.addEventListener('error', () => {
+            if (previewFallback === 0 && previewSrc && !previewSrc.startsWith('data:')) {
+                previewFallback = 1;
+                mediaElement.src = proxyUrl(previewSrc);
+            } else if (previewFallback <= 1 && media.thumbnail && media.thumbnail !== previewSrc) {
+                previewFallback = 2;
+                mediaElement.src = media.thumbnail;
+            }
+        });
 
         mediaElement.addEventListener('click', (e) => {
             if (media.type === 'video' && e.target.tagName === 'VIDEO') return;
@@ -172,73 +223,116 @@ function updateFormatDropdown() {
     videoFormatGroup.style.display = hasVideos ? 'flex' : 'none';
 }
 
-async function convertImageFormat(base64Data, format, mediaType) {
-    if (mediaType === 'video') return base64Data;
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const mimeType = format === 'png' ? 'image/png' : format === 'webp' ? 'image/webp' : 'image/jpeg';
-            const quality = format === 'jpg' ? 0.95 : undefined;
-            canvas.toBlob((blob) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            }, mimeType, quality);
-        };
-        img.onerror = reject;
-        img.src = base64Data;
-    });
+const IMAGE_MIME = { png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg' };
+
+function extensionForBlob(blob, mediaType) {
+    const type = (blob.type || '').toLowerCase();
+    if (type.includes('png')) return 'png';
+    if (type.includes('webp')) return 'webp';
+    if (type.includes('gif')) return 'gif';
+    if (type.includes('mp4')) return 'mp4';
+    if (type.includes('webm')) return 'webm';
+    if (type.includes('quicktime')) return 'mov';
+    if (type.includes('jpeg') || type.includes('jpg')) return 'jpg';
+    return mediaType === 'video' ? 'mp4' : 'jpg';
 }
 
-async function downloadFile(urlOrBase64, filename, format, mediaType) {
-    try {
-        let downloadData;
-        if (mediaType === 'video') {
-            // Use our backend proxy to avoid CORS issues with Instagram CDN URLs
-            const proxyUrl = `${API_CONFIG.BACKEND_URL}/api/instagram/proxy?url=${encodeURIComponent(urlOrBase64)}`;
-            try {
-                const response = await fetch(proxyUrl);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    downloadData = URL.createObjectURL(blob);
-                } else {
-                    // Fallback: try direct fetch
-                    const directResp = await fetch(urlOrBase64);
-                    const blob = await directResp.blob();
-                    downloadData = URL.createObjectURL(blob);
-                }
-            } catch {
-                // Last resort: open URL directly (won't trigger save-as but user can right-click save)
-                downloadData = urlOrBase64;
-            }
-        } else {
-            if (format !== 'jpg' && format !== 'original' && !urlOrBase64.includes('image/jpeg')) {
-                downloadData = await convertImageFormat(urlOrBase64, format, mediaType);
-            } else {
-                downloadData = urlOrBase64;
-            }
-        }
+// Re-encode an image to another format. Lossy targets get an explicit quality:
+// leaving it undefined makes Chrome default to 0.80, stacking a second
+// generation of compression artifacts on top of Instagram's own.
+async function reencodeImage(blob, format) {
+    const mimeType = IMAGE_MIME[format];
+    if (!mimeType) return blob;
 
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+        const img = await new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('Could not decode image'));
+            image.src = objectUrl;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        if (mimeType === 'image/jpeg') {
+            // JPEG has no alpha channel; without a matte, transparency
+            // composites to black.
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(img, 0, 0);
+
+        const quality = mimeType === 'image/png' ? undefined : 0.92;
+        const encoded = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, quality));
+        // A browser that cannot encode the requested format silently hands back
+        // a PNG. Keep the original rather than mislabel it.
+        if (!encoded || encoded.type !== mimeType) return blob;
+        return encoded;
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+}
+
+function saveBlob(blob, filename) {
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+    }, 100);
+}
+
+async function fetchBlob(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    return response.blob();
+}
+
+async function downloadFile(media, basename, format) {
+    const proxied = pickDownloadUrl(media, basename);
+    if (!proxied) return false;
+    const direct = media.url_high || media.url_low;
+
+    let blob = null;
+    try {
+        blob = await fetchBlob(proxied);
+    } catch {
+        // The proxy may be cold, rate-limited, or down. Instagram's CDN
+        // sometimes allows a direct cross-origin fetch; it costs one try.
+        if (direct && direct !== proxied) {
+            try { blob = await fetchBlob(direct); } catch { /* fall through */ }
+        }
+    }
+
+    if (!blob) {
+        // Last resort: hand the URL to the browser. Cross-origin responses
+        // ignore the download attribute, so this may open a tab instead of
+        // saving, but it beats failing silently.
         const a = document.createElement('a');
-        a.href = downloadData;
-        a.download = filename;
+        a.href = proxied;
+        a.target = '_blank';
+        a.rel = 'noopener';
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        setTimeout(() => {
-            document.body.removeChild(a);
-            if (mediaType === 'video' && downloadData.startsWith('blob:')) URL.revokeObjectURL(downloadData);
-        }, 100);
-        return true;
-    } catch {
+        setTimeout(() => document.body.removeChild(a), 100);
         return false;
     }
+
+    if (media.type !== 'video' && IMAGE_MIME[format] && blob.type !== IMAGE_MIME[format]) {
+        try { blob = await reencodeImage(blob, format); } catch { /* keep original */ }
+    }
+
+    saveBlob(blob, `${basename}.${extensionForBlob(blob, media.type)}`);
+    return true;
 }
 
 async function downloadAll() {
@@ -248,18 +342,27 @@ async function downloadAll() {
     const indicesToDownload = Array.from(selectedIndices).sort((a, b) => a - b);
     const imageFormat = formatSelect.value;
     const videoFormat = videoFormatSelect.value;
+
+    hideError();
+    downloadBtn.disabled = true;
     let successCount = 0;
 
-    for (let i = 0; i < indicesToDownload.length; i++) {
-        const index = indicesToDownload[i];
-        const media = currentMedia[index];
-        const isVideo = media.type === 'video';
-        const ext = isVideo ? videoFormat : imageFormat;
-        const filename = `instagram_${index + 1}.${ext}`;
-        const downloadUrl = isVideo ? media.url_high : media.thumbnail;
-        const success = await downloadFile(downloadUrl, filename, ext, media.type);
-        if (success) successCount++;
-        if (i < indicesToDownload.length - 1) await new Promise(r => setTimeout(r, 300));
+    try {
+        for (let i = 0; i < indicesToDownload.length; i++) {
+            const index = indicesToDownload[i];
+            const media = currentMedia[index];
+            const format = media.type === 'video' ? videoFormat : imageFormat;
+            if (await downloadFile(media, `instagram_${index + 1}`, format)) successCount++;
+            if (i < indicesToDownload.length - 1) await new Promise(r => setTimeout(r, 300));
+        }
+    } finally {
+        downloadBtn.disabled = false;
+        updateDownloadButtons();
+    }
+
+    if (successCount < indicesToDownload.length) {
+        const failed = indicesToDownload.length - successCount;
+        showError(`${failed} of ${indicesToDownload.length} download${failed > 1 ? 's' : ''} could not be saved automatically. Instagram may be rate-limiting our server &mdash; try again in a minute.`);
     }
 }
 
@@ -299,5 +402,3 @@ selectAllBtn.addEventListener('click', () => {
     }
     updateDownloadButtons();
 });
-
-console.log('Instagram Downloader initialized');
