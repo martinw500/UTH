@@ -41,12 +41,28 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Five tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
-video converter (ffmpeg.wasm), colour converter (both client-only).
+Six tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
+video converter (ffmpeg.wasm), colour converter, QR generator (all client-only).
 
 ---
 
 ## Done
+
+### QR generator
+First module page, and the proof the pattern works end to end. Encoding lives in
+`js/shared/qr.js`, which returns a plain grid with the quiet zone baked in, so the canvas and SVG
+renderers are trivial and the encoding is testable in jsdom (which has no canvas).
+
+The library is **vendored**, not loaded from a CDN — `js/vendor/qrcode-generator.js` plus
+`js/vendor/qrcode-generator-utf8.js`. The second file is not optional: the first defaults to
+`charCodeAt(i) & 0xff`, so `☕` would encode as one wrong byte and the code would decode to
+mojibake with no error raised. `js/shared/qr.js` installs the UTF-8 converter on import and
+`tests/qr.test.js` pins it. See `js/vendor/README.md` before re-vendoring.
+
+Verified beyond the test suite: seven codes were rendered and decoded back with OpenCV, including
+`café ☕ naïve`, all round-tripping exactly. A matrix-level diff against another library is *not* a
+valid check — the mask pattern is chosen by penalty scoring and two correct implementations can
+legitimately pick different masks.
 
 ### P0/P1 — Instagram quality, and CI that can catch regressions
 Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
@@ -61,8 +77,8 @@ Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
 and colour test files now import the real source **with their original assertions unchanged**, so
 green means the extraction preserved behaviour. 245 → 363 tests.
 
-**No page loads these yet.** The four new tools will be the first consumers; the five existing
-pages are still classic scripts with their own helper copies (that is P2c–g).
+The QR generator is the **first and only page loading them**. The five original pages are still
+classic scripts with their own helper copies — converting those is P2c–g.
 
 ### ESM groundwork
 Everything a `<script type="module">` page needs, landed before the first one exists:

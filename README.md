@@ -13,6 +13,7 @@ Will be updated with more tools as I build them out.
 - **Image Editor / Converter** — Edit, crop, compress, and convert images between formats (client-side)
 - **Video Converter** — Convert videos between MP4, WEBM, GIF, and extract audio using FFmpeg.wasm (client-side)
 - **Colour Picker** — Pick and convert colours between HEX, RGB, and HSL with a live colour picker
+- **QR Code Generator** — Turn any text or link into a QR code and save it as PNG or SVG (client-side)
 
 ## Architecture
 - **Frontend** — Static HTML/CSS/JS hosted on GitHub Pages
@@ -80,6 +81,10 @@ npm run test:e2e  # checks the deployed site (set SITE_URL to target a preview)
 ├── color-converter/
 │   ├── index.html              # Colour picker UI
 │   └── js/color-converter.js   # HEX/RGB/HSL conversion
+├── qr-generator/
+│   ├── index.html              # QR generator UI (ES module)
+│   └── js/qr-generator.js      # Wiring; encoding lives in js/shared/qr.js
+├── js/vendor/                  # Vendored third-party libraries — see js/vendor/README.md
 ```
 
 ## Deployment

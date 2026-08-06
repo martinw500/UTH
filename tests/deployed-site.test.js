@@ -45,6 +45,7 @@ const PAGES = [
     { path: '/color-converter/', name: 'Colour Picker' },
     { path: '/youtube-downloader/', name: 'YouTube Downloader' },
     { path: '/instagram-downloader/', name: 'Instagram Downloader' },
+    { path: '/qr-generator/', name: 'QR Code Generator' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -120,6 +121,11 @@ describe('Homepage — all tools accessible', () => {
         expect(page.body).toContain('Colour Picker');
     });
 
+    test('has link to QR Code Generator', () => {
+        expect(page.body).toContain('href="qr-generator/index.html"');
+        expect(page.body).toContain('QR Code Generator');
+    });
+
     test('has navigation with Tools, Feedback, GitHub links', () => {
         expect(page.body).toContain('class="nav-link');
         expect(page.body).toContain('Feedback');
@@ -187,6 +193,28 @@ describe('Static assets are accessible on deployed site', () => {
 
     test('COI service worker file loads', async () => {
         const res = await checkResource(`${SITE}/video-converter/coi-serviceworker.js`);
+        expect(res.ok).toBe(true);
+    });
+
+    test('qr-generator/js/qr-generator.js loads', async () => {
+        const res = await checkResource(`${SITE}/qr-generator/js/qr-generator.js`);
+        expect(res.ok).toBe(true);
+    });
+
+    // A module page dies on the first failed import, and these are fetched by
+    // the browser rather than named in the HTML, so nothing else would catch a
+    // path that is wrong only once deployed.
+    test.each([
+        'js/shared/qr.js',
+        'js/shared/dom.js',
+        'js/shared/notify.js',
+        'js/shared/clipboard.js',
+        'js/shared/color.js',
+        'js/shared/image.js',
+        'js/vendor/qrcode-generator.js',
+        'js/vendor/qrcode-generator-utf8.js',
+    ])('%s loads', async (file) => {
+        const res = await checkResource(`${SITE}/${file}`);
         expect(res.ok).toBe(true);
     });
 });
@@ -651,6 +679,60 @@ describe('Instagram Downloader — features present', () => {
 });
 
 // ============================================
+// 9b. QR CODE GENERATOR — controls and module loading
+// ============================================
+
+describe('QR Code Generator — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/qr-generator/');
+    });
+
+    test('has the text input', () => {
+        expect(page.body).toContain('id="qrText"');
+    });
+
+    test('has the encoding controls', () => {
+        expect(page.body).toContain('id="eccSelect"');
+        expect(page.body).toContain('id="sizeSelect"');
+        expect(page.body).toContain('id="darkColor"');
+        expect(page.body).toContain('id="lightColor"');
+    });
+
+    test('has the preview canvas', () => {
+        expect(page.body).toContain('id="qrCanvas"');
+    });
+
+    test('has PNG, SVG and copy export buttons', () => {
+        expect(page.body).toContain('id="downloadPngBtn"');
+        expect(page.body).toContain('id="downloadSvgBtn"');
+        expect(page.body).toContain('id="copySvgBtn"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(page.body).toContain('type="module"');
+        expect(page.body).toContain('src="js/qr-generator.js"');
+    });
+
+    // Served over HTTP the guard must stay dormant; if it ever fired here the
+    // page would be blank for every visitor.
+    test('ships the file:// guard, and it does not trigger over HTTP', () => {
+        expect(page.body).toContain('file-protocol-notice');
+        expect(page.body).toContain("location.protocol === 'file:'");
+    });
+
+    test('is served with a JavaScript content type for the module', async () => {
+        const res = await checkResource(`${SITE}/qr-generator/js/qr-generator.js`);
+        expect(res.ok).toBe(true);
+    });
+
+    test('says processing is local', () => {
+        expect(page.body).toContain('locally in your browser');
+    });
+});
+
+// ============================================
 // 10. FEEDBACK PAGE — form accessible
 // ============================================
 
@@ -800,7 +882,7 @@ describe('Internal navigation links resolve', () => {
         const page = await fetchPage('/');
         // Extract tool card hrefs
         const links = [...page.body.matchAll(/href="([^"]+\/index\.html)"/g)].map(m => m[1]);
-        expect(links.length).toBeGreaterThanOrEqual(5);
+        expect(links.length).toBeGreaterThanOrEqual(6);
 
         const results = await Promise.all(
             links.map(async (link) => {

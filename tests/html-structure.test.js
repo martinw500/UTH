@@ -29,6 +29,7 @@ const PAGES = [
     'color-converter/index.html',
     'youtube-downloader/index.html',
     'instagram-downloader/index.html',
+    'qr-generator/index.html',
 ];
 
 // ============================================
@@ -112,6 +113,7 @@ describe('Homepage structure', () => {
         expect(html).toContain('href="image-converter/index.html"');
         expect(html).toContain('href="video-converter/index.html"');
         expect(html).toContain('href="color-converter/index.html"');
+        expect(html).toContain('href="qr-generator/index.html"');
     });
 
     // Both counters are hardcoded in the markup and script.js never recomputes
@@ -291,6 +293,69 @@ describe('Color Converter page structure', () => {
     });
 });
 
+describe('QR Generator page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('qr-generator/index.html');
+    });
+
+    test('has the text input and its readouts', () => {
+        expect(html).toContain('id="qrText"');
+        expect(html).toContain('id="charCount"');
+        expect(html).toContain('id="qrVersion"');
+    });
+
+    test('has the encoding controls', () => {
+        expect(html).toContain('id="eccSelect"');
+        expect(html).toContain('id="sizeSelect"');
+        expect(html).toContain('id="darkColor"');
+        expect(html).toContain('id="lightColor"');
+    });
+
+    test('offers all four error-correction levels', () => {
+        ['L', 'M', 'Q', 'H'].forEach(level => {
+            expect(html).toContain(`value="${level}"`);
+        });
+    });
+
+    test('has the preview canvas', () => {
+        expect(html).toContain('id="qrCanvas"');
+    });
+
+    test('has export buttons for PNG and SVG', () => {
+        expect(html).toContain('id="downloadPngBtn"');
+        expect(html).toContain('id="downloadSvgBtn"');
+        expect(html).toContain('id="copySvgBtn"');
+    });
+
+    test('has a notice host for errors and contrast warnings', () => {
+        expect(html).toContain('id="noticeHost"');
+        expect(html).toContain('class="notice"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/qr-generator.js"></script>');
+    });
+});
+
+describe('Vendored libraries', () => {
+    // Vendoring an MIT library carries an attribution obligation. A future
+    // cleanup that deletes the licence file should fail the build.
+    test('the QR library ships its licence and copyright holder', () => {
+        const licence = fs.readFileSync(
+            path.join(ROOT, 'js/vendor/qrcode-generator.LICENSE.txt'), 'utf-8');
+        expect(licence).toContain('MIT');
+        expect(licence).toContain('Kazuhiko Arase');
+    });
+
+    test('provenance is recorded so the file can be re-vendored', () => {
+        const readme = fs.readFileSync(path.join(ROOT, 'js/vendor/README.md'), 'utf-8');
+        expect(readme).toContain('kazuhikoarase/qrcode-generator');
+        expect(readme).toMatch(/Version:\*\*\s*\d+\.\d+\.\d+/);
+    });
+});
+
 describe('Required static assets exist', () => {
     const requiredFiles = [
         'styles.css',
@@ -301,6 +366,11 @@ describe('Required static assets exist', () => {
         'color-converter/js/color-converter.js',
         'youtube-downloader/js/youtube-downloader.js',
         'instagram-downloader/js/instagram-downloader.js',
+        'qr-generator/js/qr-generator.js',
+        'js/shared/qr.js',
+        'js/vendor/qrcode-generator.js',
+        'js/vendor/qrcode-generator-utf8.js',
+        'js/vendor/qrcode-generator.LICENSE.txt',
         'vercel.json',
     ];
 
