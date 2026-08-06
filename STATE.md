@@ -41,28 +41,24 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Six tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
-video converter (ffmpeg.wasm), colour converter, QR generator (all client-only).
+Seven tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
+video converter, audio converter (both ffmpeg.wasm), colour converter, QR generator.
 
 ---
 
 ## Done
 
 ### QR generator
-First module page, and the proof the pattern works end to end. Encoding lives in
-`js/shared/qr.js`, which returns a plain grid with the quiet zone baked in, so the canvas and SVG
-renderers are trivial and the encoding is testable in jsdom (which has no canvas).
+Encoding is in `js/shared/qr.js`, which returns a plain grid with the quiet zone baked in, so the
+canvas and SVG renderers stay trivial and the encoding is testable in jsdom (which has no canvas).
 
-The library is **vendored**, not loaded from a CDN — `js/vendor/qrcode-generator.js` plus
-`js/vendor/qrcode-generator-utf8.js`. The second file is not optional: the first defaults to
-`charCodeAt(i) & 0xff`, so `☕` would encode as one wrong byte and the code would decode to
-mojibake with no error raised. `js/shared/qr.js` installs the UTF-8 converter on import and
-`tests/qr.test.js` pins it. See `js/vendor/README.md` before re-vendoring.
+The library is **vendored**, not from a CDN. It needs two files: the main one defaults to
+`charCodeAt(i) & 0xff`, so `☕` would encode as one wrong byte and decode to mojibake with no error
+raised. `js/shared/qr.js` installs the UTF-8 converter on import and `tests/qr.test.js` pins it.
+Read `js/vendor/README.md` before re-vendoring.
 
-Verified beyond the test suite: seven codes were rendered and decoded back with OpenCV, including
-`café ☕ naïve`, all round-tripping exactly. A matrix-level diff against another library is *not* a
-valid check — the mask pattern is chosen by penalty scoring and two correct implementations can
-legitimately pick different masks.
+Do **not** verify a QR by diffing its matrix against another library — the mask pattern is chosen
+by penalty scoring and two correct implementations legitimately differ. Decode it instead.
 
 ### The video converter was broken in production, and now is not
 Two independent bugs, both invisible to the unit suite because neither shows up
@@ -82,9 +78,25 @@ until something actually converts a file.
    blobbed) while the core must be ESM. All four combinations were tried in a browser; only
    UMD-worker + ESM-core loads.
 
-`npm run verify:converters` drives a real browser and ffprobes the output. **Run it after touching
-`js/shared/ffmpeg.js` or a converter page** — it is the only thing that catches this class of bug.
-Needs `npm run dev` running, plus ffmpeg and ffprobe on PATH.
+`npm run verify:converters` drives a real browser and ffprobes the output of both converters,
+including a trimmed clip. **Run it after touching `js/shared/ffmpeg.js` or a converter page** — it
+is the only thing that catches this class of bug. Needs `npm run dev` running (or `SITE_URL` set to
+a deployment), plus ffmpeg and ffprobe on PATH.
+
+### Audio converter
+Shares `js/shared/ffmpeg.js` with the video converter, so it inherited the fixes above rather than
+repeating them. Formats: MP3, M4A, OGG, **Opus**, WAV, FLAC. Accepts video input too — extracting
+a soundtrack is the main use case, and `-vn` handles it.
+
+The encoder list was **not guessed**: `ffmpeg -encoders` was run inside ffmpeg.wasm and checked.
+`libopus` turned out to be present, contrary to expectation. Do the same before adding a format;
+a missing encoder yields a zero-byte file and a baffling error.
+
+**Its trimming deliberately differs from the video converter's.** It puts `-ss` *before* `-i`
+(input seeking, so ffmpeg jumps instead of decoding and discarding — this matters on a 90-minute
+podcast). That rebases the output timeline to zero, so the end must be `-t <duration>` and **not**
+`-to <absolute end>`; `-to` there silently yields a clip of the wrong length. The video converter
+seeks on the output because it re-encodes everything anyway. Don't "fix" one to match the other.
 
 ### Shared ffmpeg loader
 `js/shared/ffmpeg.js` holds loading, worker-chunk discovery and the write/exec/read cycle. The
@@ -121,41 +133,26 @@ Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
 and colour test files now import the real source **with their original assertions unchanged**, so
 green means the extraction preserved behaviour. 245 → 363 tests.
 
-Loaded by the QR generator and the video converter. The other four pages are still classic scripts
+Loaded by the QR generator and both converters. The other four pages are still classic scripts
 with their own helper copies — converting those is P2c–g.
 
 ### ESM groundwork
-Everything a `<script type="module">` page needs, landed before the first one exists:
-- **`file://` guard.** A classic inline `<head>` script sets `.needs-http` on `<html>`; CSS then
-  hides the page and shows `.file-protocol-notice` instead. A module page opened from disk is
-  otherwise silently blank. The guard cannot itself be a module — one would never run.
-- **The CSS the shared modules apply now exists**: `.notice` + `.notice-error/-success/-info`,
-  `.visually-hidden` (aliased onto the existing `.sr-only`), `.copied`. `notify()` adds only a
-  *level* class plus `active`, so page markup must supply the base `class="notice"`.
-  `.notice.active:not([hidden])` is deliberate: an author `display` rule beats the UA
-  `[hidden]` rule, so keying on `.active` alone leaves a cleared notice visible.
-- **`tests/esm-conventions.test.js`** mechanically enforces the extension rule below, checks
-  every module page carries the guard, forbids loading `js/shared`/`js/vendor` as a classic
-  script, and asserts `styles.css` styles every class those modules apply.
-- **`tests/html-structure.test.js`** asserts `#toolCount`/`#visibleCount` match the tool-card
-  count, so adding a tool and forgetting a counter is a red build.
-- **`ci.yml`'s `validate` job no longer hardcodes file lists.** It derives them from
-  `git ls-files`, so **adding a tool needs no CI edit**. The asset check now reads each page's
-  real `src`/`href` attributes, which the old parallel list could not do — that is exactly the
-  404 commit `085863b` had to fix.
+- **`file://` guard.** A classic inline `<head>` script sets `.needs-http`; CSS then hides the page
+  and shows `.file-protocol-notice`. Module pages are silently blank from disk otherwise, and the
+  guard cannot itself be a module. Every new module page needs it — `tests/esm-conventions.test.js`
+  enforces that, plus the `.js`-extension rule and the shared-module class styling.
+- **`notify()` adds only a *level* class plus `active`**, so page markup must supply the base
+  `class="notice"`. `.notice.active:not([hidden])` is deliberate: an author `display` rule beats the
+  UA `[hidden]` rule, so keying on `.active` alone leaves a cleared notice visible.
+- **`#toolCount`/`#visibleCount` are asserted against the tool-card count**, so forgetting a counter
+  is a red build.
+- **`ci.yml`'s `validate` job derives its file list from `git ls-files`**, so **adding a tool needs
+  no CI edit**. Its asset check reads each page's real `src`/`href`, which the old hand-maintained
+  list could not — that is the 404 commit `085863b` had to fix.
 
-Behaviour deliberately changed while extracting (each fixes a real bug):
-- `resolveBackendUrl` sends Vercel *preview* deployments to their own API. Previously any hostname
-  outside a two-entry allowlist fell through to `localhost:5000`, so the API was broken on every
-  preview.
-- `createDropzone` validates file type on the file-picker path, not just on drop.
-- `compressToTarget` probes max quality first and falls back to downscaling — a 4000×3000 photo
-  previously could not reach a small target at any quality.
-- `drawWithBackground` mattes alpha-less formats, fixing JPEG export compositing transparency to black.
-- `encodeVerified` reports when the browser substituted PNG for an unsupported format instead of
-  saving a PNG named `.webp`.
-- `extractPalette` refines median-cut buckets with k-means; median cut alone splits on pixel count,
-  so a 90/10 image returned two muddy centroids instead of the two actual colours.
+Several behaviours were deliberately corrected during that extraction (preview-deploy API URLs,
+dropzone type validation, compression fallback, JPEG matting, palette extraction). See `git log`
+for `9e0160f` if one surprises you.
 
 ---
 

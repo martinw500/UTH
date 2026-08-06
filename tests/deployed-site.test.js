@@ -54,6 +54,7 @@ const PAGES = [
     { path: '/youtube-downloader/', name: 'YouTube Downloader' },
     { path: '/instagram-downloader/', name: 'Instagram Downloader' },
     { path: '/qr-generator/', name: 'QR Code Generator' },
+    { path: '/audio-converter/', name: 'Audio Converter' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -132,6 +133,11 @@ describe('Homepage — all tools accessible', () => {
     test('has link to QR Code Generator', () => {
         expect(page.body).toContain('href="qr-generator/index.html"');
         expect(page.body).toContain('QR Code Generator');
+    });
+
+    test('has link to Audio Converter', () => {
+        expect(page.body).toContain('href="audio-converter/index.html"');
+        expect(page.body).toContain('Audio Converter');
     });
 
     test('has navigation with Tools, Feedback, GitHub links', () => {
@@ -217,6 +223,9 @@ describe('Static assets are accessible on deployed site', () => {
         'js/shared/ffmpeg.js',
         'js/shared/format.js',
         'video-converter/js/video-args.js',
+        'audio-converter/js/audio-converter.js',
+        'audio-converter/js/audio-args.js',
+        'audio-converter/coi-serviceworker.js',
         'js/shared/dom.js',
         'js/shared/notify.js',
         'js/shared/clipboard.js',
@@ -762,6 +771,62 @@ describe('QR Code Generator — features present', () => {
 });
 
 // ============================================
+// 9c. AUDIO CONVERTER — controls and isolation headers
+// ============================================
+
+describe('Audio Converter — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/audio-converter/');
+    });
+
+    // ffmpeg.wasm needs SharedArrayBuffer, which needs cross-origin isolation.
+    // Vercel supplies these; GitHub Pages relies on the COI service worker.
+    test('is served with COOP and COEP headers', () => {
+        expect(page.headers['cross-origin-opener-policy']).toBe('same-origin');
+        expect(page.headers['cross-origin-embedder-policy']).toBe('credentialless');
+    });
+
+    test('has dropzone accepting audio and video', () => {
+        expect(page.body).toContain('id="dropzone"');
+        expect(page.body).toMatch(/accept="[^"]*audio\/\*/);
+        expect(page.body).toMatch(/accept="[^"]*video\/\*/);
+    });
+
+    test('has trim controls', () => {
+        expect(page.body).toContain('id="trimStart"');
+        expect(page.body).toContain('id="trimEnd"');
+    });
+
+    test('offers every supported output format', () => {
+        ['mp3', 'm4a', 'ogg', 'opus', 'wav', 'flac'].forEach(fmt => {
+            expect(page.body).toContain(`value="${fmt}"`);
+        });
+    });
+
+    test('has convert button and progress bar', () => {
+        expect(page.body).toContain('id="convertBtn"');
+        expect(page.body).toContain('id="progressBar"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(page.body).toContain('src="js/audio-converter.js"');
+        expect(page.body).toContain('type="module"');
+    });
+
+    // Service worker scope is path-based, so a copy must live in this directory.
+    test('its own COI service worker is reachable', async () => {
+        const res = await checkResource(`${SITE}/audio-converter/coi-serviceworker.js`);
+        expect(res.ok).toBe(true);
+    });
+
+    test('says processing is local', () => {
+        expect(page.body).toContain('locally in your browser');
+    });
+});
+
+// ============================================
 // 10. FEEDBACK PAGE — form accessible
 // ============================================
 
@@ -911,7 +976,7 @@ describe('Internal navigation links resolve', () => {
         const page = await fetchPage('/');
         // Extract tool card hrefs
         const links = [...page.body.matchAll(/href="([^"]+\/index\.html)"/g)].map(m => m[1]);
-        expect(links.length).toBeGreaterThanOrEqual(6);
+        expect(links.length).toBeGreaterThanOrEqual(7);
 
         const results = await Promise.all(
             links.map(async (link) => {

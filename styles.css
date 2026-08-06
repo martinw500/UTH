@@ -2416,6 +2416,33 @@ body::before {
 }
 
 /* ============================================
+   Audio Converter
+   ============================================ */
+
+.audio-preview-player {
+    width: 100%;
+    margin: 12px 0;
+    border-radius: var(--radius-md);
+}
+
+.checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* ============================================
    QR Code Generator
    ============================================ */
 

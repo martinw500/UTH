@@ -30,6 +30,7 @@ const PAGES = [
     'youtube-downloader/index.html',
     'instagram-downloader/index.html',
     'qr-generator/index.html',
+    'audio-converter/index.html',
 ];
 
 // ============================================
@@ -114,6 +115,7 @@ describe('Homepage structure', () => {
         expect(html).toContain('href="video-converter/index.html"');
         expect(html).toContain('href="color-converter/index.html"');
         expect(html).toContain('href="qr-generator/index.html"');
+        expect(html).toContain('href="audio-converter/index.html"');
     });
 
     // Both counters are hardcoded in the markup and script.js never recomputes
@@ -339,6 +341,71 @@ describe('QR Generator page structure', () => {
     });
 });
 
+describe('Audio Converter page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('audio-converter/index.html');
+    });
+
+    test('has dropzone and file input', () => {
+        expect(html).toContain('id="dropzone"');
+        expect(html).toContain('id="fileInput"');
+    });
+
+    // Extracting audio from a video is the main use case, so the picker must
+    // not filter video files out.
+    test('accepts video files as well as audio', () => {
+        expect(html).toMatch(/accept="[^"]*audio\/\*/);
+        expect(html).toMatch(/accept="[^"]*video\/\*/);
+    });
+
+    test('has trim controls', () => {
+        expect(html).toContain('id="trimStart"');
+        expect(html).toContain('id="trimEnd"');
+        expect(html).toContain('id="trimDuration"');
+    });
+
+    test('has the output settings', () => {
+        expect(html).toContain('id="outputFormat"');
+        expect(html).toContain('id="bitrateSelect"');
+        expect(html).toContain('id="channelSelect"');
+        expect(html).toContain('id="sampleRateSelect"');
+        expect(html).toContain('id="normaliseCheck"');
+    });
+
+    test('offers every supported format', () => {
+        ['mp3', 'm4a', 'ogg', 'opus', 'wav', 'flac'].forEach(fmt => {
+            expect(html).toContain(`value="${fmt}"`);
+        });
+    });
+
+    test('has convert, progress and results', () => {
+        expect(html).toContain('id="convertBtn"');
+        expect(html).toContain('id="progressBar"');
+        expect(html).toContain('id="downloadBtn"');
+        expect(html).toContain('id="errorMsg"');
+    });
+
+    test('loads the FFmpeg libraries as classic scripts before the module', () => {
+        expect(html).toContain('@ffmpeg/ffmpeg');
+        expect(html).toContain('@ffmpeg/util');
+        const ffmpegAt = html.indexOf('@ffmpeg/ffmpeg');
+        const moduleAt = html.indexOf('type="module"');
+        expect(ffmpegAt).toBeLessThan(moduleAt);
+    });
+
+    // Service worker scope is path-based, so this directory needs its own copy.
+    test('registers a COI service worker that exists here', () => {
+        expect(html).toContain('coi-serviceworker');
+        expect(fileExists('audio-converter/coi-serviceworker.js')).toBe(true);
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/audio-converter.js"></script>');
+    });
+});
+
 describe('Vendored libraries', () => {
     // Vendoring an MIT library carries an attribution obligation. A future
     // cleanup that deletes the licence file should fail the build.
@@ -368,6 +435,9 @@ describe('Required static assets exist', () => {
         'instagram-downloader/js/instagram-downloader.js',
         'qr-generator/js/qr-generator.js',
         'video-converter/js/video-args.js',
+        'audio-converter/js/audio-converter.js',
+        'audio-converter/js/audio-args.js',
+        'audio-converter/coi-serviceworker.js',
         'js/shared/qr.js',
         'js/shared/ffmpeg.js',
         'js/vendor/qrcode-generator.js',
@@ -430,10 +500,11 @@ describe('Vercel configuration', () => {
         expect(headerKeys).toContain('Access-Control-Allow-Methods');
     });
 
-    test('has video converter COOP/COEP headers', () => {
-        const videoHeaders = config.headers.find(h => h.source.includes('video-converter'));
-        expect(videoHeaders).toBeDefined();
-        const headerKeys = videoHeaders.headers.map(h => h.key);
+    // Both ffmpeg.wasm tools need cross-origin isolation for SharedArrayBuffer.
+    test.each(['video-converter', 'audio-converter'])('%s has COOP/COEP headers', (tool) => {
+        const entry = config.headers.find(h => h.source.includes(tool));
+        expect(entry).toBeDefined();
+        const headerKeys = entry.headers.map(h => h.key);
         expect(headerKeys).toContain('Cross-Origin-Opener-Policy');
         expect(headerKeys).toContain('Cross-Origin-Embedder-Policy');
     });

@@ -32,12 +32,23 @@ const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'uth-verify-'));
 const SOURCE_SECONDS = 6;
 
 // format -> what ffprobe must report back
-const CASES = [
+const VIDEO_CASES = [
     { fmt: 'mp4', codecs: ['h264', 'aac'], width: 640, height: 360 },
     { fmt: 'webm', codecs: ['vp8', 'vorbis'], width: 640, height: 360 },
     { fmt: 'gif', codecs: ['gif'], width: 480 },
     { fmt: 'mp3', codecs: ['mp3'] },
     { fmt: 'wav', codecs: ['pcm_s16le'] },
+];
+
+// Every codec here was confirmed present by running `ffmpeg -encoders` inside
+// ffmpeg.wasm. ffprobe reports Opus in an Ogg container as "opus".
+const AUDIO_CASES = [
+    { fmt: 'mp3', codecs: ['mp3'] },
+    { fmt: 'm4a', codecs: ['aac'] },
+    { fmt: 'ogg', codecs: ['vorbis'] },
+    { fmt: 'opus', codecs: ['opus'] },
+    { fmt: 'wav', codecs: ['pcm_s16le'] },
+    { fmt: 'flac', codecs: ['flac'] },
 ];
 
 async function makeSample() {
@@ -75,67 +86,87 @@ function check(label, condition, detail) {
     return condition;
 }
 
+async function runTool(page, toolPath, cases, { expectSeconds = SOURCE_SECONDS, extra = null } = {}) {
+    console.log(`\n=== ${toolPath} ===`);
+    await page.goto(`${BASE}${toolPath}`);
+    // The COI service worker reloads the page once it controls it. Without this
+    // nothing can convert at all, which is exactly the bug that shipped.
+    try {
+        await page.waitForFunction(() => window.crossOriginIsolated === true, { timeout: 25000 });
+        console.log('cross-origin isolated: yes\n');
+    } catch {
+        failures.push(`${toolPath}: never became cross-origin isolated (SharedArrayBuffer unavailable)`);
+        return;
+    }
+
+    for (const { fmt, codecs, width, height } of cases) {
+        process.stdout.write(`${fmt.padEnd(5)} `);
+        await page.setInputFiles('#fileInput', sample);
+        await page.waitForSelector('#editorWorkspace', { state: 'visible' });
+        await page.selectOption('#outputFormat', fmt);
+        if (extra) await extra(page);
+        await page.click('#convertBtn');
+
+        try {
+            await page.waitForSelector('#results', { state: 'visible', timeout: 180000 });
+        } catch {
+            const message = await page.textContent('#errorText').catch(() => 'no #results and no error shown');
+            console.log(`FAILED — ${message}`);
+            failures.push(`${toolPath} ${fmt}: ${message}`);
+            await page.click('#clearFileBtn');
+            continue;
+        }
+
+        const href = await page.getAttribute('#downloadBtn', 'href');
+        const name = await page.getAttribute('#downloadBtn', 'download');
+        const bytes = await page.evaluate(async (u) => {
+            const buf = await (await fetch(u)).arrayBuffer();
+            return Array.from(new Uint8Array(buf));
+        }, href);
+
+        const outPath = path.join(WORK, `${toolPath.replace(/\W/g, '')}-${name}`);
+        fs.writeFileSync(outPath, Buffer.from(bytes));
+
+        const info = await probe(outPath);
+        const label = `${toolPath} ${fmt}`;
+        const ok = [
+            check(label, Math.abs(info.duration - expectSeconds) < 0.5,
+                `duration ${info.duration}s, expected ~${expectSeconds}s`),
+            ...codecs.map(c => check(label, info.codecs.includes(c),
+                `missing codec ${c} (got ${info.codecs.join(', ')})`)),
+            width === undefined || check(label, info.width === width, `width ${info.width}, expected ${width}`),
+            height === undefined || check(label, info.height === height, `height ${info.height}, expected ${height}`),
+        ].every(Boolean);
+
+        console.log(`${ok ? 'ok  ' : 'BAD '} ${(bytes.length / 1024).toFixed(0).padStart(5)} KB  `
+            + `${info.duration.toFixed(2)}s  ${info.codecs.join('+')}`
+            + `${info.width ? `  ${info.width}x${info.height}` : ''}`);
+
+        await page.click('#clearFileBtn');
+    }
+}
+
 const sample = await makeSample();
 console.log(`sample: ${sample}`);
-console.log(`target: ${BASE}/video-converter/\n`);
+console.log(`target: ${BASE}`);
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 page.on('pageerror', e => failures.push(`page error: ${e.message}`));
 
-await page.goto(`${BASE}/video-converter/`);
-// The COI service worker reloads the page once it controls it. Without this the
-// converter cannot start at all, which is exactly the bug that shipped.
-try {
-    await page.waitForFunction(() => window.crossOriginIsolated === true, { timeout: 25000 });
-    console.log('cross-origin isolated: yes\n');
-} catch {
-    failures.push('page never became cross-origin isolated (SharedArrayBuffer unavailable)');
-}
+await runTool(page, '/video-converter/', VIDEO_CASES);
+await runTool(page, '/audio-converter/', AUDIO_CASES);
 
-for (const { fmt, codecs, width, height } of CASES) {
-    process.stdout.write(`${fmt.padEnd(5)} `);
-    await page.setInputFiles('#fileInput', sample);
-    await page.waitForSelector('#editorWorkspace', { state: 'visible' });
-    await page.selectOption('#outputFormat', fmt);
-    await page.click('#convertBtn');
-
-    try {
-        await page.waitForSelector('#results', { state: 'visible', timeout: 180000 });
-    } catch {
-        const message = await page.textContent('#errorText').catch(() => 'no #results and no error shown');
-        console.log(`FAILED — ${message}`);
-        failures.push(`${fmt}: ${message}`);
-        await page.click('#clearFileBtn');
-        continue;
-    }
-
-    const href = await page.getAttribute('#downloadBtn', 'href');
-    const name = await page.getAttribute('#downloadBtn', 'download');
-    const bytes = await page.evaluate(async (u) => {
-        const buf = await (await fetch(u)).arrayBuffer();
-        return Array.from(new Uint8Array(buf));
-    }, href);
-
-    const outPath = path.join(WORK, name);
-    fs.writeFileSync(outPath, Buffer.from(bytes));
-
-    const info = await probe(outPath);
-    const ok = [
-        check(fmt, Math.abs(info.duration - SOURCE_SECONDS) < 0.5,
-            `duration ${info.duration}s, expected ~${SOURCE_SECONDS}s`),
-        ...codecs.map(c => check(fmt, info.codecs.includes(c),
-            `missing codec ${c} (got ${info.codecs.join(', ')})`)),
-        width === undefined || check(fmt, info.width === width, `width ${info.width}, expected ${width}`),
-        height === undefined || check(fmt, info.height === height, `height ${info.height}, expected ${height}`),
-    ].every(Boolean);
-
-    console.log(`${ok ? 'ok  ' : 'BAD '} ${(bytes.length / 1024).toFixed(0).padStart(5)} KB  `
-        + `${info.duration.toFixed(2)}s  ${info.codecs.join('+')}`
-        + `${info.width ? `  ${info.width}x${info.height}` : ''}`);
-
-    await page.click('#clearFileBtn');
-}
+// Trimming is where the -t vs -to distinction bites: get it wrong and the clip
+// silently comes out the wrong length, which no structural check would notice.
+console.log('\n=== /audio-converter/ trim 1.0s -> 3.5s ===');
+await runTool(page, '/audio-converter/', [{ fmt: 'mp3', codecs: ['mp3'] }], {
+    expectSeconds: 2.5,
+    extra: async (p) => {
+        await p.fill('#trimStart', '00:00:01');
+        await p.fill('#trimEnd', '00:00:03.5');
+    },
+});
 
 await browser.close();
 
@@ -145,5 +176,5 @@ if (failures.length) {
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
 }
-console.log(`All ${CASES.length} conversions produced correct media.`);
+console.log(`All ${VIDEO_CASES.length + AUDIO_CASES.length + 1} conversions produced correct media.`);
 fs.rmSync(WORK, { recursive: true, force: true });

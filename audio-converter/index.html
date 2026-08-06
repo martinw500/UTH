@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Converter — Useful Tool Hub</title>
+    <meta name="description" content="Convert audio between MP3, M4A, WAV, OGG, Opus and FLAC, trim clips, and pull the audio out of a video. Free, and runs entirely in your browser.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
+</head>
+<body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/audio-converter/</code>.
+        </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">Audio Converter</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>Audio Converter</h1>
+                    <p>Convert and trim audio, or pull the sound out of a video</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>All processing happens locally in your browser. Your files are never uploaded to any server.</span>
+                </div>
+
+                <!-- Dropzone -->
+                <div class="converter-dropzone" id="dropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <div class="dropzone-text">
+                        <strong>Drop an audio or video file here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">MP3, M4A, WAV, OGG, Opus, FLAC, AAC — or any video, to extract its audio</div>
+                    <input type="file" id="fileInput" accept="audio/*,video/*" hidden>
+                </div>
+
+                <!-- Workspace -->
+                <div class="editor-workspace" id="editorWorkspace" style="display: none;">
+
+                    <div class="editor-info-bar">
+                        <div class="editor-file-info">
+                            <div class="editor-filename" id="editorFilename">—</div>
+                            <div class="editor-file-meta" id="editorMeta">—</div>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" id="clearFileBtn">Remove</button>
+                    </div>
+
+                    <audio id="audioPreview" class="audio-preview-player" controls></audio>
+
+                    <!-- Trim -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">Trim</div>
+                        <div class="trim-controls">
+                            <div class="trim-row">
+                                <div class="trim-field">
+                                    <label class="input-label" for="trimStart">Start</label>
+                                    <input type="text" id="trimStart" class="input-field input-sm" value="00:00:00" spellcheck="false">
+                                </div>
+                                <div class="trim-field">
+                                    <label class="input-label" for="trimEnd">End</label>
+                                    <input type="text" id="trimEnd" class="input-field input-sm" value="00:00:00" spellcheck="false">
+                                </div>
+                                <div class="trim-field">
+                                    <label class="input-label">Length</label>
+                                    <div class="trim-duration" id="trimDuration">—</div>
+                                </div>
+                            </div>
+                            <div class="trim-quick-btns">
+                                <button class="btn btn-ghost btn-sm" id="setStartBtn">Start here</button>
+                                <button class="btn btn-ghost btn-sm" id="setEndBtn">End here</button>
+                                <button class="btn btn-ghost btn-sm" id="resetTrimBtn">Whole file</button>
+                            </div>
+                            <div class="trim-hint">Accepts <code>mm:ss</code>, <code>hh:mm:ss</code>, or plain seconds.</div>
+                        </div>
+                    </div>
+
+                    <!-- Output settings -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">Output</div>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="input-label" for="outputFormat">Format</label>
+                                <select id="outputFormat" class="format-select">
+                                    <option value="mp3" selected>MP3</option>
+                                    <option value="m4a">M4A (AAC)</option>
+                                    <option value="ogg">OGG (Vorbis)</option>
+                                    <option value="opus">Opus</option>
+                                    <option value="wav">WAV (uncompressed)</option>
+                                    <option value="flac">FLAC (lossless)</option>
+                                </select>
+                            </div>
+                            <div class="setting-group" id="bitrateGroup">
+                                <label class="input-label" for="bitrateSelect">Bitrate</label>
+                                <select id="bitrateSelect" class="format-select">
+                                    <option value="320k">320 kbps — best</option>
+                                    <option value="256k">256 kbps</option>
+                                    <option value="192k" selected>192 kbps — good</option>
+                                    <option value="128k">128 kbps</option>
+                                    <option value="96k">96 kbps</option>
+                                    <option value="64k">64 kbps — smallest</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label class="input-label" for="channelSelect">Channels</label>
+                                <select id="channelSelect" class="format-select">
+                                    <option value="original" selected>Keep original</option>
+                                    <option value="stereo">Stereo</option>
+                                    <option value="mono">Mono</option>
+                                </select>
+                            </div>
+                            <div class="setting-group">
+                                <label class="input-label" for="sampleRateSelect">Sample rate</label>
+                                <select id="sampleRateSelect" class="format-select">
+                                    <option value="original" selected>Keep original</option>
+                                    <option value="48000">48 000 Hz</option>
+                                    <option value="44100">44 100 Hz</option>
+                                    <option value="22050">22 050 Hz</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <label class="checkbox-field">
+                                <input type="checkbox" id="normaliseCheck">
+                                <span>Normalise loudness to &minus;16 LUFS</span>
+                            </label>
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary" id="convertBtn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+                                Convert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error -->
+                <div class="error-msg" id="errorMsg">
+                    <span id="errorText"></span>
+                </div>
+
+                <!-- Progress -->
+                <div class="converter-progress" id="progress" style="display: none;">
+                    <div class="progress-bar-container"><div class="progress-bar-fill" id="progressBar"></div></div>
+                    <div class="progress-text" id="progressText">Loading FFmpeg...</div>
+                </div>
+
+                <!-- Results -->
+                <div class="converter-results" id="results" style="display: none;">
+                    <div class="results-header">
+                        <div class="results-count" id="resultsInfo">Done</div>
+                        <a href="#" id="downloadBtn" class="btn btn-primary btn-sm" download>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Download
+                        </a>
+                    </div>
+                    <div class="output-item">
+                        <div class="output-item-info">
+                            <div class="output-item-name" id="outputName">—</div>
+                            <div class="output-item-meta">
+                                <span id="outputSize">—</span>
+                                <span class="output-savings" id="outputSavings"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <audio id="outputPreview" class="audio-preview-player" controls></audio>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
+    <!-- Service worker to enable SharedArrayBuffer on GitHub Pages (adds COOP/COEP headers).
+         Its scope is this directory, so audio-converter needs its own copy of the file. -->
+    <script>
+        if (!window.crossOriginIsolated && navigator.serviceWorker) {
+            navigator.serviceWorker.register('coi-serviceworker.js').then(
+                function (reg) {
+                    if (reg.active && !navigator.serviceWorker.controller) {
+                        window.location.reload();
+                    } else if (reg.installing || reg.waiting) {
+                        var sw = reg.installing || reg.waiting;
+                        sw.addEventListener('statechange', function () {
+                            if (this.state === 'activated') window.location.reload();
+                        });
+                    }
+                },
+                function (err) {
+                    console.warn('COI service worker registration failed:', err);
+                }
+            );
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                if (!window.crossOriginIsolated) window.location.reload();
+            });
+        }
+    </script>
+    <!-- Module, so it runs after the two classic scripts above have defined
+         FFmpegWASM and FFmpegUtil. -->
+    <script type="module" src="js/audio-converter.js"></script>
+</body>
+</html>
