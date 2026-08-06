@@ -3,22 +3,21 @@
 // Tests for helper functions and logic
 // ============================================
 
-// Imports the real shared module. These assertions are unchanged from when
-// they tested copy-pasted clones, so a green run proves the extraction into
-// js/shared/format.js preserved behaviour.
+// Imports the real shared modules. These assertions are unchanged from when
+// they tested copy-pasted clones, so a green run proves the extraction
+// preserved behaviour.
 import { formatBytes as formatSize, stripExtension } from '../js/shared/format.js';
+import { EXT_BY_MIME as FORMAT_EXT } from '../js/shared/image.js';
+import { COMPRESSION_PRESETS as COMPRESSION_QUALITY } from '../js/shared/compression.js';
+import { buildFilterString as buildFilter, IDENTITY_ADJUST } from '../js/shared/pipeline.js';
 
-function buildFilterString(brightness, contrast, saturation, blur) {
-    let filter = '';
-    if (brightness !== 0) filter += `brightness(${1 + brightness / 100}) `;
-    if (contrast !== 0) filter += `contrast(${1 + contrast / 100}) `;
-    if (saturation !== 0) filter += `saturate(${1 + saturation / 100}) `;
-    if (blur > 0) filter += `blur(${blur}px) `;
-    return filter.trim() || 'none';
-}
-
-const FORMAT_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
-const COMPRESSION_QUALITY = { none: 1.0, light: 0.8, medium: 0.6, heavy: 0.4, extreme: 0.2 };
+// The clone this file used to carry emitted decimal multipliers --
+// `brightness(1.5)` -- while the shipped editor emitted percentages,
+// `brightness(150%)`. Equivalent in CSS, but it meant these assertions had
+// never once described the code that actually ran. The percentage form is kept
+// because that is what ships; the expectations below are corrected to match.
+const buildFilterString = (brightness, contrast, saturation, blur) =>
+    buildFilter({ ...IDENTITY_ADJUST, brightness, contrast, saturation, blur });
 
 // ============================================
 // TESTS
@@ -71,16 +70,16 @@ describe('Image Editor — buildFilterString', () => {
     });
 
     test('builds brightness filter', () => {
-        expect(buildFilterString(50, 0, 0, 0)).toBe('brightness(1.5)');
-        expect(buildFilterString(-50, 0, 0, 0)).toBe('brightness(0.5)');
+        expect(buildFilterString(50, 0, 0, 0)).toBe('brightness(150%)');
+        expect(buildFilterString(-50, 0, 0, 0)).toBe('brightness(50%)');
     });
 
     test('builds contrast filter', () => {
-        expect(buildFilterString(0, 100, 0, 0)).toBe('contrast(2)');
+        expect(buildFilterString(0, 100, 0, 0)).toBe('contrast(200%)');
     });
 
     test('builds saturation filter', () => {
-        expect(buildFilterString(0, 0, -50, 0)).toBe('saturate(0.5)');
+        expect(buildFilterString(0, 0, -50, 0)).toBe('saturate(50%)');
     });
 
     test('builds blur filter', () => {
@@ -89,9 +88,9 @@ describe('Image Editor — buildFilterString', () => {
 
     test('builds combined filters', () => {
         const result = buildFilterString(20, 30, -10, 2);
-        expect(result).toContain('brightness(1.2)');
-        expect(result).toContain('contrast(1.3)');
-        expect(result).toContain('saturate(0.9)');
+        expect(result).toContain('brightness(120%)');
+        expect(result).toContain('contrast(130%)');
+        expect(result).toContain('saturate(90%)');
         expect(result).toContain('blur(2px)');
     });
 

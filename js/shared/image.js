@@ -100,6 +100,51 @@ export function fitWithin(width, height, maxDim) {
     };
 }
 
+/**
+ * Downscale in halving steps rather than one jump.
+ *
+ * A single drawImage from 4000px to 200px makes the browser sample roughly one
+ * source pixel per destination pixel and throw the other 399 away, which is why
+ * big downscales looked noisy and mushy. Halving repeatedly averages the
+ * discarded detail back in. Once within 2x of the target a final direct draw is
+ * accurate enough and avoids overshooting.
+ *
+ * Upscaling and small reductions go straight to a single draw -- stepping buys
+ * nothing there.
+ */
+export function downscaleStepped(source, targetW, targetH, { smoothing = 'high' } = {}) {
+    const width = Math.max(1, Math.round(targetW));
+    const height = Math.max(1, Math.round(targetH));
+
+    let current = source;
+    let currentW = source.width;
+    let currentH = source.height;
+
+    while (currentW > width * 2 && currentH > height * 2) {
+        const nextW = Math.max(width, Math.floor(currentW / 2));
+        const nextH = Math.max(height, Math.floor(currentH / 2));
+        const step = document.createElement('canvas');
+        step.width = nextW;
+        step.height = nextH;
+        const stepCtx = step.getContext('2d');
+        stepCtx.imageSmoothingEnabled = true;
+        stepCtx.imageSmoothingQuality = smoothing;
+        stepCtx.drawImage(current, 0, 0, nextW, nextH);
+        current = step;
+        currentW = nextW;
+        currentH = nextH;
+    }
+
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+    const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = smoothing;
+    ctx.drawImage(current, 0, 0, width, height);
+    return out;
+}
+
 function scaledCopy(source, scale) {
     if (scale >= 1) return source;
     const out = document.createElement('canvas');
