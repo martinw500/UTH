@@ -64,6 +64,28 @@ Verified beyond the test suite: seven codes were rendered and decoded back with 
 valid check — the mask pattern is chosen by penalty scoring and two correct implementations can
 legitimately pick different masks.
 
+### Shared ffmpeg loader
+`js/shared/ffmpeg.js` holds loading, worker-chunk discovery and the write/exec/read cycle. The
+video converter uses it; the audio converter will. It never touches the DOM — both pages have
+different markup, so all feedback goes out through `onProgress`/`onStatus`/`onLog` callbacks.
+
+**The worker chunk is now discovered at runtime, which is what closed the old P8 item.**
+`@ffmpeg/ffmpeg` is webpack-built and spawns its worker from a code-split file named after a chunk
+id. The name `814.ffmpeg.js` **never appears as a literal in the bundle** — webpack emits
+`u: e => e + ".ffmpeg.js"` and calls it as `e.u(814)` — so searching for the filename finds
+nothing. `findWorkerChunk` reads the suffix function and the call site separately and recomposes
+the name; verified against every published 0.12.x. Falls back to the unpkg `?meta` listing, then to
+the pinned constant, then to loading without a worker URL at all.
+
+`loadFFmpeg` memoises the **promise**, not a flag set after the await — the old code set
+`ffmpegLoaded` only on completion, so two quick clicks would each build an instance and download
+the core twice. `runFFmpeg` deletes both virtual files in a `finally`, so a failed conversion no
+longer leaves the input in the virtual filesystem.
+
+`video-converter/js/video-args.js` holds the pure argument builder, extracted so
+`tests/video-converter.test.js` can import the real thing. It previously re-declared its own copy,
+which meant those tests stayed green no matter what the shipped file did.
+
 ### P0/P1 — Instagram quality, and CI that can catch regressions
 Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
 - Instagram downloads `url_high` through `/api/instagram/proxy`. Only `fetch()` needs CORS —
@@ -77,8 +99,8 @@ Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
 and colour test files now import the real source **with their original assertions unchanged**, so
 green means the extraction preserved behaviour. 245 → 363 tests.
 
-The QR generator is the **first and only page loading them**. The five original pages are still
-classic scripts with their own helper copies — converting those is P2c–g.
+Loaded by the QR generator and the video converter. The other four pages are still classic scripts
+with their own helper copies — converting those is P2c–g.
 
 ### ESM groundwork
 Everything a `<script type="module">` page needs, landed before the first one exists:
@@ -121,8 +143,9 @@ Behaviour deliberately changed while extracting (each fixes a real bug):
 One PR per step; each independently green and deployable.
 - **P2b** — `js/config.js` becomes a re-export shim of `js/shared/config.js`; convert the two pages
   that load it (`youtube-downloader`, `instagram-downloader`) to `<script type="module">`.
-- **P2c–g** — one tool per PR: convert the IIFE to a module with real exports, delete its local
-  helper copies in favour of `js/shared/*`, rewrite its test to import real source.
+- **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
+  favour of `js/shared/*`, and rewrite its test to import real source. The video converter is
+  done; image converter, colour picker and the two downloaders remain.
 - **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus `tests/tool-registry.test.js`
   asserting registry↔HTML parity. **Keep the homepage grid as static HTML** — client-rendering it
   would break every homepage assertion in `deployed-site.test.js`, which fetches raw HTML with no
@@ -170,9 +193,7 @@ in `js/shared/color.js`: harmonies, shades/tints/tones, WCAG checker, HSV/CMYK/L
 palette extraction, native `EyeDropper` API. Then permalinks and export formats.
 
 ### P8 — video converter
-`814.ffmpeg.js` is a hardcoded webpack chunk hash that 404s on any version bump (it already broke
-once, commit `085863b`) — and `tests/deployed-site.test.js` *pins* it, so the test breaks too.
-Discover the chunk at runtime. Add a cancel button. VP9 instead of VP8.
+Add a cancel button. VP9 instead of VP8.
 
 ### P9 — docs
 `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/ADDING_A_TOOL.md`, `CONTRIBUTING.md`, README rewrite,

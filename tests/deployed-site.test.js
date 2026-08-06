@@ -14,6 +14,13 @@
 // Without this these tests can only ever validate what is already in production.
 const SITE = (process.env.SITE_URL || 'https://useful-tool-hub.vercel.app').replace(/\/$/, '');
 
+// Reuses the app's own chunk discovery so this file cannot drift from it.
+import {
+    FFMPEG_UMD_BASE,
+    findWorkerChunk,
+    resolveWorkerChunk,
+} from '../js/shared/ffmpeg.js';
+
 // Increase timeout — network requests to the live site
 jest.setTimeout(30000);
 
@@ -206,6 +213,9 @@ describe('Static assets are accessible on deployed site', () => {
     // path that is wrong only once deployed.
     test.each([
         'js/shared/qr.js',
+        'js/shared/ffmpeg.js',
+        'js/shared/format.js',
+        'video-converter/js/video-args.js',
         'js/shared/dom.js',
         'js/shared/notify.js',
         'js/shared/clipboard.js',
@@ -249,9 +259,25 @@ describe('External CDN dependencies are accessible', () => {
         expect(res.ok).toBe(true);
     });
 
-    test('FFmpeg worker JS loads from unpkg', async () => {
-        const res = await checkResource('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js');
+    // This used to HEAD a hardcoded '814.ffmpeg.js'. That name is a webpack
+    // chunk id: it 404s on a version bump, which broke production once
+    // (085863b), and pinning it here meant the test broke with it. Discover the
+    // name the same way the app does, then check that the discovered file
+    // exists. Now a version bump cannot rot either.
+    test('the worker chunk is discoverable and loads from unpkg', async () => {
+        const chunk = await resolveWorkerChunk();
+        expect(chunk).toMatch(/^\d+\.ffmpeg\.js$/);
+
+        const res = await checkResource(`${FFMPEG_UMD_BASE}/${chunk}`);
         expect(res.ok).toBe(true);
+    });
+
+    // If discovery silently fell through to the fallback, the test above would
+    // still pass today by luck. This asserts the mechanism actually worked.
+    test('discovery reads the chunk from the bundle, not the fallback constant', async () => {
+        const res = await fetch(`${FFMPEG_UMD_BASE}/ffmpeg.js`);
+        expect(res.ok).toBe(true);
+        expect(findWorkerChunk(await res.text())).toMatch(/^\d+\.ffmpeg\.js$/);
     });
 });
 

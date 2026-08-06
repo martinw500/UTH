@@ -2,8 +2,24 @@
 // Video Converter — Full-featured client-side using FFmpeg.wasm
 // ============================================
 
+import {
+    formatBytes as sharedFormatBytes,
+    stripExtension as stripExt,
+    formatTime,
+    parseTime,
+} from '../../js/shared/format.js';
+import {
+    loadFFmpeg,
+    runFFmpeg,
+    ffmpegUnavailableReason,
+} from '../../js/shared/ffmpeg.js';
+import { buildFFmpegArgs, getMimeType, getInputExt } from './video-args.js';
+
 (function () {
     'use strict';
+
+    // This converter shows one decimal for MB; the image editor shows two.
+    const formatBytes = (bytes) => sharedFormatBytes(bytes, { mbDecimals: 1 });
 
     // --- DOM Elements ---
     const dropzone = document.getElementById('dropzone');
@@ -57,24 +73,12 @@
     // --- State ---
     let currentFile = null;
     let videoDuration = 0;
-    let ffmpegInstance = null;
-    let ffmpegLoaded = false;
     let currentOutputUrl = null;
     let previewUrl = null;
 
     const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
     // --- Helpers ---
-    function formatBytes(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
-    function stripExt(name) {
-        return name.replace(/\.[^.]+$/, '');
-    }
-
     function showError(msg) {
         errorText.textContent = msg;
         errorMsg.classList.add('active');
@@ -84,125 +88,22 @@
         errorMsg.classList.remove('active');
     }
 
-    function formatTime(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    function parseTime(str) {
-        str = str.trim();
-        // Accept seconds directly
-        if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
-
-        const parts = str.split(':').map(Number);
-        if (parts.some(isNaN)) return NaN;
-
-        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-        if (parts.length === 2) return parts[0] * 60 + parts[1];
-        return NaN;
-    }
-
     // --- FFmpeg Setup ---
-    // Helper: fetch a URL and convert to a same-origin blob URL (fixes CORS worker issues on GitHub Pages)
-    async function toBlobURL(url, mimeType) {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
-        const buf = await response.arrayBuffer();
-        const blob = new Blob([buf], { type: mimeType });
-        return URL.createObjectURL(blob);
-    }
-
-    // Check if SharedArrayBuffer is available (required by ffmpeg.wasm in some environments)
-    function isSharedArrayBufferAvailable() {
-        try {
-            return typeof SharedArrayBuffer !== 'undefined';
-        } catch (e) {
-            return false;
-        }
-    }
-
-    async function loadFFmpeg() {
-        if (ffmpegLoaded) return;
-
-        // Check for SharedArrayBuffer support
-        if (!isSharedArrayBufferAvailable()) {
-            throw new Error(
-                'SharedArrayBuffer is not available in this browser context. ' +
-                'This is required for video conversion. ' +
-                'This can happen if the site is not served with the correct security headers (COOP/COEP). ' +
-                'Try using the site on the Vercel deployment or a modern browser with HTTPS.'
-            );
-        }
-
-        // Check for required globals
-        if (typeof FFmpegWASM === 'undefined') {
-            throw new Error('FFmpeg library failed to load. Please refresh the page and try again.');
-        }
-        if (typeof FFmpegUtil === 'undefined') {
-            throw new Error('FFmpeg utilities failed to load. Please refresh the page and try again.');
-        }
-
-        const { FFmpeg } = FFmpegWASM;
-        ffmpegInstance = new FFmpeg();
-
-        ffmpegInstance.on('progress', ({ progress: p }) => {
-            const pct = Math.min(100, Math.max(0, Math.round(p * 100)));
-            progressBar.style.width = pct + '%';
-            progressText.textContent = `Converting... ${pct}%`;
+    // Loading, worker-chunk discovery and the conversion mechanics all live in
+    // js/shared/ffmpeg.js, shared with the audio converter. This page only
+    // supplies the callbacks that move its own progress bar.
+    function ensureFFmpeg() {
+        return loadFFmpeg({
+            onProgress: ({ percent }) => {
+                progressBar.style.width = percent + '%';
+                progressText.textContent = `Converting... ${percent}%`;
+            },
+            onLog: (message) => console.log('[FFmpeg]', message),
+            onStatus: (phase, message) => {
+                progressText.textContent = message;
+                if (phase === 'core') progressBar.style.width = '0%';
+            },
         });
-
-        ffmpegInstance.on('log', ({ message }) => {
-            console.log('[FFmpeg]', message);
-        });
-
-        progressText.textContent = 'Loading FFmpeg (first time may take a moment)...';
-        progressBar.style.width = '0%';
-
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-        const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd';
-
-        try {
-            // Use blob URLs to avoid cross-origin worker restriction on GitHub Pages
-            const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-            const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-            const workerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript');
-
-            try {
-                // Primary: load with classWorkerURL (needed when ffmpeg.js is loaded from CDN)
-                await ffmpegInstance.load({
-                    coreURL,
-                    wasmURL,
-                    classWorkerURL: workerURL,
-                });
-            } catch (primaryErr) {
-                console.warn('[FFmpeg] Primary load failed, retrying without classWorkerURL:', primaryErr);
-                // Retry: some environments work better without classWorkerURL
-                ffmpegInstance = new FFmpeg();
-                ffmpegInstance.on('progress', ({ progress: p }) => {
-                    const pct = Math.min(100, Math.max(0, Math.round(p * 100)));
-                    progressBar.style.width = pct + '%';
-                    progressText.textContent = `Converting... ${pct}%`;
-                });
-                ffmpegInstance.on('log', ({ message }) => {
-                    console.log('[FFmpeg]', message);
-                });
-                await ffmpegInstance.load({
-                    coreURL,
-                    wasmURL,
-                });
-            }
-        } catch (loadErr) {
-            console.error('[FFmpeg] Load error:', loadErr);
-            ffmpegInstance = null;
-            throw new Error(
-                'Failed to load FFmpeg engine: ' + (loadErr.message || String(loadErr) || 'Unknown error') +
-                '. This may be caused by missing security headers. Try using the Vercel deployment.'
-            );
-        }
-
-        ffmpegLoaded = true;
     }
 
     // --- Dropzone ---
@@ -316,55 +217,39 @@
         convertBtn.disabled = true;
 
         try {
-            await loadFFmpeg();
+            const ffmpeg = await ensureFFmpeg();
 
-            if (!ffmpegInstance) {
-                throw new Error('FFmpeg failed to initialize. Please refresh and try again.');
-            }
-
-            const { fetchFile } = FFmpegUtil;
             const fmt = outputFormat.value;
             const quality = qualitySelect.value;
             const inputName = 'input' + getInputExt(currentFile.name);
             const outName = stripExt(currentFile.name) + '.' + fmt;
 
-            progressText.textContent = 'Reading file...';
-            progressBar.style.width = '5%';
-
-            const fileData = await fetchFile(currentFile);
-            await ffmpegInstance.writeFile(inputName, fileData);
-
-            progressText.textContent = 'Converting...';
-            progressBar.style.width = '10%';
-
-            const args = buildFFmpegArgs(inputName, outName, fmt, quality);
+            const args = buildFFmpegArgs(inputName, outName, fmt, quality, {
+                startSec: parseTime(trimStart.value),
+                endSec: parseTime(trimEnd.value),
+                videoDuration,
+                resolution: resolutionSelect.value,
+                fps: fpsSelect.value,
+                audio: audioSelect.value,
+                targetBytes: getTargetBytes(),
+            });
             console.log('[FFmpeg] Command:', args.join(' '));
 
-            const exitCode = await ffmpegInstance.exec(args);
-            if (exitCode !== 0) {
-                console.warn('[FFmpeg] Non-zero exit code:', exitCode);
-            }
-
-            progressText.textContent = 'Reading output...';
-            progressBar.style.width = '95%';
+            const blob = await runFFmpeg(ffmpeg, {
+                inputName,
+                inputFile: currentFile,
+                args,
+                outputName: outName,
+                mimeType: getMimeType(fmt),
+                onStatus: (phase, message) => {
+                    progressText.textContent = message;
+                    if (phase === 'read') progressBar.style.width = '5%';
+                    if (phase === 'run') progressBar.style.width = '10%';
+                    if (phase === 'output') progressBar.style.width = '95%';
+                },
+            });
 
             if (currentOutputUrl) URL.revokeObjectURL(currentOutputUrl);
-
-            let data;
-            try {
-                data = await ffmpegInstance.readFile(outName);
-            } catch (readErr) {
-                throw new Error(
-                    'Conversion produced no output. The input format or selected settings may not be supported. ' +
-                    'Try a different output format or quality setting.'
-                );
-            }
-
-            const blob = new Blob([data.buffer], { type: getMimeType(fmt) });
-            if (blob.size === 0) {
-                throw new Error('Conversion produced an empty file. Try different settings or a different format.');
-            }
-
             const url = URL.createObjectURL(blob);
             currentOutputUrl = url;
 
@@ -389,12 +274,8 @@
             downloadBtn.download = outName;
             results.style.display = '';
             progress.style.display = 'none';
-
-            // Cleanup temp files
-            try {
-                await ffmpegInstance.deleteFile(inputName);
-                await ffmpegInstance.deleteFile(outName);
-            } catch (_) { /* ignore */ }
+            // runFFmpeg deletes both virtual files in a finally, so a failed
+            // conversion no longer leaves the input behind.
 
         } catch (err) {
             console.error('Conversion error:', err);
@@ -405,109 +286,10 @@
         convertBtn.disabled = false;
     });
 
-    function getInputExt(filename) {
-        const m = filename.match(/(\.[^.]+)$/);
-        return m ? m[1].toLowerCase() : '.mp4';
-    }
-
-    function buildFFmpegArgs(input, output, fmt, quality) {
-        const args = ['-i', input];
-
-        // Trim
-        const startSec = parseTime(trimStart.value);
-        const endSec = parseTime(trimEnd.value);
-        const isTrimmed = !isNaN(startSec) && !isNaN(endSec) && (startSec > 0 || endSec < videoDuration - 0.5);
-
-        if (isTrimmed && startSec > 0) {
-            args.push('-ss', String(startSec));
-        }
-        if (isTrimmed && endSec < videoDuration - 0.5) {
-            args.push('-to', String(endSec));
-        }
-
-        // Resolution
-        const resolution = resolutionSelect.value;
-
-        // FPS
-        const fps = fpsSelect.value;
-
-        // Audio
-        const audio = audioSelect.value;
-
-        // Target file size
-        const targetBytes = getTargetBytes();
-        const duration = isTrimmed ? (endSec - startSec) : videoDuration;
-
-        if (fmt === 'gif') {
-            let vf = 'fps=10,scale=480:-1:flags=lanczos';
-            if (resolution !== 'original') {
-                vf = `fps=10,scale=${resolution}:-1:flags=lanczos`;
-            }
-            if (fps !== 'original') {
-                vf = vf.replace('fps=10', `fps=${fps}`);
-            }
-            args.push('-vf', vf, '-loop', '0');
-        } else if (fmt === 'mp3') {
-            const bitrates = { high: '320k', medium: '192k', low: '128k', verylow: '64k' };
-            args.push('-vn', '-ab', bitrates[quality] || '192k');
-        } else if (fmt === 'wav') {
-            args.push('-vn');
-        } else if (fmt === 'webm') {
-            let crf;
-            if (targetBytes && duration > 0) {
-                const targetBitrate = Math.floor((targetBytes * 8) / duration);
-                args.push('-c:v', 'libvpx', '-b:v', targetBitrate + '', '-c:a', 'libvorbis');
-            } else {
-                const crfMap = { high: '20', medium: '30', low: '40', verylow: '50' };
-                crf = crfMap[quality] || '30';
-                args.push('-c:v', 'libvpx', '-crf', crf, '-b:v', '0', '-c:a', 'libvorbis');
-            }
-
-            // Resolution & FPS filter
-            const vfParts = [];
-            if (resolution !== 'original') vfParts.push(`scale=${resolution}:-2`);
-            if (fps !== 'original') vfParts.push(`fps=${fps}`);
-            if (vfParts.length) args.push('-vf', vfParts.join(','));
-
-            if (audio === 'mute') args.push('-an');
-        } else if (fmt === 'mp4') {
-            if (targetBytes && duration > 0) {
-                const targetBitrate = Math.floor((targetBytes * 8) / duration);
-                args.push('-c:v', 'libx264', '-b:v', targetBitrate + '', '-preset', 'fast', '-c:a', 'aac');
-            } else {
-                const crfMap = { high: '20', medium: '28', low: '35', verylow: '42' };
-                const crf = crfMap[quality] || '28';
-                args.push('-c:v', 'libx264', '-crf', crf, '-preset', 'fast', '-c:a', 'aac');
-            }
-
-            // Resolution & FPS filter
-            const vfParts = [];
-            if (resolution !== 'original') vfParts.push(`scale=${resolution}:-2`);
-            if (fps !== 'original') vfParts.push(`fps=${fps}`);
-            if (vfParts.length) args.push('-vf', vfParts.join(','));
-
-            if (audio === 'mute') args.push('-an');
-        }
-
-        args.push(output);
-        return args;
-    }
-
     function getTargetBytes() {
         const val = parseInt(targetSizeInput.value);
         if (!val || val <= 0) return null;
         return targetSizeUnit.value === 'mb' ? val * 1024 * 1024 : val * 1024;
-    }
-
-    function getMimeType(fmt) {
-        const map = {
-            mp4: 'video/mp4',
-            webm: 'video/webm',
-            gif: 'image/gif',
-            mp3: 'audio/mpeg',
-            wav: 'audio/wav'
-        };
-        return map[fmt] || 'application/octet-stream';
     }
 
     console.log('Video Converter initialized');
@@ -515,7 +297,6 @@
     // --- Startup compatibility check ---
     // Show a warning if SharedArrayBuffer isn't available yet.
     // Don't hard-disable the button — the COI service worker may activate after a reload.
-    if (!isSharedArrayBufferAvailable()) {
-        console.warn('SharedArrayBuffer not available on initial load. The COI service worker may fix this after reload.');
-    }
+    const blocker = ffmpegUnavailableReason();
+    if (blocker) console.warn('[FFmpeg]', blocker);
 })();

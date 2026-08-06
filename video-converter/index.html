@@ -10,8 +10,24 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
 </head>
 <body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/video-converter/</code>.
+        </p>
+    </div>
 
     <!-- Navigation -->
     <nav class="nav">
@@ -280,6 +296,8 @@
             });
         }
     </script>
-    <script src="js/video-converter.js"></script>
+    <!-- Module, so it runs after the two classic scripts above have defined
+         FFmpegWASM and FFmpegUtil. -->
+    <script type="module" src="js/video-converter.js"></script>
 </body>
 </html>
