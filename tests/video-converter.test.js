@@ -3,34 +3,18 @@
 // Tests for helper functions and FFmpeg argument building
 // ============================================
 
-// Replicate pure helper functions from video-converter.js for testing
+// Imports the real shared module. These assertions are unchanged from when
+// they tested copy-pasted clones, so a green run proves the extraction into
+// js/shared/format.js preserved behaviour.
+import {
+    formatBytes as sharedFormatBytes,
+    stripExtension as stripExt,
+    formatTime,
+    parseTime,
+} from '../js/shared/format.js';
 
-function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-function stripExt(name) {
-    return name.replace(/\.[^.]+$/, '');
-}
-
-function formatTime(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function parseTime(str) {
-    str = str.trim();
-    if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
-    const parts = str.split(':').map(Number);
-    if (parts.some(isNaN)) return NaN;
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
-    return NaN;
-}
+// The video converter shows one decimal for MB; the image editor shows two.
+const formatBytes = (bytes) => sharedFormatBytes(bytes, { mbDecimals: 1 });
 
 function getInputExt(filename) {
     const m = filename.match(/(\.[^.]+)$/);
