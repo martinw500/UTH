@@ -33,8 +33,9 @@ picking the work back up on a new machine or in a new session.
 git push -u origin fix/instagram-blur-hotfix
 ```
 
-The full plan this work follows is at `.claude/plans/look-throgh-its-rlly-linked-origami.md`
-(local to the machine that generated it — copy it across, or re-derive from *Next up* below).
+The longer plan this work follows lives **outside the repo**, at
+`~/.claude/plans/look-throgh-its-rlly-linked-origami.md` on the machine that generated it, so it
+does **not** travel with a clone. *Next up* below is self-contained — work from it.
 
 ---
 
