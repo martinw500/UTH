@@ -64,6 +64,28 @@ Verified beyond the test suite: seven codes were rendered and decoded back with 
 valid check — the mask pattern is chosen by penalty scoring and two correct implementations can
 legitimately pick different masks.
 
+### The video converter was broken in production, and now is not
+Two independent bugs, both invisible to the unit suite because neither shows up
+until something actually converts a file.
+
+1. **`coi-serviceworker.js` contained `import.meta`.** A service worker registered without
+   `{ type: "module" }` is a classic script, where `import.meta` is a **parse-time** error — so its
+   presence anywhere in the file, even on a branch the worker never reaches, made the whole script
+   fail to evaluate. Registration failed with "ServiceWorker script evaluation failed",
+   `crossOriginIsolated` stayed false, and `SharedArrayBuffer` was unavailable everywhere the
+   headers are not set server-side: **GitHub Pages and local dev**. Vercel masked it.
+2. **The UMD ffmpeg core was handed to a module worker.** Passing `classWorkerURL` makes
+   `FFmpeg.load()` construct the worker with `{ type: "module" }`, and module workers have no
+   `importScripts`. The worker falls back to `await import(coreURL)` and reads `.default`, which a
+   UMD script does not have, so it failed with the misleading "failed to import ffmpeg-core.js" —
+   **on Vercel too**. The worker chunk must stay UMD (the ESM worker's relative imports break once
+   blobbed) while the core must be ESM. All four combinations were tried in a browser; only
+   UMD-worker + ESM-core loads.
+
+`npm run verify:converters` drives a real browser and ffprobes the output. **Run it after touching
+`js/shared/ffmpeg.js` or a converter page** — it is the only thing that catches this class of bug.
+Needs `npm run dev` running, plus ffmpeg and ffprobe on PATH.
+
 ### Shared ffmpeg loader
 `js/shared/ffmpeg.js` holds loading, worker-chunk discovery and the write/exec/read cycle. The
 video converter uses it; the audio converter will. It never touches the DOM — both pages have
@@ -230,8 +252,10 @@ Add a cancel button. VP9 instead of VP8.
   preview first; fall back to the 10s default with a 2-strategy cascade if rejected.
 - **PR-preview E2E needs `VERCEL_TOKEN` and `VERCEL_PROJECT_ID` repo secrets.** Without them the
   job skips (deliberately — silently re-testing production would report a false pass).
-- **Playwright is not installed.** jsdom cannot do canvas pixels, `toBlob`, `SharedArrayBuffer` or
-  `EyeDropper`, which is exactly where the remaining image/video bugs live. Add it when P6/P7 need it.
+- **jsdom cannot see the bugs that matter most here** — canvas pixels, `toBlob`,
+  `SharedArrayBuffer`, service workers, `EyeDropper`. Playwright is now a devDependency and
+  `npm run verify:converters` uses it; extend that approach for P6/P7 rather than trusting a green
+  unit suite.
 - `npm audit` reports 5 high-severity advisories. All are transitive **dev-only** deps of
   jest/jsdom (`ws`, `undici`, `js-yaml`, `picomatch`, `brace-expansion`). Nothing ships to users.
 
@@ -245,6 +269,8 @@ npm run test:build    # what Vercel runs on deploy — must stay green or deploy
 npm run dev           # static server on :5500
 npm run dev:api       # Flask backend on :5000
 SITE_URL=https://<preview>.vercel.app npm run test:e2e
+
+npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
 ```
 
 **No automated test checks that a downloaded file is actually correct.** For any Instagram or

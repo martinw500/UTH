@@ -13,8 +13,18 @@
 export const FFMPEG_VERSION = '0.12.10';
 export const FFMPEG_CORE_VERSION = '0.12.6';
 
+// The worker chunk comes from the UMD build...
 export const FFMPEG_UMD_BASE = `https://unpkg.com/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/umd`;
-export const FFMPEG_CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`;
+
+// ...but the core must be the ESM build, and this pairing is not arbitrary.
+// Passing classWorkerURL makes FFmpeg.load() construct the worker with
+// { type: "module" }, and module workers have no importScripts. The worker
+// tries importScripts(coreURL) first, falls back to `await import(coreURL)`,
+// and reads `.default` off the result — which a UMD script does not have. The
+// UMD core therefore fails with the misleading "failed to import
+// ffmpeg-core.js". Verified by loading all four combinations in a browser:
+// only UMD worker + ESM core succeeds.
+export const FFMPEG_CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 
 /** Correct for every 0.12.x published so far, but only used if discovery fails. */
 export const FALLBACK_WORKER_CHUNK = '814.ffmpeg.js';

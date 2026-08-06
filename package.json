@@ -9,7 +9,8 @@
     "test": "jest --verbose --testPathIgnorePatterns=deployed-site",
     "test:ci": "jest --ci --coverage --verbose --testPathIgnorePatterns=deployed-site",
     "test:build": "jest --ci --silent --testPathIgnorePatterns=deployed-site",
-    "test:e2e": "jest tests/deployed-site.test.js --verbose"
+    "test:e2e": "jest tests/deployed-site.test.js --verbose",
+    "verify:converters": "node scripts/verify-converters.mjs"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -33,6 +34,7 @@
     "babel-jest": "^30.4.1",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
-    "jsdom": "^28.1.0"
+    "jsdom": "^28.1.0",
+    "playwright": "^1.62.1"
   }
 }

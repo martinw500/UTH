@@ -17,6 +17,7 @@ const SITE = (process.env.SITE_URL || 'https://useful-tool-hub.vercel.app').repl
 // Reuses the app's own chunk discovery so this file cannot drift from it.
 import {
     FFMPEG_UMD_BASE,
+    FFMPEG_CORE_BASE,
     findWorkerChunk,
     resolveWorkerChunk,
 } from '../js/shared/ffmpeg.js';
@@ -249,13 +250,15 @@ describe('External CDN dependencies are accessible', () => {
         expect(res.ok).toBe(true);
     });
 
-    test('FFmpeg core WASM loads from unpkg', async () => {
-        const res = await checkResource('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm');
+    // Built from the shared constants rather than hardcoded, so a version bump
+    // in one place cannot leave this file checking a URL the app never loads.
+    test('FFmpeg core JS loads from unpkg', async () => {
+        const res = await checkResource(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`);
         expect(res.ok).toBe(true);
     });
 
-    test('FFmpeg core JS loads from unpkg', async () => {
-        const res = await checkResource('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js');
+    test('FFmpeg core WASM loads from unpkg', async () => {
+        const res = await checkResource(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`);
         expect(res.ok).toBe(true);
     });
 

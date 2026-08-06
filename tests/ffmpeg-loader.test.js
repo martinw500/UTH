@@ -8,9 +8,12 @@
  * fixtures below are real bundle text, not invented.
  */
 
+import fs from 'fs';
+import path from 'path';
 import {
     FFMPEG_VERSION,
     FFMPEG_UMD_BASE,
+    FFMPEG_CORE_BASE,
     FALLBACK_WORKER_CHUNK,
     findWorkerChunk,
     workerChunkFromMeta,
@@ -285,10 +288,56 @@ describe('runFFmpeg', () => {
     });
 });
 
+describe('COI service worker', () => {
+    // The one that actually took the tool down. A service worker registered
+    // without { type: "module" } is a classic script, and `import.meta` is a
+    // PARSE-time error there — so its presence anywhere in the file, even on a
+    // branch the worker never runs, made registration fail with
+    // "ServiceWorker script evaluation failed". SharedArrayBuffer then stayed
+    // disabled everywhere the headers are not set server-side: GitHub Pages and
+    // local dev. new Function() parses in classic (sloppy) mode, same as a
+    // classic worker would.
+    const files = ['video-converter/coi-serviceworker.js'];
+
+    files.forEach((file) => {
+        const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf-8');
+
+        test(`${file} parses as a classic script`, () => {
+            expect(() => new Function(source)).not.toThrow();
+        });
+
+        // The parse check above is authoritative; this one exists to fail with
+        // a message that names the problem instead of a bare SyntaxError.
+        // Comments are stripped first, or the explanation of this very bug in
+        // the source would trip it.
+        test(`${file} contains no module-only syntax`, () => {
+            const code = source
+                .replace(/\/\*[\s\S]*?\*\//g, '')
+                .replace(/^\s*\/\/.*$/gm, '');
+            expect(code).not.toContain('import.meta');
+            expect(code).not.toMatch(/^\s*(import|export)\s/m);
+        });
+    });
+});
+
 describe('version pinning', () => {
     // Bumping the version is fine; forgetting that deployed-site.test.js checks
     // the same URLs is not. Keep them in step.
     test('the UMD base is built from the pinned version', () => {
         expect(FFMPEG_UMD_BASE).toContain(`@ffmpeg/ffmpeg@${FFMPEG_VERSION}`);
+    });
+
+    // This pairing broke the converter in production and looks like a typo.
+    //
+    // Passing classWorkerURL makes FFmpeg.load() build the worker with
+    // { type: "module" }, and module workers have no importScripts. The worker
+    // falls back to `await import(coreURL)` and reads `.default`, which a UMD
+    // script does not have — so a UMD core fails with the thoroughly unhelpful
+    // "failed to import ffmpeg-core.js". The worker chunk itself must stay UMD
+    // because the ESM worker's relative imports break once it is blobbed.
+    // All four combinations were tried in a browser; only this one loads.
+    test('the worker comes from the UMD build and the core from the ESM build', () => {
+        expect(FFMPEG_UMD_BASE).toMatch(/\/dist\/umd$/);
+        expect(FFMPEG_CORE_BASE).toMatch(/\/dist\/esm$/);
     });
 });

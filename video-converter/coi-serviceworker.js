@@ -66,10 +66,19 @@ if (typeof window === 'undefined') {
             return;
         }
 
-        // Register the service worker from the current scope
+        // Register the service worker from the current scope.
+        //
+        // Resolve against location.href, NOT import.meta.url. A service worker
+        // registered without { type: "module" } is a classic script, and
+        // `import.meta` is a *parse-time* syntax error there — so its mere
+        // presence anywhere in this file, even on a branch that never runs in
+        // the worker, made the whole script fail to evaluate. Registration then
+        // failed with "ServiceWorker script evaluation failed" and
+        // SharedArrayBuffer stayed disabled everywhere the headers are not set
+        // server-side, which is GitHub Pages and local dev.
         const n = navigator;
         if (n.serviceWorker) {
-            n.serviceWorker.register(new URL("coi-serviceworker.js", import.meta.url || window.location.href).href).then(
+            n.serviceWorker.register(new URL("coi-serviceworker.js", window.location.href).href).then(
                 (registration) => {
                     if (registration.active && !n.serviceWorker.controller) {
                         window.sessionStorage.setItem("coiReloadedBySelf", coepDegrading ? "coepdegrade" : "");
