@@ -242,8 +242,10 @@ describe('Video Converter — security headers and features', () => {
         expect(page.headers['cross-origin-opener-policy']).toBe('same-origin');
     });
 
-    test('has Cross-Origin-Embedder-Policy: require-corp header', () => {
-        expect(page.headers['cross-origin-embedder-policy']).toBe('require-corp');
+    // credentialless, not require-corp: require-corp would reject the unpkg
+    // ffmpeg scripts, which are served without Cross-Origin-Resource-Policy.
+    test('has Cross-Origin-Embedder-Policy: credentialless header', () => {
+        expect(page.headers['cross-origin-embedder-policy']).toBe('credentialless');
     });
 
     test('loads FFmpeg scripts with crossorigin attribute', () => {
@@ -620,11 +622,14 @@ describe('Instagram Downloader — features present', () => {
         expect(page.body).toContain('value="webp"');
     });
 
-    test('has video format selector (MP4/MOV/AVI)', () => {
+    // MOV and AVI were dropped deliberately: they only renamed an MP4 without
+    // transcoding, so the extension lied about the container. Original is now
+    // the only choice — it saves Instagram's file untouched.
+    test('has video format selector offering only the untouched original', () => {
         expect(page.body).toContain('id="videoFormatSelect"');
-        expect(page.body).toContain('value="mp4"');
-        expect(page.body).toContain('value="mov"');
-        expect(page.body).toContain('value="avi"');
+        expect(page.body).toContain('value="original"');
+        expect(page.body).not.toContain('value="mov"');
+        expect(page.body).not.toContain('value="avi"');
     });
 
     test('has troubleshooting link', () => {

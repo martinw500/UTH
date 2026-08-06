@@ -43,44 +43,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check all HTML files exist
+      # These checks used to be three hand-maintained lists of paths, which had
+      # to be edited for every new tool and could not catch a page referencing a
+      # script that was never committed — the 404 that commit 085863b fixed.
+      # Deriving the file set from git instead means new tools need no CI edit.
+      - name: Check core assets exist
         run: |
-          files=(
-            "index.html"
-            "feedback.html"
-            "image-converter/index.html"
-            "video-converter/index.html"
-            "color-converter/index.html"
-            "youtube-downloader/index.html"
-            "instagram-downloader/index.html"
-          )
-          for f in "${files[@]}"; do
+          for f in index.html styles.css script.js js/config.js vercel.json; do
             if [ ! -f "$f" ]; then
               echo "ERROR: Missing file: $f"
               exit 1
             fi
           done
-          echo "All HTML files present."
+          echo "Core assets present."
 
-      - name: Check required JS files exist
+      - name: Check every page's scripts and stylesheets exist
         run: |
-          files=(
-            "script.js"
-            "js/config.js"
-            "styles.css"
-            "image-converter/js/image-converter.js"
-            "video-converter/js/video-converter.js"
-            "color-converter/js/color-converter.js"
-            "youtube-downloader/js/youtube-downloader.js"
-            "instagram-downloader/js/instagram-downloader.js"
-          )
-          for f in "${files[@]}"; do
-            if [ ! -f "$f" ]; then
-              echo "ERROR: Missing file: $f"
-              exit 1
-            fi
+          fail=0
+          for f in $(git ls-files '*.html'); do
+            d=$(dirname "$f")
+            refs=$(grep -o -e 'src="[^"]*\.js"' -e 'href="[^"]*\.css"' "$f" \
+                   | sed -e 's/^src="//' -e 's/^href="//' -e 's/"$//')
+            for ref in $refs; do
+              case "$ref" in http*|//*) continue ;; esac
+              if [ ! -f "$d/$ref" ]; then
+                echo "ERROR: $f references missing asset: $ref"
+                fail=1
+              fi
+            done
           done
-          echo "All JS files present."
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+          echo "Every referenced local asset exists."
 
       - name: Validate vercel.json
         run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf-8')); console.log('vercel.json is valid JSON')"
@@ -96,21 +89,17 @@ jobs:
 
       - name: Validate HTML has required meta tags
         run: |
-          for f in index.html feedback.html image-converter/index.html video-converter/index.html color-converter/index.html youtube-downloader/index.html instagram-downloader/index.html; do
-            if ! grep -q 'charset="UTF-8"' "$f"; then
-              echo "ERROR: $f missing charset meta tag"
-              exit 1
-            fi
-            if ! grep -q 'name="viewport"' "$f"; then
-              echo "ERROR: $f missing viewport meta tag"
-              exit 1
-            fi
-            if ! grep -q '<title>' "$f"; then
-              echo "ERROR: $f missing title tag"
-              exit 1
-            fi
+          fail=0
+          for f in $(git ls-files '*.html'); do
+            for tag in 'charset="UTF-8"' 'name="viewport"' '<title>'; do
+              if ! grep -q "$tag" "$f"; then
+                echo "ERROR: $f missing $tag"
+                fail=1
+              fi
+            done
           done
-          echo "All HTML files have required meta tags."
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+          echo "All tracked HTML files have required meta tags."
 
   e2e:
     name: E2E — Deployed Site

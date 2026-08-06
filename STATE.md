@@ -24,18 +24,13 @@ picking the work back up on a new machine or in a new session.
 
 ## Where the work lives
 
-- **Branch:** `fix/instagram-blur-hotfix` (branched from `main`)
 - **Remote:** `origin` → https://github.com/martinw500/UTH
+- P0–P2a landed on `main` via PR #1. Current work: adding four tools (QR generator, audio
+  converter, TikTok and X downloaders) as branches off `main`, one PR per step.
 
-**The branch has not been pushed.** Push it before switching machines or the work is lost:
-
-```bash
-git push -u origin fix/instagram-blur-hotfix
-```
-
-The longer plan this work follows lives **outside the repo**, at
-`~/.claude/plans/look-throgh-its-rlly-linked-origami.md` on the machine that generated it, so it
-does **not** travel with a clone. *Next up* below is self-contained — work from it.
+The longer plans this work follows live **outside the repo**, under `~/.claude/plans/` on the
+machine that generated them, so they do **not** travel with a clone. *Next up* below is
+self-contained — work from it.
 
 ---
 
@@ -53,32 +48,41 @@ video converter (ffmpeg.wasm), colour converter (both client-only).
 
 ## Done
 
-### P0 — Instagram downloads were blurry
-The backend already resolved a full-resolution URL into `url_high`; the client threw it away and
-downloaded `media.thumbnail`, a downscaled base64 preview. Images now download `url_high` through
-`/api/instagram/proxy` (only `fetch()` needs CORS — `<img src>` does not, so previews hit the CDN
-directly). Also: oEmbed now requests `maxwidth=1080`, the size-capped-URL filter tries rewriting
-the CDN size segment upward instead of silently falling back to low-res, and re-encode defaults to
-**Original** (no re-encode) rather than WebP at Chrome's default 0.80.
-
-Dropped the MOV/AVI video format options — they only renamed an MP4 without transcoding.
-
-**Also fixed here:** `api/instagram/proxy.py` checked `'instagram.com' in media_url`, a substring
-match over the whole URL, so `https://evil.com/?x=instagram.com` passed. It was an open relay. Now
-parses the URL and matches on hostname.
-
-### P1 — CI could not catch regressions
-`tests/deployed-site.test.js` hardcoded the production URL, so it could only ever confirm what was
-already live. Now driven by `SITE_URL`; PR runs resolve and test that PR's Vercel preview. The
-Pages deploy had no test gate at all and now depends on a unit-test job. Vercel's `buildCommand`
-moved from `test:ci` to a new `test:build` (no coverage, no verbose, hermetic).
+### P0/P1 — Instagram quality, and CI that can catch regressions
+Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
+- Instagram downloads `url_high` through `/api/instagram/proxy`. Only `fetch()` needs CORS —
+  `<img src>` does not, so previews hit the CDN directly and must keep doing so.
+- Re-encode defaults to **Original**. MOV/AVI were dropped: they renamed an MP4 without
+  transcoding, so the extension lied about the container. Don't add them back.
+- `tests/deployed-site.test.js` is driven by `SITE_URL`; PR runs test that PR's Vercel preview.
 
 ### P2a — shared modules
 `js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. The image, video
 and colour test files now import the real source **with their original assertions unchanged**, so
 green means the extraction preserved behaviour. 245 → 363 tests.
 
-**Nothing loads these yet** — no page was changed. The site is byte-identical at runtime.
+**No page loads these yet.** The four new tools will be the first consumers; the five existing
+pages are still classic scripts with their own helper copies (that is P2c–g).
+
+### ESM groundwork
+Everything a `<script type="module">` page needs, landed before the first one exists:
+- **`file://` guard.** A classic inline `<head>` script sets `.needs-http` on `<html>`; CSS then
+  hides the page and shows `.file-protocol-notice` instead. A module page opened from disk is
+  otherwise silently blank. The guard cannot itself be a module — one would never run.
+- **The CSS the shared modules apply now exists**: `.notice` + `.notice-error/-success/-info`,
+  `.visually-hidden` (aliased onto the existing `.sr-only`), `.copied`. `notify()` adds only a
+  *level* class plus `active`, so page markup must supply the base `class="notice"`.
+  `.notice.active:not([hidden])` is deliberate: an author `display` rule beats the UA
+  `[hidden]` rule, so keying on `.active` alone leaves a cleared notice visible.
+- **`tests/esm-conventions.test.js`** mechanically enforces the extension rule below, checks
+  every module page carries the guard, forbids loading `js/shared`/`js/vendor` as a classic
+  script, and asserts `styles.css` styles every class those modules apply.
+- **`tests/html-structure.test.js`** asserts `#toolCount`/`#visibleCount` match the tool-card
+  count, so adding a tool and forgetting a counter is a red build.
+- **`ci.yml`'s `validate` job no longer hardcodes file lists.** It derives them from
+  `git ls-files`, so **adding a tool needs no CI edit**. The asset check now reads each page's
+  real `src`/`href` attributes, which the old parallel list could not do — that is exactly the
+  404 commit `085863b` had to fix.
 
 Behaviour deliberately changed while extracting (each fixes a real bug):
 - `resolveBackendUrl` sends Vercel *preview* deployments to their own API. Previously any hostname
@@ -103,12 +107,12 @@ One PR per step; each independently green and deployable.
   that load it (`youtube-downloader`, `instagram-downloader`) to `<script type="module">`.
 - **P2c–g** — one tool per PR: convert the IIFE to a module with real exports, delete its local
   helper copies in favour of `js/shared/*`, rewrite its test to import real source.
-- **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`. **Keep the homepage grid as static
-  HTML** and add `tests/tool-registry.test.js` asserting registry↔HTML parity and that
-  `#toolCount` matches `TOOLS.length`. Client-rendering the grid would break every homepage
-  assertion in `deployed-site.test.js` (it fetches raw HTML, no JS). Same reasoning for nav/footer:
-  don't inject them, assert they match across all 7 pages. Rewrite `script.js` search to tokenise
-  on whitespace (so "image convert" matches), debounce, and hide with `hidden` not `style.display`.
+- **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus `tests/tool-registry.test.js`
+  asserting registry↔HTML parity. **Keep the homepage grid as static HTML** — client-rendering it
+  would break every homepage assertion in `deployed-site.test.js`, which fetches raw HTML with no
+  JS. Same reasoning for nav/footer: don't inject them, assert they match across every page.
+  Rewrite `script.js` search to tokenise on whitespace (so "image convert" matches), debounce, and
+  hide with `hidden` not `style.display`. *(The counter check is already done — see Done above.)*
 
 ### P3 — Instagram backend rewrite
 Extract `api/_lib/` (leading underscore ⇒ Vercel does not route it). Add a `Deadline` budget —
@@ -163,9 +167,15 @@ Discover the chunk at runtime. Add a cancel button. VP9 instead of VP8.
 ## Constraints (decided, do not relitigate)
 
 - **Instagram stays anonymous.** No session cookies, no login, no third-party downloader APIs.
+- **Media proxies validate on parsed hostname, never a substring of the URL.**
+  `api/instagram/proxy.py` once checked `'instagram.com' in media_url`, so
+  `https://evil.com/?x=instagram.com` passed — it was an open relay. Any new proxy parses with
+  `urlparse`, requires https, lowercases, strips a trailing dot, and matches
+  `host == suffix or host.endswith('.' + suffix)`.
 - **No bundler, no framework, no runtime build step.** ES modules with **explicit `.js`
-  extensions** — browsers require them, Babel/Jest tolerate omission, so a missing one passes tests
-  and 404s in production.
+  extensions** — browsers require them, Babel/Jest tolerate omission, so a missing one would pass
+  tests and 404 in production. `tests/esm-conventions.test.js` now enforces this, along with
+  relative-only specifiers (a bare `'lodash'` needs a bundler or an import map; there is neither).
 - **Relative hrefs only.** GitHub Pages serves from `/UTH/`; a root-absolute path breaks there.
 - Babel is a **test-time devDependency only**. Nothing is compiled for deployment.
 
@@ -173,11 +183,9 @@ Discover the chunk at runtime. Add a cancel button. VP9 instead of VP8.
 
 ## Gotchas
 
-- **The ESM migration will break `file://`.** `type="module"` is CORS-blocked on `file://`, and the
-  README currently tells users to open HTML files directly. `npm run dev` (port 5500) and
-  `npm run dev:api` (port 5000) exist for this. Ship the README fix and a **classic** (non-module)
-  inline `<head>` guard that renders a visible banner in the same PR — a module under `file://`
-  never executes, so the guard cannot itself be a module.
+- **Module pages do not work over `file://`.** `type="module"` is CORS-blocked there. The guard
+  and the README fix are shipped, so the page explains itself rather than rendering blank — but
+  local testing of any module page needs `npm run dev` (port 5500), not a double-click.
 - **`api/_lib/` cross-directory imports are unverified on Vercel's Python runtime.** Confirm on a
   preview deploy before relying on it. This is why `backend.py` currently carries a duplicated
   proxy route with a note rather than importing a shared one.

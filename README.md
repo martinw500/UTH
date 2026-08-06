@@ -33,8 +33,22 @@ python backend.py
 ```
 Backend runs on `http://localhost:5000`
 
-### 3. Open Frontend
-Open any tool HTML file in your browser. The frontend auto-detects localhost and uses the local backend.
+### 3. Serve the Frontend
+```bash
+npm install
+npm run dev
+```
+Then open `http://localhost:5500/`. The frontend auto-detects localhost and uses the local backend.
+
+> **Do not open the HTML files straight from disk.** Newer tools load ES modules, which browsers
+> block over `file://`, so the page renders blank. Those pages detect this and show an explanation
+> instead, but the fix is always to serve over HTTP with `npm run dev`.
+
+### Running Tests
+```bash
+npm test          # unit suite
+npm run test:e2e  # checks the deployed site (set SITE_URL to target a preview)
+```
 
 ## Project Structure
 ```
@@ -42,6 +56,7 @@ Open any tool HTML file in your browser. The frontend auto-detects localhost and
 ├── styles.css                  # Global styles
 ├── script.js                   # Homepage search/filter
 ├── js/config.js                # API URL config (auto-switches local/prod)
+├── js/shared/                  # Shared ES modules (DOM, format, dropzone, image, colour…)
 ├── backend.py                  # Unified local dev backend
 ├── vercel.json                 # Vercel serverless config
 ├── requirements.txt            # Python dependencies

@@ -114,6 +114,16 @@ describe('Homepage structure', () => {
         expect(html).toContain('href="color-converter/index.html"');
     });
 
+    // Both counters are hardcoded in the markup and script.js never recomputes
+    // #toolCount, so adding a tool and forgetting one of them ships a wrong
+    // number to every visitor. Fail here instead.
+    test('the hardcoded counters match the number of tool cards', () => {
+        const cards = (html.match(/class="tool-card"/g) || []).length;
+        expect(cards).toBeGreaterThan(0);
+        expect(html).toMatch(new RegExp(`id="toolCount">${cards}<`));
+        expect(html).toMatch(new RegExp(`id="visibleCount">${cards} tools<`));
+    });
+
     test('loads main script', () => {
         expect(html).toContain('<script src="script.js"');
     });
