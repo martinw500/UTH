@@ -25,12 +25,13 @@ picking the work back up on a new machine or in a new session.
 ## Where the work lives
 
 - **Remote:** `origin` → https://github.com/martinw500/UTH
-- P0–P2a landed on `main` via PR #1. Current work: adding four tools (QR generator, audio
-  converter, TikTok and X downloaders) as branches off `main`, one PR per step.
+- Work goes straight to `main` after `npm test` passes. It is a solo repo; PRs bought nothing that
+  pushing does not, since CI and both deploy gates run on `main` too. The exception is anything
+  touching `api/` — see the note under P-social below.
 
-The longer plans this work follows live **outside the repo**, under `~/.claude/plans/` on the
-machine that generated them, so they do **not** travel with a clone. *Next up* below is
-self-contained — work from it.
+**Everything needed to pick the work up is in this repo.** *Next up* below is self-contained;
+`docs/SETUP.md` covers a new machine. Earlier planning documents lived under `~/.claude/plans/`
+and do **not** travel with a clone — nothing depends on them.
 
 ---
 
@@ -215,8 +216,9 @@ palette extraction, native `EyeDropper` API. Then permalinks and export formats.
 Add a cancel button. VP9 instead of VP8.
 
 ### P9 — docs
-`CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/ADDING_A_TOOL.md`, `CONTRIBUTING.md`, README rewrite,
-`docs/ROADMAP.md`, issue/PR templates. Reunify `backend.py` onto `api/_lib/`.
+Done: `CLAUDE.md`, `docs/SETUP.md`, `docs/ARCHITECTURE.md`, `docs/ADDING_A_TOOL.md`, README rewrite.
+Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` onto `api/_lib/`
+(blocked on the same unverified cross-directory import as P3).
 
 ---
 

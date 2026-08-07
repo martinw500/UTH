@@ -1,97 +1,91 @@
 # Useful Tool Hub
 
-A collection of useful tools in one place. I got tired of having to search up a ton of different tools whenever I needed to use stuff, so I made this.
+A collection of useful tools in one place. I got tired of having to search up a ton of different
+tools whenever I needed to use stuff, so I made this.
 
 Will be updated with more tools as I build them out.
 
 ## Live Website
-**https://martinw500.github.io/UTH/**
+
+- **https://useful-tool-hub.vercel.app** — full site, including the downloaders
+- **https://martinw500.github.io/UTH/** — same site on GitHub Pages (the downloaders call the
+  Vercel API)
 
 ## Tools
-- **YouTube Downloader** — Download YouTube videos in multiple formats and qualities
-- **Instagram Downloader** — Save photos and videos from public Instagram posts and reels
-- **Image Editor / Converter** — Edit, crop, compress, and convert images between formats (client-side)
-- **Video Converter** — Convert videos between MP4, WEBM, GIF, and extract audio using FFmpeg.wasm (client-side)
-- **Colour Picker** — Pick and convert colours between HEX, RGB, and HSL with a live colour picker
-- **Audio Converter** — Convert and trim audio between MP3, M4A, WAV, OGG, Opus and FLAC, or extract audio from video (client-side)
-- **QR Code Generator** — Turn any text or link into a QR code and save it as PNG or SVG (client-side)
 
-## Architecture
-- **Frontend** — Static HTML/CSS/JS hosted on GitHub Pages
-- **Backend** — Python serverless functions on Vercel (Instagram via instaloader, YouTube via yt-dlp)
-- **Client-side Tools** — Image editor, video converter, and colour picker run entirely in the browser (Canvas API, FFmpeg.wasm)
-- **Local Dev** — Unified Flask backend (`backend.py`) for local testing
+| Tool | What it does | Runs |
+| --- | --- | --- |
+| **YouTube Downloader** | Download videos in multiple formats and qualities | server |
+| **Instagram Downloader** | Save photos and videos from public posts and reels | server |
+| **Image Editor / Converter** | Edit, crop, compress and convert images | browser |
+| **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
+| **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |
+| **Colour Picker** | Convert between HEX, RGB and HSL | browser |
+| **QR Code Generator** | Any text or link to a QR code, saved as PNG or SVG | browser |
 
-## Local Development
+"browser" means the file never leaves your machine.
 
-### 1. Install Dependencies
+## Documentation
+
+| | |
+| --- | --- |
+| **[STATE.md](STATE.md)** | **Start here.** Current state, what's next, settled decisions. |
+| [docs/SETUP.md](docs/SETUP.md) | Getting running on a new machine |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together, and why |
+| [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | Checklist for adding a tool |
+| [CLAUDE.md](CLAUDE.md) | Orientation for Claude Code sessions |
+
+## Quick start
+
 ```bash
+npm ci
+npx playwright install chromium     # only for npm run verify:converters
 pip install -r requirements.txt
+
+npm run dev        # site on http://localhost:5500
+npm run dev:api    # API on  http://localhost:5000  (only needed for the downloaders)
 ```
 
-### 2. Start Backend
+> **Do not open the HTML files straight from disk.** Several tools load ES modules, which browsers
+> block over `file://`, so the page renders blank. Serve over HTTP with `npm run dev`.
+
+Full details, including the ffmpeg/ffprobe prerequisite, in [docs/SETUP.md](docs/SETUP.md).
+
+## Architecture in one paragraph
+
+Static HTML/CSS/JS with **no framework, no bundler and no build step** — the files in the repo are
+the files the browser loads. Python serverless functions under `api/` handle the two things a
+browser cannot do (YouTube via `yt-dlp`, Instagram via `instaloader`); `backend.py` mirrors them
+for local development. Everything else runs client-side via the Canvas API or ffmpeg.wasm. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Project structure
+
+```
+index.html / styles.css / script.js   Homepage, global styles, search
+js/config.js                          API base URL (local vs production)
+js/shared/                            Shared ES modules (dom, format, image, colour, qr, ffmpeg…)
+js/vendor/                            Vendored third-party code — see js/vendor/README.md
+<tool>/index.html + <tool>/js/        One directory per tool
+api/<name>/index.py                   Vercel serverless functions
+backend.py                            Local dev mirror of the API
+tests/                                Jest suite
+scripts/verify-converters.mjs         Real-browser verification of the ffmpeg tools
+```
+
+## Tests
+
 ```bash
-python backend.py
-```
-Backend runs on `http://localhost:5000`
-
-### 3. Serve the Frontend
-```bash
-npm install
-npm run dev
-```
-Then open `http://localhost:5500/`. The frontend auto-detects localhost and uses the local backend.
-
-> **Do not open the HTML files straight from disk.** Newer tools load ES modules, which browsers
-> block over `file://`, so the page renders blank. Those pages detect this and show an explanation
-> instead, but the fix is always to serve over HTTP with `npm run dev`.
-
-### Running Tests
-```bash
-npm test          # unit suite
-npm run test:e2e  # checks the deployed site (set SITE_URL to target a preview)
+npm test                    # unit suite (~580 tests), no network needed
+npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
+npm run test:e2e            # checks the deployed site; SITE_URL to target a preview
 ```
 
-## Project Structure
-```
-├── index.html                  # Homepage
-├── styles.css                  # Global styles
-├── script.js                   # Homepage search/filter
-├── js/config.js                # API URL config (auto-switches local/prod)
-├── js/shared/                  # Shared ES modules (DOM, format, dropzone, image, colour…)
-├── backend.py                  # Unified local dev backend
-├── vercel.json                 # Vercel serverless config
-├── requirements.txt            # Python dependencies
-├── feedback.html               # Feedback form
-├── api/
-│   ├── instagram/index.py      # Vercel serverless function (instaloader)
-│   └── youtube/index.py        # Vercel serverless function (yt-dlp)
-├── instagram-downloader/
-│   ├── index.html              # Instagram tool UI
-│   ├── troubleshooting.html    # Help page
-│   └── js/instagram-downloader.js
-├── youtube-downloader/
-│   ├── index.html              # YouTube tool UI
-│   └── js/youtube-downloader.js
-├── image-converter/
-│   ├── index.html              # Image editor/converter UI
-│   └── js/image-converter.js   # Client-side Canvas API editing & conversion
-├── video-converter/
-│   ├── index.html              # Video converter UI
-│   └── js/video-converter.js   # Client-side FFmpeg.wasm conversion
-├── color-converter/
-│   ├── index.html              # Colour picker UI
-│   └── js/color-converter.js   # HEX/RGB/HSL conversion
-├── audio-converter/
-│   ├── index.html              # Audio converter UI (ES module)
-│   ├── js/audio-converter.js   # Wiring
-│   └── js/audio-args.js        # Pure ffmpeg argument building
-├── qr-generator/
-│   ├── index.html              # QR generator UI (ES module)
-│   └── js/qr-generator.js      # Wiring; encoding lives in js/shared/qr.js
-├── js/vendor/                  # Vendored third-party libraries — see js/vendor/README.md
-```
+`npm test` is what Vercel runs on deploy, so a failure freezes deploys. For anything touching
+canvas, workers or downloads, a green unit suite proves very little — use `verify:converters`.
 
 ## Deployment
-- Push to `main` → GitHub Pages auto-deploys the frontend
-- Push to `main` → Vercel auto-deploys the backend functions
+
+Push to `main`; both hosts update themselves and both gate on the test suite. Vercel also builds a
+preview deployment for every branch. GitHub Actions can take ~15 minutes to create a run after a
+push — an empty Actions list right afterwards means "not yet", not "broken".

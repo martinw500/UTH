@@ -406,6 +406,59 @@ describe('Audio Converter page structure', () => {
     });
 });
 
+describe('Documentation', () => {
+    const DOCS = [
+        'README.md',
+        'STATE.md',
+        'CLAUDE.md',
+        'docs/SETUP.md',
+        'docs/ARCHITECTURE.md',
+        'docs/ADDING_A_TOOL.md',
+        'js/vendor/README.md',
+    ];
+
+    DOCS.forEach(doc => {
+        test(`${doc} exists`, () => {
+            expect(fileExists(doc)).toBe(true);
+        });
+    });
+
+    // Cross-references between the docs are the first thing to rot when a file
+    // is renamed, and nothing else would notice.
+    DOCS.forEach(doc => {
+        test(`${doc} has no broken relative links`, () => {
+            const source = fs.readFileSync(path.join(ROOT, doc), 'utf-8');
+            const dir = path.dirname(doc);
+            const links = [...source.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
+
+            links.forEach(link => {
+                if (/^(https?:|mailto:|#)/.test(link)) return;
+                const target = link.split('#')[0];
+                if (!target) return;
+                const resolved = path.join(ROOT, dir, target);
+                expect(fs.existsSync(resolved)).toBe(true);
+            });
+        });
+    });
+
+    // Every script the docs tell someone to run must actually exist, or a fresh
+    // clone hits a dead command on its first day.
+    test('the commands the docs mention are real npm scripts', () => {
+        const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+        ['dev', 'dev:api', 'test', 'test:build', 'test:e2e', 'verify:converters']
+            .forEach(script => expect(pkg.scripts[script]).toBeDefined());
+    });
+
+    test('the setup guide names the non-obvious prerequisites', () => {
+        const setup = fs.readFileSync(path.join(ROOT, 'docs/SETUP.md'), 'utf-8');
+        // Each of these is a step that npm ci does not do and that silently
+        // breaks something later if skipped.
+        expect(setup).toContain('playwright install');
+        expect(setup).toContain('ffprobe');
+        expect(setup).toContain('requirements.txt');
+    });
+});
+
 describe('Vendored libraries', () => {
     // Vendoring an MIT library carries an attribution obligation. A future
     // cleanup that deletes the licence file should fail the build.
