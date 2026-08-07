@@ -57,6 +57,7 @@ const PAGES = [
     { path: '/audio-converter/', name: 'Audio Converter' },
     { path: '/convert/', name: 'File Converter' },
     { path: '/favicon-generator/', name: 'Favicon Generator' },
+    { path: '/pdf-tools/', name: 'PDF Tools' },
 ];
 
 describe('All pages load with HTTP 200', () => {

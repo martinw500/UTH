@@ -33,6 +33,7 @@ const PAGES = [
     'audio-converter/index.html',
     'convert/index.html',
     'favicon-generator/index.html',
+    'pdf-tools/index.html',
 ];
 
 // ============================================

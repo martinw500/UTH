@@ -52,3 +52,36 @@ qrcode.stringToBytes = stringToBytes;   // from qrcode-generator-utf8.js
 ```
 
 `tests/qr.test.js` pins this. Do not remove the override.
+
+---
+
+## pdf-lib
+
+- **Upstream:** https://github.com/Hopding/pdf-lib
+- **Package:** `pdf-lib` on npm
+- **Version:** 1.17.1
+- **Licence:** MIT — see `pdf-lib.LICENSE.md`. The bundle also embeds tslib
+  (Microsoft, Apache-2.0); its notice is in the file header, which is why the
+  header must not be stripped.
+
+| File here | From the npm tarball |
+| --- | --- |
+| `pdf-lib.js` | `dist/pdf-lib.esm.min.js` |
+
+- **SHA-256:** `72c052d97b4d5d9fa6cdbdcb7ad709f03d4ddb1122390cb3afeba4d88651d969`
+- **Modifications: none.** A byte-for-byte copy, renamed.
+
+The **ESM** build is vendored, not the UMD one, so the PDF pages can `import`
+it directly instead of loading a classic script first and reading a global.
+
+Re-vendor with:
+
+```bash
+curl -sSL -o js/vendor/pdf-lib.js \
+  https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js
+```
+
+**pdf-lib writes and edits PDFs; it does not render them.** Anything needing a
+page rasterised (PDF → image, thumbnails) needs pdf.js as well, which is a
+separate, larger dependency with its own worker. It is deliberately not
+vendored yet — see the PDF entry in `STATE.md`.

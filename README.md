@@ -21,6 +21,7 @@ Will be updated with more tools as I build them out.
 | **Image Editor** | Crop, straighten, adjust, resize, compress — in batches | browser |
 | **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
 | **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |
+| **PDF Tools** | Merge, split, rotate and trim PDFs, or turn images into one | browser |
 | **Favicon Generator** | One image into a full favicon set — .ico, PNGs, manifest | browser |
 | **Colour Picker** | Convert between HEX, RGB and HSL | browser |
 | **QR Code Generator** | Any text or link to a QR code, saved as PNG or SVG | browser |
@@ -41,7 +42,7 @@ Will be updated with more tools as I build them out.
 
 ```bash
 npm ci
-npx playwright install chromium     # only for npm run verify:converters
+npx playwright install chromium     # only for the npm run verify:* scripts
 pip install -r requirements.txt
 
 npm run dev        # site on http://localhost:5500
@@ -78,15 +79,16 @@ scripts/verify-converters.mjs         Real-browser verification of the ffmpeg to
 ## Tests
 
 ```bash
-npm test                     # unit suite (~1100 tests), no network needed
+npm test                     # unit suite (~1200 tests), no network needed
 npm run verify:converters    # video + audio pages: real browser + ffprobe
 npm run verify:image-editor  # image editor: real browser, checks exported bytes
 npm run verify:convert-hub   # the convert/ hub: routing, options, a real MP4
 npm run verify:favicon       # unzips the output with a different implementation
+npm run verify:pdf-tools     # reads every produced PDF back and checks it
 npm run test:e2e             # checks the deployed site; SITE_URL to target a preview
 ```
 
-The three `verify:*` scripts need `npm run dev` running in another terminal.
+The `verify:*` scripts all need `npm run dev` running in another terminal.
 
 `npm test` is what Vercel runs on deploy, so a failure freezes deploys. For anything touching
 canvas, workers or downloads, a green unit suite proves very little — jsdom has no canvas, no

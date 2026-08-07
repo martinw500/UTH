@@ -42,13 +42,40 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Nine tools: YouTube downloader, Instagram downloader (both server-backed), file converter (the
-`convert/` hub), image editor, favicon generator, video converter, audio converter, colour
-converter, QR generator.
+Ten tools: YouTube downloader, Instagram downloader (both server-backed), file converter (the
+`convert/` hub), image editor, PDF tools, favicon generator, video converter, audio converter,
+colour converter, QR generator.
 
 ---
 
 ## Done
+
+### PDF tools
+Merge, keep/remove pages, split, rotate, optimise, and images→PDF, on **vendored pdf-lib** (ESM
+build, so the page imports it directly instead of loading a classic script and reading a global).
+
+**pdf-lib writes and edits PDFs; it does not render them.** There is no PDF→image operation because
+that needs pdf.js — a separate, much larger dependency with its own worker. Do not add a
+half-working one.
+
+**"Optimise" is not image compression and must never be labelled as if it were.** All it does is
+`save({ useObjectStreams: true })`, which restructures the object table for a usually single-digit
+saving; the UI says "no smaller — this file was already efficiently structured" when that is the
+truth. pdf-lib cannot touch embedded image streams at all. The only way to get the reductions people
+expect from "compress PDF" is to rasterise every page, which destroys text selection, links and
+accessibility — if that is ever added, call it "Flatten & compress (converts pages to images)".
+
+Page ranges parse in `js/shared/pdf-pages.js`, deliberately separate from anything that opens a
+document: `1-3, 7, 9-, last` is where the bugs live, and one-based in / zero-based out is converted
+in exactly one place. Out-of-range numbers clamp and reversed ranges are read the way they were
+meant, because "1-999" and "5-2" are typos, not errors.
+
+Rotation is **cumulative** on whatever the page already carried — replacing it would silently
+un-rotate pages that were already sideways.
+
+`npm run verify:pdf-tools` builds fixtures with pdf-lib in the page, then reads every output back and
+asserts page counts and rotations. A PDF that merely parses proves nothing; readers are famously
+tolerant of malformed files.
 
 ### ZIP and ICO are hand-written, not vendored
 `js/shared/zip.js` and `js/shared/ico.js` are both pure byte layout, which is exactly why they are
@@ -245,28 +272,25 @@ One PR per step; each independently green and deployable.
 - **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
   favour of `js/shared/*`, and rewrite its test to import real source. The video converter and
   image editor are done; colour picker and the two downloaders remain.
-- **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus `tests/tool-registry.test.js`
-  asserting registry↔HTML parity. **Keep the homepage grid as static HTML** — client-rendering it
+- **P2h — do this one next.** Three tools were added in a row recently and each needed the same five
+  edits: the card in `index.html`, `#toolCount`, `#visibleCount`, `PAGES` in `html-structure.test.js`
+  and `PAGES` in `deployed-site.test.js`. `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus
+  `tests/tool-registry.test.js` asserting registry↔HTML parity, reduces that to one.
+  **Keep the homepage grid as static HTML** — client-rendering it
   would break every homepage assertion in `deployed-site.test.js`, which fetches raw HTML with no
   JS. Same reasoning for nav/footer: don't inject them, assert they match across every page.
   Rewrite `script.js` search to tokenise on whitespace (so "image convert" matches), debounce, and
   hide with `hidden` not `style.display`. *(The counter check is already done — see Done above.)*
 
 ### Fold the old converter pages into the hub
+While doing it, move the video converter to **VP9** (`libvpx-vp9 -row-mt 1`) instead of VP8, and give
+GIF a `palettegen`/`paletteuse` pass — the single-pass GIF visibly bands.
+
 `video-converter/` and `audio-converter/` now duplicate what `convert/` does. Turn them into thin
 redirects (a visible link, not just `<meta refresh>`) once the hub has been live long enough to
 trust. **Do it alone, in its own commit** — it is the only step that deletes assertions rather than
 adding them, ~30 of them across `html-structure` and `deployed-site`, plus their `vercel.json`
 blocks and `coi-serviceworker.js` copies.
-
-### PDF toolkit
-A `document` engine in the hub, on vendored pdf-lib (write) + pdf.js (render), ~3 MB into
-`js/vendor/`. Ship in ascending difficulty: merge / split / reorder / rotate (pdf-lib alone) →
-images↔PDF → compress.
-
-**If a "compress PDF" option appears, label it honestly.** pdf-lib cannot recompress embedded image
-streams; the only real lever rasterises every page and destroys text selection, vectors and links.
-Call it "Flatten & compress (converts pages to images)".
 
 ### P3 — Instagram backend rewrite
 Extract `api/_lib/` (leading underscore ⇒ Vercel does not route it). Add a `Deadline` budget —
@@ -295,20 +319,11 @@ buffers the whole file against Vercel's ~4.5 MB response cap.
 - **P5c** light/dark theme. Anti-FOUC needs a **classic** inline `<head>` script — a module is
   deferred and would flash.
 
-### P6 — image converter
-Correctness first (JPEG-to-black, leaked object URLs on the failure path, preview/export filter
-mismatch), then export pipeline, then batch/multi-file, then the crop coordinate bug (`cropRect` is
-clamped in canvas-attribute pixels while mouse coords come from `getBoundingClientRect()` in CSS
-pixels, so crops land wrong whenever the container is narrower than the canvas), then EXIF.
-
 ### P7 — colour toolkit
 Bugs first (history is polluted on page load; Clear doesn't stick because a pending debounce
 resurrects it; RGB fields snap to black when you backspace). Then wire up the maths already sitting
 in `js/shared/color.js`: harmonies, shades/tints/tones, WCAG checker, HSV/CMYK/LAB/LCH/OKLCH,
 palette extraction, native `EyeDropper` API. Then permalinks and export formats.
-
-### P8 — video converter
-Add a cancel button. VP9 instead of VP8.
 
 ### P9 — docs
 Done: `CLAUDE.md`, `docs/SETUP.md`, `docs/ARCHITECTURE.md`, `docs/ADDING_A_TOOL.md`, README rewrite.
