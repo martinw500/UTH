@@ -50,6 +50,31 @@ colour converter, QR generator.
 
 ## Done
 
+### Theming and site chrome
+Hues live as **bare RGB channels** (`--primary-rgb: 99 102 241`) so a tint can be written
+`rgb(var(--primary-rgb) / 0.08)` and still follow the theme. Forty-odd hardcoded
+`rgba(99, 102, 241, …)` literals were why light mode was impossible before; a test now fails if one
+comes back. Everything above that layer is semantic — ask for `--bg-surface`, never a raw colour.
+
+**A brand colour used as TEXT must use `--primary-readable`, not `--primary-light`.** The light
+variant is tuned for near-black and falls to 2.98:1 on white. `verify:chrome` measures real
+computed contrast on every page in both themes and fails under 4.5:1, which is how that was caught.
+
+Per-tool accent colours are `tone-*` classes, not inline styles — light mode could not reach an
+inline `color:`, and a pale tone that works on near-black is invisible on white.
+
+Theme selection is a **classic inline `<head>` snippet** in every page. It cannot be an external
+file: even a synchronous one can paint before it arrives, and the page flashes the wrong theme. The
+same snippet sets `needs-http` for the `file://` guard. `js/site.js` (classic, deferred) handles
+the toggle and the mobile nav; it is classic because half the pages are still classic scripts.
+
+An explicit choice is stored in `localStorage` and wins over the OS; with nothing stored the page
+follows `prefers-color-scheme` and `data-theme` stays absent.
+
+**The mobile nav used to be unreachable** — `.nav-links` was `display: none` below 768px with
+nothing to reveal it, so Feedback and GitHub could not be opened on any phone.
+
+
 ### PDF tools
 Merge, keep/remove pages, split, rotate, optimise, and images→PDF, on **vendored pdf-lib** (ESM
 build, so the page imports it directly instead of loading a classic script and reading a global).

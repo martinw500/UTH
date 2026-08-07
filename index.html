@@ -10,6 +10,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <!-- Inline and classic on purpose. Reading the stored theme has to happen
+         before first paint, or the page flashes the wrong one; and a module
+         never runs at all under file://, which the same script reports. -->
+    <script>
+        (function () {
+            if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');
+            try {
+                var t = localStorage.getItem('uth-theme');
+                if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+            } catch (e) { /* private mode or file:// */ }
+        })();
+    </script>
+    <script src="js/site.js" defer></script>
 </head>
 <body>
 
@@ -20,11 +33,22 @@
                 <div class="nav-logo">U</div>
                 <span class="nav-title">Useful Tool Hub</span>
             </a>
-            <ul class="nav-links">
+            <ul class="nav-links" id="navLinks">
                 <li><a href="index.html" class="nav-link active">Tools</a></li>
                 <li><a href="feedback.html" class="nav-link">Feedback</a></li>
                 <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+                <li>
+                    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch theme">
+                        <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                        <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    </button>
+                </li>
             </ul>
+                <button type="button" class="nav-toggle" data-nav-toggle
+                        aria-expanded="false" aria-controls="navLinks" aria-label="Menu">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+                    <svg class="nav-toggle-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
         </div>
     </nav>
 
@@ -82,7 +106,7 @@
 
                 <!-- File Converter -->
                 <a href="convert/index.html" class="tool-card" data-keywords="convert converter image video audio format png jpg webp avif mp4 webm gif mp3 wav flac transcode">
-                    <div class="tool-card-icon" style="background: rgba(6, 182, 212, 0.12); color: #22d3ee;">
+                    <div class="tool-card-icon tone-cyan">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -97,7 +121,7 @@
 
                 <!-- PDF Tools -->
                 <a href="pdf-tools/index.html" class="tool-card" data-keywords="pdf merge split rotate combine join extract pages document images to pdf">
-                    <div class="tool-card-icon" style="background: rgba(239, 68, 68, 0.12); color: #f87171;">
+                    <div class="tool-card-icon tone-red">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -112,7 +136,7 @@
 
                 <!-- Favicon Generator -->
                 <a href="favicon-generator/index.html" class="tool-card" data-keywords="favicon icon ico generator apple touch manifest pwa website logo">
-                    <div class="tool-card-icon" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24;">
+                    <div class="tool-card-icon tone-amber">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -172,7 +196,7 @@
 
                 <!-- Video Converter -->
                 <a href="video-converter/index.html" class="tool-card" data-keywords="video convert mp4 webm gif mp3 wav audio ffmpeg format">
-                    <div class="tool-card-icon" style="background: rgba(168, 85, 247, 0.12); color: #c084fc;">
+                    <div class="tool-card-icon tone-purple">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -187,7 +211,7 @@
 
                 <!-- Colour Picker -->
                 <a href="color-converter/index.html" class="tool-card" data-keywords="colour color picker hex rgb hsl css palette">
-                    <div class="tool-card-icon" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(59,130,246,0.12)); color: #f472b6;">
+                    <div class="tool-card-icon tone-pink">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -202,7 +226,7 @@
 
                 <!-- Audio Converter -->
                 <a href="audio-converter/index.html" class="tool-card" data-keywords="audio convert converter mp3 m4a aac wav ogg opus flac trim cut clip extract sound music song bitrate ffmpeg normalise normalize">
-                    <div class="tool-card-icon" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24;">
+                    <div class="tool-card-icon tone-amber">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                     </div>
                     <div class="tool-card-content">
@@ -217,7 +241,7 @@
 
                 <!-- QR Code Generator -->
                 <a href="qr-generator/index.html" class="tool-card" data-keywords="qr qrcode qr code generator barcode scan scanner url link wifi vcard text png svg encode">
-                    <div class="tool-card-icon" style="background: rgba(16, 185, 129, 0.12); color: #34d399;">
+                    <div class="tool-card-icon tone-emerald">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
                     </div>
                     <div class="tool-card-content">

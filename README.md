@@ -85,6 +85,7 @@ npm run verify:image-editor  # image editor: real browser, checks exported bytes
 npm run verify:convert-hub   # the convert/ hub: routing, options, a real MP4
 npm run verify:favicon       # unzips the output with a different implementation
 npm run verify:pdf-tools     # reads every produced PDF back and checks it
+npm run verify:chrome        # theming, mobile nav, focus, real contrast in both themes
 npm run test:e2e             # checks the deployed site; SITE_URL to target a preview
 ```
 

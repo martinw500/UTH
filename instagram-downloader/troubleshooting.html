@@ -6,6 +6,18 @@
     <title>Troubleshooting - Useful Tool Hub</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../styles.css">
+    <!-- Inline and classic on purpose. Reading the stored theme has to happen
+         before first paint, or the page flashes the wrong one; and a module
+         never runs at all under file://, which the same script reports. -->
+    <script>
+        (function () {
+            if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');
+            try {
+                var t = localStorage.getItem('uth-theme');
+                if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+            } catch (e) { /* private mode or file:// */ }
+        })();
+    </script>
     <style>
         .troubleshooting-section {
             max-width: 900px;
@@ -72,6 +84,7 @@
             text-decoration: underline;
         }
     </style>
+    <script src="../js/site.js" defer></script>
 </head>
 <body>
     <header class="header">

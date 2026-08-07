@@ -14,7 +14,8 @@
     "verify:image-editor": "node scripts/verify-image-editor.mjs",
     "verify:convert-hub": "node scripts/verify-convert-hub.mjs",
     "verify:favicon": "node scripts/verify-favicon.mjs",
-    "verify:pdf-tools": "node scripts/verify-pdf-tools.mjs"
+    "verify:pdf-tools": "node scripts/verify-pdf-tools.mjs",
+    "verify:chrome": "node scripts/verify-chrome.mjs"
   },
   "jest": {
     "testEnvironment": "jsdom",

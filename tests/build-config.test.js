@@ -58,7 +58,12 @@ describe('styles.css defines every custom property it uses', () => {
     // dropped, silently. --radius was referenced by two rules for months while
     // resolving to no radius at all.
     test('no var() reference is undefined', () => {
-        const defined = new Set([...css.matchAll(/^\s*(--[\w-]+):/gm)].map((m) => m[1]));
+        // Declarations are not always first on their line — the tone classes
+        // put several inside a single-line rule — so anchor on the separator
+        // before the name rather than on the line start.
+        const defined = new Set(
+            [...css.matchAll(/(?:^|[{;])\s*(--[\w-]+)\s*:/gm)].map((m) => m[1]),
+        );
         const used = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
         expect([...used].filter((name) => !defined.has(name))).toEqual([]);
     });

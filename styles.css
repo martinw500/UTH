@@ -10,34 +10,101 @@
     box-sizing: border-box;
 }
 
+/* ============================================
+   Design tokens
+
+   Hues are stored as bare RGB CHANNELS, not colours, so a tint can be written
+   `rgb(var(--primary-rgb) / 0.08)` and still follow the theme. Forty-odd
+   hardcoded `rgba(99, 102, 241, …)` literals used to be scattered through this
+   file, which is why light mode was impossible without touching all of them.
+
+   Everything below the channel block is semantic: rules should ask for
+   --bg-surface or --text-muted, never for a raw colour. [data-theme="light"]
+   then only has to restate the semantic layer.
+   ============================================ */
+
 :root {
+    color-scheme: dark;
+
+    /* Hue channels. Shared by both themes. */
+    --primary-rgb: 99 102 241;
+    --primary-light-rgb: 129 140 248;
+    --primary-dark-rgb: 79 70 229;
+    --accent-rgb: 6 182 212;
+    --accent-light-rgb: 34 211 238;
+    --success-rgb: 34 197 94;
+    --error-rgb: 239 68 68;
+    --warning-rgb: 245 158 11;
+
     /* Core palette */
-    --primary: #6366f1;
-    --primary-light: #818cf8;
-    --primary-dark: #4f46e5;
-    --primary-glow: rgba(99, 102, 241, 0.15);
-    --accent: #06b6d4;
-    --accent-light: #22d3ee;
+    --primary: rgb(var(--primary-rgb));
+    --primary-light: rgb(var(--primary-light-rgb));
+    --primary-dark: rgb(var(--primary-dark-rgb));
+    --primary-glow: rgb(var(--primary-rgb) / 0.15);
+    /* The brand colour when used as TEXT. --primary-light is tuned for a dark
+       surface and falls to ~3:1 on white, so the light theme darkens it. */
+    --primary-readable: var(--primary-light);
+    --accent-readable: var(--accent-light);
+    --accent: rgb(var(--accent-rgb));
+    --accent-light: rgb(var(--accent-light-rgb));
 
     /* Surfaces */
     --bg-base: #09090b;
     --bg-surface: #18181b;
     --bg-elevated: #27272a;
-    --bg-glass: rgba(24, 24, 27, 0.7);
+    --bg-glass: rgb(24 24 27 / 0.7);
 
     /* Text */
     --text-primary: #fafafa;
     --text-secondary: #a1a1aa;
     --text-muted: #71717a;
+    /* Text sitting on a filled --primary button. */
+    --text-on-primary: #ffffff;
 
     /* Borders */
-    --border: rgba(63, 63, 70, 0.5);
-    --border-hover: rgba(99, 102, 241, 0.4);
+    --border: rgb(63 63 70 / 0.5);
+    --border-hover: rgb(var(--primary-rgb) / 0.4);
+    --border-strong: rgb(63 63 70 / 0.9);
 
     /* Status */
-    --success: #22c55e;
-    --error: #ef4444;
-    --warning: #f59e0b;
+    --success: rgb(var(--success-rgb));
+    --error: rgb(var(--error-rgb));
+    --warning: rgb(var(--warning-rgb));
+    /* Readable status text. On dark these lighten; on light they darken. */
+    --success-text: #86efac;
+    --error-text: #fca5a5;
+    --warning-text: #fcd34d;
+
+    /* Alpha tints, so a rule never has to know the hue. */
+    --tint-primary-weak: rgb(var(--primary-rgb) / 0.06);
+    --tint-primary: rgb(var(--primary-rgb) / 0.12);
+    --tint-success: rgb(var(--success-rgb) / 0.12);
+    --tint-error: rgb(var(--error-rgb) / 0.12);
+    --tint-warning: rgb(var(--warning-rgb) / 0.12);
+
+    /* The checkerboard behind anything that can be transparent. */
+    --checker: #2a2a2e;
+
+    /* Per-tool accent tones. These were inline `style="color: #f87171"` on every
+       icon, which light mode could not reach: a pale tone that reads well on
+       near-black is far too weak on white, so the light theme darkens each. */
+    --tone-red-rgb: 239 68 68;
+    --tone-amber-rgb: 245 158 11;
+    --tone-green-rgb: 34 197 94;
+    --tone-emerald-rgb: 16 185 129;
+    --tone-cyan-rgb: 6 182 212;
+    --tone-indigo-rgb: 99 102 241;
+    --tone-purple-rgb: 168 85 247;
+    --tone-pink-rgb: 236 72 153;
+
+    --tone-red: #f87171;
+    --tone-amber: #fbbf24;
+    --tone-green: #4ade80;
+    --tone-emerald: #34d399;
+    --tone-cyan: #22d3ee;
+    --tone-indigo: #818cf8;
+    --tone-purple: #c084fc;
+    --tone-pink: #e879f9;
 
     /* Spacing scale. Older rules hardcode px; new work should use these. */
     --space-1: 4px;
@@ -57,12 +124,113 @@
     /* Unprefixed alias. Two eyedropper rules referenced it before it existed,
        so those corners silently rendered square. */
     --radius: 12px;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-    --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.1);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 8px 32px rgb(0 0 0 / 0.5);
+    --shadow-glow: 0 0 40px rgb(var(--primary-rgb) / 0.1);
     --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================
+   Light theme
+
+   Only the semantic layer is restated. The hue channels are unchanged, so every
+   `rgb(var(--primary-rgb) / …)` tint follows automatically.
+
+   Status text flips direction: the pale #86efac that reads well on near-black
+   is close to invisible on white, so these darken instead of lightening.
+   ============================================ */
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --bg-base: #ffffff;
+    --bg-surface: #f7f7f8;
+    --bg-elevated: #ececed;
+    --bg-glass: rgb(255 255 255 / 0.75);
+
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-muted: #71717a;
+    --text-on-primary: #ffffff;
+
+    --border: rgb(24 24 27 / 0.12);
+    --border-hover: rgb(var(--primary-rgb) / 0.5);
+    --border-strong: rgb(24 24 27 / 0.22);
+
+    --primary-readable: #4338ca;
+    --accent-readable: #0e7490;
+
+    --success-text: #15803d;
+    --error-text: #b91c1c;
+    --warning-text: #a16207;
+
+    --checker: #dcdce0;
+
+    /* Darkened so each tone stays legible on a pale tint. */
+    --tone-red: #dc2626;
+    --tone-amber: #b45309;
+    --tone-green: #15803d;
+    --tone-emerald: #047857;
+    --tone-cyan: #0e7490;
+    --tone-indigo: #4f46e5;
+    --tone-purple: #7e22ce;
+    --tone-pink: #be185d;
+
+    /* Softer than the dark theme's: a heavy shadow on white looks like dirt. */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+    --shadow-lg: 0 8px 32px rgb(0 0 0 / 0.10);
+    --shadow-glow: 0 0 40px rgb(var(--primary-rgb) / 0.12);
+}
+
+/* Follow the OS until the user picks a theme explicitly, at which point
+   data-theme is set on <html> and wins on specificity. */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]) {
+        color-scheme: light;
+
+        --bg-base: #ffffff;
+        --bg-surface: #f7f7f8;
+        --bg-elevated: #ececed;
+        --bg-glass: rgb(255 255 255 / 0.75);
+
+        --text-primary: #18181b;
+        --text-secondary: #52525b;
+        --text-muted: #71717a;
+
+        --border: rgb(24 24 27 / 0.12);
+        --border-hover: rgb(var(--primary-rgb) / 0.5);
+        --border-strong: rgb(24 24 27 / 0.22);
+
+        --primary-readable: #4338ca;
+
+        --accent-readable: #0e7490;
+
+        
+
+        --success-text: #15803d;
+        --error-text: #b91c1c;
+        --warning-text: #a16207;
+
+        --checker: #dcdce0;
+
+    /* Darkened so each tone stays legible on a pale tint. */
+    --tone-red: #dc2626;
+    --tone-amber: #b45309;
+    --tone-green: #15803d;
+    --tone-emerald: #047857;
+    --tone-cyan: #0e7490;
+    --tone-indigo: #4f46e5;
+    --tone-purple: #7e22ce;
+    --tone-pink: #be185d;
+
+        --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+        --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+        --shadow-lg: 0 8px 32px rgb(0 0 0 / 0.10);
+        --shadow-glow: 0 0 40px rgb(var(--primary-rgb) / 0.12);
+    }
 }
 
 html {
@@ -89,9 +257,9 @@ body::before {
     right: 0;
     height: 100vh;
     background:
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent),
-        radial-gradient(ellipse 60% 40% at 80% 50%, rgba(6, 182, 212, 0.06), transparent),
-        radial-gradient(ellipse 50% 30% at 20% 80%, rgba(99, 102, 241, 0.06), transparent);
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgb(var(--primary-rgb) / 0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 50%, rgb(var(--accent-rgb) / 0.06), transparent),
+        radial-gradient(ellipse 50% 30% at 20% 80%, rgb(var(--primary-rgb) / 0.06), transparent);
     pointer-events: none;
     z-index: 0;
 }
@@ -114,7 +282,7 @@ body::before {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(9, 9, 11, 0.8);
+    background: var(--bg-glass);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border-bottom: 1px solid var(--border);
@@ -167,6 +335,66 @@ body::before {
     list-style: none;
 }
 
+/* ============================================
+   Theme toggle
+   ============================================ */
+
+.theme-toggle {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+
+.theme-toggle:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border-color: var(--border);
+}
+
+/* Both icons occupy the same cell; only one is shown. Showing the icon of the
+   theme you would switch TO is the convention users expect. */
+.theme-toggle svg {
+    grid-area: 1 / 1;
+}
+
+.theme-toggle .theme-icon-moon { display: none; }
+.theme-toggle[data-active-theme="light"] .theme-icon-sun { display: none; }
+.theme-toggle[data-active-theme="light"] .theme-icon-moon { display: block; }
+
+/* ============================================
+   Mobile nav trigger
+
+   Hidden on desktop. Below the breakpoint it is the only way to reach the nav
+   links, which were previously just `display: none` with no replacement.
+   ============================================ */
+
+.nav-toggle {
+    display: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.nav-toggle:hover { color: var(--text-primary); }
+.nav-toggle svg { grid-area: 1 / 1; }
+.nav-toggle .nav-toggle-close { display: none; }
+.nav-toggle[aria-expanded="true"] .nav-toggle-close { display: block; }
+.nav-toggle[aria-expanded="true"] svg:first-of-type { display: none; }
+
 .nav-link {
     color: var(--text-secondary);
     text-decoration: none;
@@ -183,7 +411,7 @@ body::before {
 }
 
 .nav-link.active {
-    color: var(--primary-light);
+    color: var(--primary-readable);
     background: var(--primary-glow);
 }
 
@@ -203,11 +431,11 @@ body::before {
     gap: 8px;
     padding: 6px 16px;
     background: var(--primary-glow);
-    border: 1px solid rgba(99, 102, 241, 0.2);
+    border: 1px solid rgb(var(--primary-rgb) / 0.2);
     border-radius: 100px;
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     margin-bottom: 24px;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -425,23 +653,23 @@ body::before {
 }
 
 .tool-card-icon.youtube {
-    background: rgba(239, 68, 68, 0.12);
+    background: rgb(var(--error-rgb) / 0.12);
     color: #f87171;
 }
 
 .tool-card-icon.instagram {
-    background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(168, 85, 247, 0.12));
+    background: linear-gradient(135deg, rgb(236 72 153 / 0.12), rgb(168 85 247 / 0.12));
     color: #e879f9;
 }
 
 .tool-card-icon.image {
-    background: rgba(34, 197, 94, 0.12);
+    background: rgb(var(--success-rgb) / 0.12);
     color: #4ade80;
 }
 
 .tool-card-icon.default {
     background: var(--primary-glow);
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 .tool-card-content {
@@ -488,7 +716,7 @@ body::before {
 }
 
 .tool-card:hover .tool-card-arrow {
-    color: var(--primary-light);
+    color: var(--primary-readable);
     transform: translateX(4px);
 }
 
@@ -502,12 +730,12 @@ body::before {
 }
 
 .tool-card-status.live {
-    background: rgba(34, 197, 94, 0.12);
+    background: rgb(var(--success-rgb) / 0.12);
     color: var(--success);
 }
 
 .tool-card-status.soon {
-    background: rgba(245, 158, 11, 0.12);
+    background: rgb(var(--warning-rgb) / 0.12);
     color: var(--warning);
 }
 
@@ -540,7 +768,7 @@ body::before {
 }
 
 .breadcrumb a:hover {
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 .breadcrumb-sep {
@@ -598,7 +826,7 @@ body::before {
     gap: 12px;
     padding: 14px 18px;
     background: var(--primary-glow);
-    border: 1px solid rgba(99, 102, 241, 0.2);
+    border: 1px solid rgb(var(--primary-rgb) / 0.2);
     border-radius: var(--radius-md);
     margin-bottom: 28px;
     font-size: 0.9rem;
@@ -610,7 +838,7 @@ body::before {
     flex-shrink: 0;
     width: 20px;
     height: 20px;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     margin-top: 2px;
 }
 
@@ -674,12 +902,12 @@ body::before {
 .btn-primary {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 2px 8px rgb(var(--primary-rgb) / 0.3);
 }
 
 .btn-primary:hover {
     background: linear-gradient(135deg, var(--primary-light), var(--primary));
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 16px rgb(var(--primary-rgb) / 0.4);
     transform: translateY(-1px);
 }
 
@@ -767,12 +995,12 @@ body::before {
     align-items: flex-start;
     gap: 12px;
     padding: 14px 18px;
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    background: rgb(var(--error-rgb) / 0.08);
+    border: 1px solid rgb(var(--error-rgb) / 0.25);
     border-radius: var(--radius-md);
     margin-top: 20px;
     font-size: 0.9rem;
-    color: #fca5a5;
+    color: var(--error-text);
     line-height: 1.6;
 }
 
@@ -861,7 +1089,7 @@ body::before {
 
 .quality-item:hover {
     border-color: var(--border-hover);
-    background: rgba(99, 102, 241, 0.04);
+    background: rgb(var(--primary-rgb) / 0.04);
 }
 
 .quality-info {
@@ -905,8 +1133,8 @@ body::before {
     font-size: 0.875rem;
     line-height: 1.5;
     color: var(--text-secondary);
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgb(var(--warning-rgb) / 0.08);
+    border: 1px solid rgb(var(--warning-rgb) / 0.3);
     border-radius: var(--radius-md);
     padding: 12px 16px;
     margin-bottom: 20px;
@@ -924,7 +1152,7 @@ body::before {
 }
 
 .download-hint a {
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 .media-grid {
@@ -977,7 +1205,7 @@ body::before {
     position: absolute;
     top: 10px;
     left: 10px;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgb(0 0 0 / 0.75);
     backdrop-filter: blur(8px);
     color: white;
     padding: 4px 10px;
@@ -1094,7 +1322,7 @@ body::before {
 }
 
 .footer-links a:hover {
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 /* ============================================
@@ -1179,15 +1407,15 @@ body::before {
 }
 
 .message-box.success {
-    background: rgba(34, 197, 94, 0.08);
-    border: 1px solid rgba(34, 197, 94, 0.25);
-    color: #86efac;
+    background: rgb(var(--success-rgb) / 0.08);
+    border: 1px solid rgb(var(--success-rgb) / 0.25);
+    color: var(--success-text);
 }
 
 .message-box.error {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: #fca5a5;
+    background: rgb(var(--error-rgb) / 0.08);
+    border: 1px solid rgb(var(--error-rgb) / 0.25);
+    color: var(--error-text);
 }
 
 .message-box.active {
@@ -1227,8 +1455,48 @@ body::before {
         flex-direction: column;
     }
 
+    /* The links become a drawer under the bar rather than vanishing. */
+    .nav-toggle {
+        display: grid;
+    }
+
     .nav-links {
         display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        padding: var(--space-2);
+        background: var(--bg-surface);
+        border-bottom: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .nav-links.open {
+        display: flex;
+    }
+
+    .nav-links .nav-link {
+        display: block;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    /* The theme toggle reads as a labelled row in the drawer, not a bare icon. */
+    .nav-links .theme-toggle {
+        width: 100%;
+        height: auto;
+        justify-content: flex-start;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .nav-links .theme-toggle::after {
+        content: 'Switch theme';
+        margin-left: var(--space-3);
+        font-size: 0.9rem;
+        font-weight: 500;
     }
 
     .footer-inner {
@@ -1291,17 +1559,17 @@ body::before {
     text-align: center;
     transition: all var(--transition);
     cursor: pointer;
-    background: rgba(99, 102, 241, 0.02);
+    background: rgb(var(--primary-rgb) / 0.02);
 }
 
 .converter-dropzone:hover {
     border-color: var(--border-hover);
-    background: rgba(99, 102, 241, 0.04);
+    background: rgb(var(--primary-rgb) / 0.04);
 }
 
 .converter-dropzone.dragover {
     border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.08);
+    background: rgb(var(--primary-rgb) / 0.08);
     box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
@@ -1319,7 +1587,7 @@ body::before {
 .dropzone-browse {
     background: none;
     border: none;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     font-family: inherit;
     font-size: inherit;
     font-weight: 600;
@@ -1378,7 +1646,7 @@ body::before {
     border-radius: 50%;
     background: var(--primary);
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 2px 6px rgb(var(--primary-rgb) / 0.4);
 }
 
 .quality-slider::-moz-range-thumb {
@@ -1388,7 +1656,7 @@ body::before {
     background: var(--primary);
     cursor: pointer;
     border: none;
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 2px 6px rgb(var(--primary-rgb) / 0.4);
 }
 
 .quality-slider::-moz-range-track {
@@ -1484,7 +1752,7 @@ body::before {
 
 .file-item-remove:hover {
     color: var(--error);
-    background: rgba(239, 68, 68, 0.1);
+    background: rgb(var(--error-rgb) / 0.1);
 }
 
 /* File Info Card (single file) */
@@ -1504,7 +1772,7 @@ body::before {
 
 .file-info-row svg {
     flex-shrink: 0;
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 .file-info-details {
@@ -1556,8 +1824,8 @@ body::before {
 }
 
 .output-item.output-error {
-    border-color: rgba(239, 68, 68, 0.25);
-    background: rgba(239, 68, 68, 0.04);
+    border-color: rgb(var(--error-rgb) / 0.25);
+    background: rgb(var(--error-rgb) / 0.04);
 }
 
 .output-item-preview {
@@ -1681,7 +1949,7 @@ body::before {
     display: flex;
     justify-content: center;
     align-items: center;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgb(0 0 0 / 0.3);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -1738,13 +2006,13 @@ body::before {
 .toolbar-btn:hover {
     border-color: var(--border-hover);
     color: var(--text-primary);
-    background: rgba(99, 102, 241, 0.06);
+    background: rgb(var(--primary-rgb) / 0.06);
 }
 
 .toolbar-btn.active {
     background: var(--primary-glow);
     border-color: var(--primary);
-    color: var(--primary-light);
+    color: var(--primary-readable);
 }
 
 .toolbar-btn svg {
@@ -1765,7 +2033,7 @@ body::before {
 .crop-selection {
     position: absolute;
     border: 2px solid #fff;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5);
     cursor: move;
     z-index: 11;
 }
@@ -1794,8 +2062,8 @@ body::before {
     bottom: -28px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.75);
-    color: #fff;
+    background: rgb(0 0 0 / 0.75);
+    color: var(--text-on-primary);
     font-size: 0.75rem;
     font-weight: 600;
     padding: 3px 8px;
@@ -1810,7 +2078,7 @@ body::before {
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: var(--primary-glow);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    border: 1px solid rgb(var(--primary-rgb) / 0.3);
     border-radius: var(--radius-sm);
     margin-bottom: var(--space-4);
 }
@@ -1863,7 +2131,7 @@ body::before {
 
 .crop-info {
     font-size: 0.85rem;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     font-weight: 600;
 }
 
@@ -1968,8 +2236,8 @@ body::before {
 .metadata-notice {
     margin-bottom: var(--space-4);
     padding: var(--space-3) var(--space-4);
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgb(var(--warning-rgb) / 0.08);
+    border: 1px solid rgb(var(--warning-rgb) / 0.3);
     border-radius: var(--radius-md);
     font-size: 0.85rem;
     line-height: 1.6;
@@ -2036,6 +2304,52 @@ body::before {
 }
 
 /* ============================================
+   Tool accent tones
+
+   Applied as `class="tool-card-icon tone-cyan"` rather than an inline style, so
+   both themes can restyle them. Every tone is a 12% tint of its own hue with a
+   foreground that flips between themes.
+   ============================================ */
+
+.tone-red,
+.tone-amber,
+.tone-green,
+.tone-emerald,
+.tone-cyan,
+.tone-indigo,
+.tone-purple,
+.tone-pink {
+    background: rgb(var(--tone-rgb) / 0.12);
+    color: var(--tone-fg);
+}
+
+.tone-red { --tone-rgb: var(--tone-red-rgb); --tone-fg: var(--tone-red); }
+.tone-amber { --tone-rgb: var(--tone-amber-rgb); --tone-fg: var(--tone-amber); }
+.tone-green { --tone-rgb: var(--tone-green-rgb); --tone-fg: var(--tone-green); }
+.tone-emerald { --tone-rgb: var(--tone-emerald-rgb); --tone-fg: var(--tone-emerald); }
+.tone-cyan { --tone-rgb: var(--tone-cyan-rgb); --tone-fg: var(--tone-cyan); }
+.tone-indigo { --tone-rgb: var(--tone-indigo-rgb); --tone-fg: var(--tone-indigo); }
+.tone-purple { --tone-rgb: var(--tone-purple-rgb); --tone-fg: var(--tone-purple); }
+.tone-pink { --tone-rgb: var(--tone-pink-rgb); --tone-fg: var(--tone-pink); }
+
+/* Instagram's mark is a gradient, so it is the one exception. */
+.tone-instagram {
+    background: linear-gradient(135deg,
+        rgb(var(--tone-pink-rgb) / 0.14), rgb(var(--tone-purple-rgb) / 0.14));
+    color: var(--tone-pink);
+}
+
+/* YouTube's is red, and the old .youtube/.image class names are kept as
+   aliases so nothing that still uses them breaks. */
+.tool-card-icon.youtube { background: rgb(var(--tone-red-rgb) / 0.12); color: var(--tone-red); }
+.tool-card-icon.image { background: rgb(var(--tone-green-rgb) / 0.12); color: var(--tone-green); }
+.tool-card-icon.instagram {
+    background: linear-gradient(135deg,
+        rgb(var(--tone-pink-rgb) / 0.14), rgb(var(--tone-purple-rgb) / 0.14));
+    color: var(--tone-pink);
+}
+
+/* ============================================
    Favicon Generator
    ============================================ */
 
@@ -2061,9 +2375,9 @@ body::before {
     max-width: 96px;
     max-height: 96px;
     background:
-        linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%) 0 0 / 12px 12px,
-        linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%) 6px 6px / 12px 12px,
-        #1a1a1d;
+        linear-gradient(45deg, var(--checker) 25%, transparent 25%, transparent 75%, var(--checker) 75%) 0 0 / 12px 12px,
+        linear-gradient(45deg, var(--checker) 25%, transparent 25%, transparent 75%, var(--checker) 75%) 6px 6px / 12px 12px,
+        var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     image-rendering: pixelated;
@@ -2148,7 +2462,7 @@ body::before {
 .adjustment-value {
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     min-width: 28px;
     text-align: right;
 }
@@ -2190,7 +2504,7 @@ body::before {
 .preset-btn:hover {
     border-color: var(--border-hover);
     color: var(--text-primary);
-    background: rgba(99, 102, 241, 0.06);
+    background: rgb(var(--primary-rgb) / 0.06);
 }
 
 /* Aspect Ratio Lock Button */
@@ -2220,7 +2534,7 @@ body::before {
 .aspect-lock-btn.active {
     color: var(--primary);
     border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.08);
+    background: rgb(var(--primary-rgb) / 0.08);
 }
 
 /* Toolbar button disabled state */
@@ -2295,7 +2609,7 @@ body::before {
 .trim-duration {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--primary-light);
+    color: var(--primary-readable);
     padding: 8px 0;
 }
 
@@ -2325,7 +2639,7 @@ body::before {
     border-radius: var(--radius-lg);
     border: 2px solid var(--border);
     flex-shrink: 0;
-    background: #6366f1;
+    background: var(--primary);
     box-shadow: var(--shadow-md);
     transition: background 0.15s ease;
 }
@@ -2468,7 +2782,7 @@ body::before {
 .eyedropper-upload-area:hover,
 .eyedropper-upload-area.dragover {
     border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.04);
+    background: rgb(var(--primary-rgb) / 0.04);
 }
 
 .eyedropper-canvas-area {
@@ -2532,7 +2846,7 @@ body::before {
     width: 12px;
     height: 12px;
     border: 2px solid #fff;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
     pointer-events: none;
 }
 
@@ -2655,6 +2969,69 @@ body::before {
 }
 
 /* ============================================
+   Focus
+
+   There were no focus styles at all, so a keyboard user could not tell where
+   they were. :focus-visible rather than :focus so a mouse click does not leave
+   a ring behind on buttons.
+   ============================================ */
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--primary-light);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* A range thumb cannot take an outline, so the whole track is highlighted. */
+.quality-slider:focus-visible {
+    outline: 2px solid var(--primary-light);
+    outline-offset: 4px;
+}
+
+/* Skip link: the first thing a keyboard user reaches, invisible until focused. */
+.skip-link {
+    position: absolute;
+    left: var(--space-4);
+    top: var(--space-4);
+    z-index: 200;
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-on-primary);
+    background: var(--primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+    transform: translateY(0);
+}
+
+/* ============================================
+   Reduced motion
+
+   This site animates a lot — gradients, transforms, spinners. Respect the
+   preference rather than overriding it: `1ms` instead of `0s` keeps
+   transitionend/animationend firing, which some of the JS relies on to clean up.
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* ============================================
    Notices — js/shared/notify.js
    ============================================ */
 
@@ -2681,20 +3058,20 @@ body::before {
 }
 
 .notice-error {
-    background: rgba(239, 68, 68, 0.10);
-    border-color: rgba(239, 68, 68, 0.35);
+    background: rgb(var(--error-rgb) / 0.10);
+    border-color: rgb(var(--error-rgb) / 0.35);
     color: var(--error);
 }
 
 .notice-success {
-    background: rgba(34, 197, 94, 0.10);
-    border-color: rgba(34, 197, 94, 0.35);
+    background: rgb(var(--success-rgb) / 0.10);
+    border-color: rgb(var(--success-rgb) / 0.35);
     color: var(--success);
 }
 
 .notice-info {
-    background: rgba(99, 102, 241, 0.10);
-    border-color: rgba(99, 102, 241, 0.35);
+    background: rgb(var(--primary-rgb) / 0.10);
+    border-color: rgb(var(--primary-rgb) / 0.35);
     color: var(--text-secondary);
 }
 
@@ -2702,7 +3079,7 @@ body::before {
 .copied {
     background: var(--success) !important;
     border-color: var(--success) !important;
-    color: #fff !important;
+    color: var(--text-on-primary) !important;
 }
 
 /* createDropzone toggles .dragover on whatever host it is handed. That was
@@ -2710,7 +3087,7 @@ body::before {
    feedback at all. */
 [data-dropzone].dragover {
     border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.08);
+    background: rgb(var(--primary-rgb) / 0.08);
 }
 
 /* ============================================
@@ -2821,5 +3198,5 @@ body::before {
     border-radius: var(--radius-sm);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.9em;
-    color: var(--accent);
+    color: var(--accent-readable);
 }
