@@ -202,6 +202,63 @@ describe('Image Editor page structure', () => {
         expect(labelMatch).not.toBeNull();
         expect(sliderMatch[1]).toBe(labelMatch[1]);
     });
+
+    test('has crop aspect-ratio controls', () => {
+        expect(html).toContain('id="cropAspect"');
+        expect(html).toContain('id="cropCustomRatio"');
+        // Numeric entry is the only crop path that is exercisable without a browser.
+        for (const id of ['cropX', 'cropY', 'cropW', 'cropH']) {
+            expect(html).toContain(`id="${id}"`);
+        }
+    });
+
+    test('offers the standard crop ratios', () => {
+        for (const ratio of ['1:1', '4:3', '3:2', '16:9', '9:16', 'original', 'free']) {
+            expect(html).toContain(`value="${ratio}"`);
+        }
+    });
+
+    test('has resize unit and fit-mode controls', () => {
+        expect(html).toContain('id="resizeUnit"');
+        expect(html).toContain('id="resizeMode"');
+        for (const mode of ['fit', 'cover', 'stretch']) {
+            expect(html).toContain(`value="${mode}"`);
+        }
+    });
+
+    test('has the full adjustment set', () => {
+        for (const id of ['sharpenSlider', 'grayscaleSlider', 'sepiaSlider',
+            'invertSlider', 'hueSlider', 'straightenSlider']) {
+            expect(html).toContain(`id="${id}"`);
+        }
+    });
+
+    // JPEG has no alpha channel, so transparency composites to black without a
+    // matte colour. This control is the fix.
+    test('has a background matte colour for opaque formats', () => {
+        expect(html).toContain('id="matteColor"');
+        expect(html).toContain('id="matteGroup"');
+    });
+
+    test('supports multiple files', () => {
+        expect(html).toMatch(/id="fileInput"[^>]*multiple/);
+        expect(html).toContain('id="fileList"');
+        expect(html).toContain('id="batchStrip"');
+        expect(html).toContain('id="downloadZipBtn"');
+    });
+
+    test('has a notice host for errors, rather than alert()', () => {
+        expect(html).toContain('id="editorNotice"');
+        expect(html).toMatch(/class="notice"[^>]*id="editorNotice"/);
+    });
+
+    test('warns that export drops image metadata', () => {
+        expect(html).toContain('id="metadataNotice"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toMatch(/<script[^>]*type="module"[^>]*src="js\/image-converter\.js"/);
+    });
 });
 
 describe('Video Converter page structure', () => {

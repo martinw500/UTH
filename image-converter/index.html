@@ -10,8 +10,24 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
 </head>
 <body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/image-converter/</code>.
+        </p>
+    </div>
 
     <!-- Navigation -->
     <nav class="nav">
@@ -60,18 +76,21 @@
                 </div>
 
                 <!-- Dropzone -->
-                <div class="converter-dropzone" id="dropzone">
+                <div class="converter-dropzone" id="dropzone" data-dropzone tabindex="0" role="button" aria-label="Drop images here or press Enter to browse">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                         <polyline points="17 8 12 3 7 8"/>
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
                     <div class="dropzone-text">
-                        <strong>Drop an image here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                        <strong>Drop images here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
                     </div>
-                    <div class="dropzone-hint">Supports JPG, PNG, WEBP, BMP, GIF, SVG, AVIF</div>
-                    <input type="file" id="fileInput" accept="image/*" hidden>
+                    <div class="dropzone-hint">JPG, PNG, WEBP, BMP, GIF, SVG, AVIF — several at once, or paste from the clipboard</div>
+                    <input type="file" id="fileInput" accept="image/*" multiple hidden>
                 </div>
+
+                <!-- Errors and warnings, driven by js/shared/notify.js -->
+                <div class="notice" id="editorNotice" hidden></div>
 
                 <!-- Editor (hidden until image loaded) -->
                 <div class="editor-workspace" id="editorWorkspace" style="display: none;">
@@ -82,11 +101,29 @@
                             <span class="editor-filename" id="editorFilename"></span>
                             <span class="editor-file-meta" id="editorMeta"></span>
                         </div>
-                        <button class="btn btn-ghost btn-sm" id="removeImageBtn" title="Remove image">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                            Remove
-                        </button>
+                        <div class="editor-info-actions">
+                            <button class="btn btn-ghost btn-sm" id="addMoreBtn" type="button" title="Add more images">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                Add more
+                            </button>
+                            <button class="btn btn-ghost btn-sm" id="removeImageBtn" type="button" title="Remove all images">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                Clear
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- Batch strip: only shown once more than one file is loaded -->
+                    <div class="batch-strip" id="batchStrip" hidden>
+                        <div class="batch-strip-header">
+                            <span id="batchCount"></span>
+                            <span class="batch-strip-hint">Settings below apply to every image. Click one to preview it.</span>
+                        </div>
+                        <div class="batch-list" id="fileList" role="tablist"></div>
+                    </div>
+
+                    <!-- EXIF / metadata notice -->
+                    <div class="metadata-notice" id="metadataNotice" hidden></div>
 
                     <!-- Canvas Preview -->
                     <div class="editor-canvas-area">
@@ -143,44 +180,129 @@
 
                     <!-- Crop confirm bar (shown when cropping) -->
                     <div class="crop-confirm-bar" id="cropConfirmBar" style="display: none;">
-                        <span class="crop-info" id="cropInfo">Drag on the image to select crop area</span>
-                        <div class="crop-confirm-actions">
-                            <button class="btn btn-primary btn-sm" id="applyCropBtn">Apply Crop</button>
-                            <button class="btn btn-secondary btn-sm" id="cancelCropBtn">Cancel</button>
+                        <div class="crop-controls">
+                            <div class="crop-aspect-field">
+                                <label class="input-label" for="cropAspect">Aspect ratio</label>
+                                <select class="format-select input-sm" id="cropAspect">
+                                    <option value="free" selected>Free</option>
+                                    <option value="original">Original</option>
+                                    <option value="1:1">Square 1:1</option>
+                                    <option value="4:3">4:3</option>
+                                    <option value="3:2">3:2</option>
+                                    <option value="16:9">16:9</option>
+                                    <option value="5:4">5:4</option>
+                                    <option value="9:16">9:16 (portrait)</option>
+                                    <option value="4:5">4:5 (portrait)</option>
+                                    <option value="custom">Custom…</option>
+                                </select>
+                            </div>
+                            <div class="crop-custom-ratio" id="cropCustomRatio" hidden>
+                                <label class="sr-only" for="cropRatioW">Custom ratio width</label>
+                                <input type="number" class="input-field input-sm" id="cropRatioW" min="1" value="3" aria-label="Custom ratio width">
+                                <span class="resize-x">:</span>
+                                <label class="sr-only" for="cropRatioH">Custom ratio height</label>
+                                <input type="number" class="input-field input-sm" id="cropRatioH" min="1" value="2" aria-label="Custom ratio height">
+                            </div>
+                            <div class="crop-numeric">
+                                <label class="input-label" for="cropX">X</label>
+                                <input type="number" class="input-field input-sm" id="cropX" min="0" step="1">
+                                <label class="input-label" for="cropY">Y</label>
+                                <input type="number" class="input-field input-sm" id="cropY" min="0" step="1">
+                                <label class="input-label" for="cropW">W</label>
+                                <input type="number" class="input-field input-sm" id="cropW" min="1" step="1">
+                                <label class="input-label" for="cropH">H</label>
+                                <input type="number" class="input-field input-sm" id="cropH" min="1" step="1">
+                            </div>
+                        </div>
+                        <div class="crop-confirm-footer">
+                            <span class="crop-info" id="cropInfo">Drag on the image to select the crop area</span>
+                            <div class="crop-confirm-actions">
+                                <button class="btn btn-primary btn-sm" id="applyCropBtn" type="button">Apply Crop</button>
+                                <button class="btn btn-secondary btn-sm" id="cancelCropBtn" type="button">Cancel</button>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Adjustments -->
                     <div class="editor-section">
-                        <h3 class="editor-section-title">Adjustments</h3>
+                        <div class="editor-section-head">
+                            <h3 class="editor-section-title">Adjustments</h3>
+                            <button class="btn btn-ghost btn-sm" id="resetAdjustBtn" type="button">Reset adjustments</button>
+                        </div>
                         <div class="adjustment-grid">
                             <div class="adjustment-item">
                                 <div class="adjustment-header">
-                                    <label>Brightness</label>
+                                    <label for="brightnessSlider">Brightness</label>
                                     <span class="adjustment-value" id="brightnessValue">0</span>
                                 </div>
                                 <input type="range" class="quality-slider" id="brightnessSlider" min="-100" max="100" value="0">
                             </div>
                             <div class="adjustment-item">
                                 <div class="adjustment-header">
-                                    <label>Contrast</label>
+                                    <label for="contrastSlider">Contrast</label>
                                     <span class="adjustment-value" id="contrastValue">0</span>
                                 </div>
                                 <input type="range" class="quality-slider" id="contrastSlider" min="-100" max="100" value="0">
                             </div>
                             <div class="adjustment-item">
                                 <div class="adjustment-header">
-                                    <label>Saturation</label>
+                                    <label for="saturationSlider">Saturation</label>
                                     <span class="adjustment-value" id="saturationValue">0</span>
                                 </div>
                                 <input type="range" class="quality-slider" id="saturationSlider" min="-100" max="100" value="0">
                             </div>
                             <div class="adjustment-item">
                                 <div class="adjustment-header">
-                                    <label>Blur</label>
+                                    <label for="blurSlider">Blur</label>
                                     <span class="adjustment-value" id="blurValue">0</span>
                                 </div>
                                 <input type="range" class="quality-slider" id="blurSlider" min="0" max="20" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="sharpenSlider">Sharpen</label>
+                                    <span class="adjustment-value" id="sharpenValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="sharpenSlider" min="0" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="grayscaleSlider">Grayscale</label>
+                                    <span class="adjustment-value" id="grayscaleValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="grayscaleSlider" min="0" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="sepiaSlider">Sepia</label>
+                                    <span class="adjustment-value" id="sepiaValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="sepiaSlider" min="0" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="invertSlider">Invert</label>
+                                    <span class="adjustment-value" id="invertValue">0</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="invertSlider" min="0" max="100" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="hueSlider">Hue</label>
+                                    <span class="adjustment-value" id="hueValue">0°</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="hueSlider" min="-180" max="180" value="0">
+                            </div>
+                            <div class="adjustment-item">
+                                <div class="adjustment-header">
+                                    <label for="straightenSlider">Straighten</label>
+                                    <span class="adjustment-value" id="straightenValue">0°</span>
+                                </div>
+                                <input type="range" class="quality-slider" id="straightenSlider" min="-45" max="45" step="0.5" value="0">
+                                <label class="checkbox-line">
+                                    <input type="checkbox" id="autoCropStraighten" checked>
+                                    <span>Auto-crop the empty corners</span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -190,28 +312,46 @@
                         <h3 class="editor-section-title">Resize</h3>
                         <div class="resize-row">
                             <div class="resize-field">
-                                <label class="input-label">Width (px)</label>
+                                <label class="input-label" for="resizeUnit">Units</label>
+                                <select class="format-select input-sm" id="resizeUnit">
+                                    <option value="px" selected>Pixels</option>
+                                    <option value="percent">Percent</option>
+                                </select>
+                            </div>
+                            <div class="resize-field">
+                                <label class="input-label" for="resizeWidth"><span id="resizeWidthLabel">Width (px)</span></label>
                                 <input type="number" class="input-field input-sm" id="resizeWidth" placeholder="Width" min="1">
                             </div>
-                            <button class="toolbar-btn aspect-lock-btn active" id="aspectLockBtn" title="Aspect ratio locked" type="button">
+                            <button class="toolbar-btn aspect-lock-btn active" id="aspectLockBtn" title="Aspect ratio locked" aria-pressed="true" type="button">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                             </button>
                             <div class="resize-field">
-                                <label class="input-label">Height (px)</label>
+                                <label class="input-label" for="resizeHeight"><span id="resizeHeightLabel">Height (px)</span></label>
                                 <input type="number" class="input-field input-sm" id="resizeHeight" placeholder="Height" min="1">
                             </div>
-                            <button class="btn btn-secondary btn-sm" id="applyResizeBtn">Resize</button>
+                            <div class="resize-field">
+                                <label class="input-label" for="resizeMode">Fit</label>
+                                <select class="format-select input-sm" id="resizeMode">
+                                    <option value="fit" selected>Fit within (letterbox)</option>
+                                    <option value="cover">Cover (crop to fill)</option>
+                                    <option value="stretch">Stretch (distort)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="applyResizeBtn" type="button">Resize</button>
                             <button class="btn btn-ghost btn-sm" id="resetSizeBtn" title="Reset to original dimensions" type="button">Reset</button>
                         </div>
                         <div class="resize-presets">
-                            <button class="preset-btn" data-w="1920" data-h="1080">1920×1080</button>
-                            <button class="preset-btn" data-w="1280" data-h="720">1280×720</button>
-                            <button class="preset-btn" data-w="800" data-h="600">800×600</button>
-                            <button class="preset-btn" data-w="500" data-h="500">500×500</button>
-                            <button class="preset-btn" data-w="256" data-h="256">256×256</button>
-                            <button class="preset-btn" data-percent="50">50%</button>
-                            <button class="preset-btn" data-percent="25">25%</button>
+                            <button class="preset-btn" type="button" data-w="3840" data-h="2160">4K UHD</button>
+                            <button class="preset-btn" type="button" data-w="1920" data-h="1080">1920×1080</button>
+                            <button class="preset-btn" type="button" data-w="1280" data-h="720">1280×720</button>
+                            <button class="preset-btn" type="button" data-w="800" data-h="600">800×600</button>
+                            <button class="preset-btn" type="button" data-w="500" data-h="500">500×500</button>
+                            <button class="preset-btn" type="button" data-w="256" data-h="256">256×256</button>
+                            <button class="preset-btn" type="button" data-percent="75">75%</button>
+                            <button class="preset-btn" type="button" data-percent="50">50%</button>
+                            <button class="preset-btn" type="button" data-percent="25">25%</button>
                         </div>
+                        <div class="resize-hint" id="resizeHint"></div>
                     </div>
 
                     <!-- Export Settings -->
@@ -219,54 +359,76 @@
                         <h3 class="editor-section-title">Export</h3>
                         <div class="export-grid">
                             <div class="setting-group">
-                                <label class="input-label">Output Format</label>
+                                <label class="input-label" for="outputFormat">Output Format</label>
                                 <select class="format-select" id="outputFormat">
                                     <option value="image/png">PNG</option>
                                     <option value="image/jpeg">JPEG</option>
                                     <option value="image/webp">WEBP</option>
+                                    <option value="image/avif" id="avifOption">AVIF</option>
                                 </select>
                             </div>
                             <div class="setting-group" id="qualityGroup">
-                                <label class="input-label">Quality: <span id="qualityValue">60</span>%</label>
+                                <label class="input-label" for="qualitySlider">Quality: <span id="qualityValue">60</span>%</label>
                                 <input type="range" class="quality-slider" id="qualitySlider" min="1" max="100" value="60">
                             </div>
                             <div class="setting-group" id="compressionGroup">
-                                <label class="input-label">Compression Preset</label>
+                                <label class="input-label" for="compressionSelect">Compression Preset</label>
                                 <select class="format-select" id="compressionSelect">
                                     <option value="none">None (Original Quality)</option>
                                     <option value="light">Light (~80%)</option>
                                     <option value="medium" selected>Medium (~60%)</option>
                                     <option value="heavy">Heavy (~40%)</option>
                                     <option value="extreme">Extreme (~20%)</option>
+                                    <option value="custom">Custom</option>
                                 </select>
                             </div>
                             <div class="setting-group" id="targetSizeGroup">
-                                <label class="input-label">Target File Size (optional)</label>
+                                <label class="input-label" for="targetSizeInput">Target File Size (optional)</label>
                                 <div class="target-size-row">
                                     <input type="number" class="input-field input-sm" id="targetSizeInput" placeholder="e.g. 500" min="1">
+                                    <label class="sr-only" for="targetSizeUnit">Target size unit</label>
                                     <select class="format-select input-sm" id="targetSizeUnit">
                                         <option value="kb">KB</option>
                                         <option value="mb">MB</option>
                                     </select>
                                 </div>
-                                <div class="target-size-hint">Will iteratively compress to hit target size</div>
+                                <div class="target-size-hint">Searches quality, then downscales if quality alone cannot get there.</div>
+                            </div>
+                            <div class="setting-group" id="matteGroup">
+                                <label class="input-label" for="matteColor">Background</label>
+                                <div class="matte-row">
+                                    <input type="color" class="color-picker-input matte-picker" id="matteColor" value="#ffffff">
+                                    <span class="matte-hint">Fills transparency — JPEG has no alpha channel.</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="export-actions">
-                            <button class="btn btn-primary" id="exportBtn">
+                            <button class="btn btn-primary" id="exportBtn" type="button">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                                 Export &amp; Download
                             </button>
+                            <button class="btn btn-secondary" id="cancelExportBtn" type="button" hidden>Cancel</button>
                             <div class="export-estimate" id="exportEstimate"></div>
+                        </div>
+                        <div class="export-progress" id="exportProgress" hidden>
+                            <div class="progress-bar-container"><div class="progress-bar-fill" id="exportProgressBar"></div></div>
+                            <div class="progress-text" id="exportProgressText"></div>
                         </div>
                     </div>
 
-                    <!-- Result -->
+                    <!-- Results -->
                     <div class="converter-results" id="results" style="display: none;">
                         <div class="results-header">
                             <span class="results-count" id="resultsInfo"></span>
+                            <button class="btn btn-secondary btn-sm" id="downloadZipBtn" type="button" hidden>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download all
+                            </button>
                         </div>
+
+                        <!-- Single-image result. Kept as static markup rather than
+                             rendered, so the structural tests can assert it. -->
                         <div class="output-item" id="outputItem">
                             <div class="output-item-preview">
                                 <img id="outputPreview" alt="Exported image">
@@ -283,6 +445,9 @@
                                 Download
                             </a>
                         </div>
+
+                        <!-- Batch results are appended here, one row per image. -->
+                        <div class="output-list" id="outputList"></div>
                     </div>
 
                 </div>
@@ -302,6 +467,6 @@
         </div>
     </footer>
 
-    <script src="js/image-converter.js"></script>
+    <script type="module" src="js/image-converter.js"></script>
 </body>
 </html>

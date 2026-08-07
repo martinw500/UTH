@@ -1,875 +1,979 @@
+// Image editor page controller.
+//
+// Wiring only: the maths lives in js/shared/{geometry,pipeline,compression,
+// convolve,exif,image}.js and the rendering in ./render.js, both DOM-free and
+// covered by tests. Anything here that grows a decision worth testing should
+// move into ./editor-state.js.
+
+import { requireIds, debounce, setBusy } from '../../js/shared/dom.js';
+import { formatBytes } from '../../js/shared/format.js';
+import { createDropzone } from '../../js/shared/dropzone.js';
+import { showError, clearNotice, notify, announce } from '../../js/shared/notify.js';
+import { createUrlSlot, createUrlPool } from '../../js/shared/objecturl.js';
+import { readExifFromFile, summariseExif } from '../../js/shared/exif.js';
+import {
+    EXT_BY_MIME,
+    canEncode,
+    compressToTarget,
+    decodeImageFile,
+    drawWithBackground,
+    encodeVerified,
+    isLossless,
+} from '../../js/shared/image.js';
+import {
+    COMPRESSION_PRESETS,
+    describeTargetResult,
+    parseTargetBytes,
+    presetForQuality,
+    qualityForPreset,
+    savings,
+} from '../../js/shared/compression.js';
+import {
+    createState,
+    cloneState,
+    outputSize,
+    normaliseRotation,
+    FULL_RECT,
+} from '../../js/shared/pipeline.js';
+import {
+    centredRect,
+    clampRect,
+    elementToNormalised,
+    moveRect,
+    normalisedToPx,
+    parseRatio,
+    pxToNormalised,
+    resizeRectByHandle,
+} from '../../js/shared/geometry.js';
+import {
+    createBatch,
+    createHistory,
+    outputFilename,
+    resolveResize,
+    shouldAutoEstimate,
+} from './editor-state.js';
+import { renderState, previewScaleFor } from './render.js';
+
+const MAX_FILES = 50;
+const MAX_BYTES = 100 * 1024 * 1024;
+
+const ui = requireIds(
+    'dropzone', 'fileInput', 'browseBtn', 'editorNotice', 'editorWorkspace',
+    'editorFilename', 'editorMeta', 'addMoreBtn', 'removeImageBtn',
+    'batchStrip', 'batchCount', 'fileList', 'metadataNotice',
+    'canvasWrapper', 'previewCanvas', 'cropOverlay', 'cropSelection', 'cropSizeLabel',
+    'cropBtn', 'rotateLeftBtn', 'rotateRightBtn', 'flipHBtn', 'flipVBtn', 'undoBtn', 'resetBtn',
+    'cropConfirmBar', 'cropInfo', 'applyCropBtn', 'cancelCropBtn',
+    'cropAspect', 'cropCustomRatio', 'cropRatioW', 'cropRatioH',
+    'cropX', 'cropY', 'cropW', 'cropH',
+    'brightnessSlider', 'brightnessValue', 'contrastSlider', 'contrastValue',
+    'saturationSlider', 'saturationValue', 'blurSlider', 'blurValue',
+    'sharpenSlider', 'sharpenValue', 'grayscaleSlider', 'grayscaleValue',
+    'sepiaSlider', 'sepiaValue', 'invertSlider', 'invertValue',
+    'hueSlider', 'hueValue', 'straightenSlider', 'straightenValue',
+    'autoCropStraighten', 'resetAdjustBtn',
+    'resizeUnit', 'resizeWidth', 'resizeHeight', 'resizeMode', 'resizeHint',
+    'resizeWidthLabel', 'resizeHeightLabel',
+    'aspectLockBtn', 'applyResizeBtn', 'resetSizeBtn',
+    'outputFormat', 'avifOption', 'qualityGroup', 'qualitySlider', 'qualityValue',
+    'compressionGroup', 'compressionSelect', 'targetSizeGroup', 'targetSizeInput',
+    'targetSizeUnit', 'matteGroup', 'matteColor',
+    'exportBtn', 'cancelExportBtn', 'exportEstimate',
+    'exportProgress', 'exportProgressBar', 'exportProgressText',
+    'results', 'resultsInfo', 'downloadZipBtn', 'outputItem', 'outputPreview',
+    'outputName', 'outputSize', 'outputSavings', 'downloadBtn', 'outputList',
+);
+
+const batch = createBatch();
+const history = createHistory();
+const singleUrl = createUrlSlot();
+const batchUrls = createUrlPool();
+
+let state = createState();
+let cropping = false;
+let cropRect = { ...FULL_RECT };
+let aspectLocked = true;
+let lastResizeEdited = 'width';
+let exportAborted = false;
+let estimateToken = 0;
+
 // ============================================
-// Image Editor / Converter — Full-featured client-side image editor
-// Uses Canvas API — no server needed
+// Adjustment sliders
 // ============================================
 
-(function () {
-    'use strict';
+const ADJUST_CONTROLS = [
+    ['brightness', ui.brightnessSlider, ui.brightnessValue, ''],
+    ['contrast', ui.contrastSlider, ui.contrastValue, ''],
+    ['saturation', ui.saturationSlider, ui.saturationValue, ''],
+    ['blur', ui.blurSlider, ui.blurValue, ''],
+    ['sharpen', ui.sharpenSlider, ui.sharpenValue, ''],
+    ['grayscale', ui.grayscaleSlider, ui.grayscaleValue, ''],
+    ['sepia', ui.sepiaSlider, ui.sepiaValue, ''],
+    ['invert', ui.invertSlider, ui.invertValue, ''],
+    ['hueRotate', ui.hueSlider, ui.hueValue, '°'],
+];
 
-    // --- DOM Elements ---
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('fileInput');
-    const browseBtn = document.getElementById('browseBtn');
-    const editorWorkspace = document.getElementById('editorWorkspace');
-    const editorFilename = document.getElementById('editorFilename');
-    const editorMeta = document.getElementById('editorMeta');
-    const removeImageBtn = document.getElementById('removeImageBtn');
-    const canvasWrapper = document.getElementById('canvasWrapper');
-    const previewCanvas = document.getElementById('previewCanvas');
-    const previewCtx = previewCanvas.getContext('2d');
-
-    // Crop elements
-    const cropOverlay = document.getElementById('cropOverlay');
-    const cropSelection = document.getElementById('cropSelection');
-    const cropSizeLabel = document.getElementById('cropSizeLabel');
-    const cropConfirmBar = document.getElementById('cropConfirmBar');
-    const cropInfo = document.getElementById('cropInfo');
-    const cropBtn = document.getElementById('cropBtn');
-    const applyCropBtn = document.getElementById('applyCropBtn');
-    const cancelCropBtn = document.getElementById('cancelCropBtn');
-
-    // Toolbar
-    const rotateLeftBtn = document.getElementById('rotateLeftBtn');
-    const rotateRightBtn = document.getElementById('rotateRightBtn');
-    const flipHBtn = document.getElementById('flipHBtn');
-    const flipVBtn = document.getElementById('flipVBtn');
-    const resetBtn = document.getElementById('resetBtn');
-
-    // Adjustments
-    const brightnessSlider = document.getElementById('brightnessSlider');
-    const contrastSlider = document.getElementById('contrastSlider');
-    const saturationSlider = document.getElementById('saturationSlider');
-    const blurSlider = document.getElementById('blurSlider');
-    const brightnessValue = document.getElementById('brightnessValue');
-    const contrastValue = document.getElementById('contrastValue');
-    const saturationValue = document.getElementById('saturationValue');
-    const blurValue = document.getElementById('blurValue');
-
-    // Resize
-    const resizeWidth = document.getElementById('resizeWidth');
-    const resizeHeight = document.getElementById('resizeHeight');
-    const applyResizeBtn = document.getElementById('applyResizeBtn');
-
-    // Export
-    const outputFormat = document.getElementById('outputFormat');
-    const qualityGroup = document.getElementById('qualityGroup');
-    const qualitySlider = document.getElementById('qualitySlider');
-    const qualityValue = document.getElementById('qualityValue');
-    const compressionSelect = document.getElementById('compressionSelect');
-    const targetSizeInput = document.getElementById('targetSizeInput');
-    const targetSizeUnit = document.getElementById('targetSizeUnit');
-    const exportBtn = document.getElementById('exportBtn');
-    const exportEstimate = document.getElementById('exportEstimate');
-
-    // Results
-    const results = document.getElementById('results');
-    const resultsInfo = document.getElementById('resultsInfo');
-    const outputPreview = document.getElementById('outputPreview');
-    const outputName = document.getElementById('outputName');
-    const outputSize = document.getElementById('outputSize');
-    const outputSavings = document.getElementById('outputSavings');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    // Aspect ratio lock
-    const aspectLockBtn = document.getElementById('aspectLockBtn');
-    const resetSizeBtn = document.getElementById('resetSizeBtn');
-
-    // Undo
-    const undoBtn = document.getElementById('undoBtn');
-
-    // --- State ---
-    let originalImage = null;         // original Image element
-    let originalFileName = '';
-    let originalFileSize = 0;
-    let editCanvas = null;             // off-screen canvas holding current edit state
-    let editCtx = null;
-    let isCropping = false;
-    let cropRect = { x: 0, y: 0, w: 0, h: 0 };
-    let cropDrag = null;
-    let outputUrl = null;
-    let aspectLocked = true;           // Aspect ratio lock state
-    let originalWidth = 0;             // Original image dimensions
-    let originalHeight = 0;
-    let undoStack = [];                // Undo history
-    const MAX_UNDO = 20;
-
-    // --- Helpers ---
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+function syncAdjustmentInputs() {
+    for (const [key, slider, display, unit] of ADJUST_CONTROLS) {
+        slider.value = String(state.adjust[key]);
+        display.textContent = `${state.adjust[key]}${unit}`;
     }
+    ui.straightenSlider.value = String(state.straighten);
+    ui.straightenValue.textContent = `${state.straighten}°`;
+    ui.autoCropStraighten.checked = state.autoCropStraighten;
+}
 
-    function formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-    }
+// ============================================
+// Preview
+// ============================================
 
-    function stripExtension(name) {
-        return name.replace(/\.[^.]+$/, '');
-    }
+function currentItem() {
+    return batch.selected();
+}
 
-    const FORMAT_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+function renderPreview() {
+    const item = currentItem();
+    if (!item?.source) return;
 
-    // --- Dropzone ---
-    browseBtn.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('click', (e) => {
-        if (e.target !== browseBtn) fileInput.click();
+    const size = outputSize(item.width, item.height, state);
+    const scale = previewScaleFor(
+        size.width, size.height, ui.canvasWrapper.clientWidth || 800,
+    );
+
+    const canvas = renderState(item.source, state, {
+        background: needsMatte() ? ui.matteColor.value : null,
+        previewScale: scale,
+        // Sharpening every preview frame is a full getImageData/putImageData
+        // round trip; at slider speed that stutters. The export is not skipped.
+        skipSharpen: true,
     });
 
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        const f = e.dataTransfer.files[0];
-        if (f && f.type.startsWith('image/')) loadFile(f);
-    });
-
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files[0]) { loadFile(fileInput.files[0]); fileInput.value = ''; }
-    });
-
-    // --- Load Image ---
-    function loadFile(file) {
-        originalFileName = file.name;
-        originalFileSize = file.size;
-
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            originalImage = img;
-
-            // Store original dimensions
-            originalWidth = img.naturalWidth;
-            originalHeight = img.naturalHeight;
-
-            // Initialize edit canvas
-            editCanvas = document.createElement('canvas');
-            editCanvas.width = img.naturalWidth;
-            editCanvas.height = img.naturalHeight;
-            editCtx = editCanvas.getContext('2d');
-            editCtx.drawImage(img, 0, 0);
-
-            // Clear undo stack
-            undoStack = [];
-            updateUndoBtn();
-
-            // Update UI
-            editorFilename.textContent = file.name;
-            editorMeta.textContent = `${img.naturalWidth} × ${img.naturalHeight} · ${formatSize(file.size)}`;
-
-            // Set actual default values in resize inputs
-            resizeWidth.value = img.naturalWidth;
-            resizeHeight.value = img.naturalHeight;
-            resizeWidth.placeholder = img.naturalWidth;
-            resizeHeight.placeholder = img.naturalHeight;
-
-            dropzone.style.display = 'none';
-            editorWorkspace.style.display = '';
-            results.style.display = 'none';
-
-            // Clear previous export result
-            if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
-
-            resetAdjustments();
-            renderPreview();
-        };
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            alert('Could not load this image.');
-        };
-        img.src = url;
-    }
-
-    // --- Remove Image ---
-    removeImageBtn.addEventListener('click', () => {
-        originalImage = null;
-        editCanvas = null;
-        editCtx = null;
-        undoStack = [];
-        updateUndoBtn();
-        cancelCrop();
-        dropzone.style.display = '';
-        editorWorkspace.style.display = 'none';
-        results.style.display = 'none';
-        if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
-        // Reset resize inputs
-        resizeWidth.value = '';
-        resizeHeight.value = '';
-    });
-
-    // --- Undo ---
-    function saveUndoState() {
-        if (!editCanvas) return;
-        const snapshot = document.createElement('canvas');
-        snapshot.width = editCanvas.width;
-        snapshot.height = editCanvas.height;
-        snapshot.getContext('2d').drawImage(editCanvas, 0, 0);
-        undoStack.push({
-            canvas: snapshot,
-            brightness: brightnessSlider.value,
-            contrast: contrastSlider.value,
-            saturation: saturationSlider.value,
-            blur: blurSlider.value
-        });
-        if (undoStack.length > MAX_UNDO) undoStack.shift();
-        updateUndoBtn();
-    }
-
-    function updateUndoBtn() {
-        if (undoBtn) {
-            undoBtn.disabled = undoStack.length === 0;
-            undoBtn.title = undoStack.length > 0 ? `Undo (${undoStack.length} steps)` : 'Nothing to undo';
-        }
-    }
-
-    if (undoBtn) {
-        undoBtn.addEventListener('click', () => {
-            if (undoStack.length === 0 || !editCanvas) return;
-            const state = undoStack.pop();
-            editCanvas.width = state.canvas.width;
-            editCanvas.height = state.canvas.height;
-            editCtx.drawImage(state.canvas, 0, 0);
-
-            brightnessSlider.value = state.brightness;
-            brightnessValue.textContent = state.brightness;
-            contrastSlider.value = state.contrast;
-            contrastValue.textContent = state.contrast;
-            saturationSlider.value = state.saturation;
-            saturationValue.textContent = state.saturation;
-            blurSlider.value = state.blur;
-            blurValue.textContent = state.blur;
-
-            // Update resize inputs to current dimensions
-            resizeWidth.value = editCanvas.width;
-            resizeHeight.value = editCanvas.height;
-
-            updateUndoBtn();
-            updateMetaDisplay();
-            renderPreview();
-        });
-    }
-
-    // --- Preview Rendering (with CSS filters for live preview) ---
-    function renderPreview() {
-        if (!editCanvas) return;
-
-        // Use the parent container's width to avoid a shrinking feedback loop
-        // (canvasWrapper is inline-block so its width follows the canvas)
-        const container = canvasWrapper.parentElement;
-        const maxW = (container ? container.clientWidth : 0) || 800;
-        const maxH = 500;
-        const scale = Math.min(1, maxW / editCanvas.width, maxH / editCanvas.height);
-
-        previewCanvas.width = Math.round(editCanvas.width * scale);
-        previewCanvas.height = Math.round(editCanvas.height * scale);
-
-        // Apply CSS filter string for live preview
-        const filterStr = buildFilterString();
-        previewCtx.filter = filterStr;
-        previewCtx.drawImage(editCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
-        previewCtx.filter = 'none';
-    }
-
-    function buildFilterString() {
-        const b = parseInt(brightnessSlider.value);
-        const c = parseInt(contrastSlider.value);
-        const s = parseInt(saturationSlider.value);
-        const bl = parseInt(blurSlider.value);
-
-        let filter = '';
-        if (b !== 0) filter += `brightness(${1 + b / 100}) `;
-        if (c !== 0) filter += `contrast(${1 + c / 100}) `;
-        if (s !== 0) filter += `saturate(${1 + s / 100}) `;
-        if (bl > 0) filter += `blur(${bl}px) `;
-
-        return filter.trim() || 'none';
-    }
-
-    // --- Adjustment Sliders ---
-    function setupSlider(slider, display) {
-        slider.addEventListener('input', () => {
-            display.textContent = slider.value;
-            renderPreview();
-        });
-    }
-
-    setupSlider(brightnessSlider, brightnessValue);
-    setupSlider(contrastSlider, contrastValue);
-    setupSlider(saturationSlider, saturationValue);
-    setupSlider(blurSlider, blurValue);
-
-    function resetAdjustments() {
-        brightnessSlider.value = 0; brightnessValue.textContent = '0';
-        contrastSlider.value = 0; contrastValue.textContent = '0';
-        saturationSlider.value = 0; saturationValue.textContent = '0';
-        blurSlider.value = 0; blurValue.textContent = '0';
-    }
-
-    // --- Apply filters permanently to editCanvas (called before export/crop/resize) ---
-    function bakeFilters() {
-        const filterStr = buildFilterString();
-        if (filterStr === 'none') return; // nothing to bake
-
-        const temp = document.createElement('canvas');
-        temp.width = editCanvas.width;
-        temp.height = editCanvas.height;
-        const tctx = temp.getContext('2d');
-        tctx.filter = filterStr;
-        tctx.drawImage(editCanvas, 0, 0);
-
-        editCtx.clearRect(0, 0, editCanvas.width, editCanvas.height);
-        editCtx.drawImage(temp, 0, 0);
-
-        resetAdjustments();
-    }
-
-    // --- Rotate & Flip ---
-    rotateLeftBtn.addEventListener('click', () => rotate(-90));
-    rotateRightBtn.addEventListener('click', () => rotate(90));
-    flipHBtn.addEventListener('click', () => flip('h'));
-    flipVBtn.addEventListener('click', () => flip('v'));
-
-    function rotate(deg) {
-        saveUndoState();
-        bakeFilters();
-        const temp = document.createElement('canvas');
-        const isRightAngle = Math.abs(deg) === 90;
-        temp.width = isRightAngle ? editCanvas.height : editCanvas.width;
-        temp.height = isRightAngle ? editCanvas.width : editCanvas.height;
-        const tctx = temp.getContext('2d');
-
-        tctx.translate(temp.width / 2, temp.height / 2);
-        tctx.rotate((deg * Math.PI) / 180);
-        tctx.drawImage(editCanvas, -editCanvas.width / 2, -editCanvas.height / 2);
-
-        editCanvas.width = temp.width;
-        editCanvas.height = temp.height;
-        editCtx.drawImage(temp, 0, 0);
-
-        updateMetaDisplay();
-        renderPreview();
-    }
-
-    function flip(dir) {
-        saveUndoState();
-        bakeFilters();
-        const temp = document.createElement('canvas');
-        temp.width = editCanvas.width;
-        temp.height = editCanvas.height;
-        const tctx = temp.getContext('2d');
-
-        if (dir === 'h') {
-            tctx.translate(temp.width, 0);
-            tctx.scale(-1, 1);
-        } else {
-            tctx.translate(0, temp.height);
-            tctx.scale(1, -1);
-        }
-        tctx.drawImage(editCanvas, 0, 0);
-
-        editCtx.clearRect(0, 0, editCanvas.width, editCanvas.height);
-        editCtx.drawImage(temp, 0, 0);
-        renderPreview();
-    }
-
-    function updateMetaDisplay() {
-        editorMeta.textContent = `${editCanvas.width} × ${editCanvas.height} · ${formatSize(originalFileSize)}`;
-        // Keep resize inputs synced with current dimensions
-        resizeWidth.value = editCanvas.width;
-        resizeHeight.value = editCanvas.height;
-    }
-
-    // --- Reset ---
-    resetBtn.addEventListener('click', () => {
-        if (!originalImage) return;
-        saveUndoState();
-        cancelCrop();
-
-        editCanvas.width = originalImage.naturalWidth;
-        editCanvas.height = originalImage.naturalHeight;
-        editCtx.drawImage(originalImage, 0, 0);
-
-        // Restore original dimensions for resize inputs
-        originalWidth = originalImage.naturalWidth;
-        originalHeight = originalImage.naturalHeight;
-
-        resetAdjustments();
-        updateMetaDisplay();
-        renderPreview();
-
-        // Also hide results since we reset the image
-        results.style.display = 'none';
-    });
-
-    // ==============================================
-    // CROP FUNCTIONALITY
-    // ==============================================
-    let cropStartPos = null;
-
-    cropBtn.addEventListener('click', () => {
-        if (isCropping) { cancelCrop(); return; }
-        enterCropMode();
-    });
-
-    function enterCropMode() {
-        isCropping = true;
-        cropBtn.classList.add('active');
-        cropOverlay.style.display = '';
-        cropConfirmBar.style.display = '';
-
-        // Default crop: center 80%
-        const defaultW = Math.round(previewCanvas.width * 0.8);
-        const defaultH = Math.round(previewCanvas.height * 0.8);
-        const defaultX = Math.round((previewCanvas.width - defaultW) / 2);
-        const defaultY = Math.round((previewCanvas.height - defaultH) / 2);
-
-        cropRect = { x: defaultX, y: defaultY, w: defaultW, h: defaultH };
-        updateCropUI();
-    }
-
-    function cancelCrop() {
-        isCropping = false;
-        cropBtn.classList.remove('active');
-        cropOverlay.style.display = 'none';
-        cropConfirmBar.style.display = 'none';
-        cropDrag = null;
-    }
-
-    cancelCropBtn.addEventListener('click', cancelCrop);
-
-    applyCropBtn.addEventListener('click', () => {
-        if (!isCropping) return;
-
-        saveUndoState();
-        bakeFilters();
-
-        // Convert crop rect from preview coords to actual image coords
-        const scaleX = editCanvas.width / previewCanvas.width;
-        const scaleY = editCanvas.height / previewCanvas.height;
-
-        const sx = Math.round(cropRect.x * scaleX);
-        const sy = Math.round(cropRect.y * scaleY);
-        const sw = Math.round(cropRect.w * scaleX);
-        const sh = Math.round(cropRect.h * scaleY);
-
-        if (sw < 1 || sh < 1) { cancelCrop(); return; }
-
-        const imageData = editCtx.getImageData(sx, sy, sw, sh);
-        editCanvas.width = sw;
-        editCanvas.height = sh;
-        editCtx.putImageData(imageData, 0, 0);
-
-        cancelCrop();
-        updateMetaDisplay();
-        renderPreview();
-    });
-
-    function updateCropUI() {
-        // Clamp crop rect
-        cropRect.x = Math.max(0, Math.min(cropRect.x, previewCanvas.width - 10));
-        cropRect.y = Math.max(0, Math.min(cropRect.y, previewCanvas.height - 10));
-        cropRect.w = Math.max(10, Math.min(cropRect.w, previewCanvas.width - cropRect.x));
-        cropRect.h = Math.max(10, Math.min(cropRect.h, previewCanvas.height - cropRect.y));
-
-        cropSelection.style.left = cropRect.x + 'px';
-        cropSelection.style.top = cropRect.y + 'px';
-        cropSelection.style.width = cropRect.w + 'px';
-        cropSelection.style.height = cropRect.h + 'px';
-
-        // Show actual pixel dimensions
-        const scaleX = editCanvas.width / previewCanvas.width;
-        const scaleY = editCanvas.height / previewCanvas.height;
-        const realW = Math.round(cropRect.w * scaleX);
-        const realH = Math.round(cropRect.h * scaleY);
-        cropSizeLabel.textContent = `${realW} × ${realH}`;
-        cropInfo.textContent = `Crop area: ${realW} × ${realH} px`;
-    }
-
-    // Crop drag handlers
-    cropOverlay.addEventListener('mousedown', onCropMouseDown);
-    cropOverlay.addEventListener('touchstart', onCropTouchStart, { passive: false });
-
-    function onCropMouseDown(e) {
-        e.preventDefault();
-        const handle = e.target.dataset?.handle;
-        const rect = cropOverlay.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        if (handle) {
-            cropDrag = { type: 'resize', handle, startX: x, startY: y, origRect: { ...cropRect } };
-        } else if (isInsideCrop(x, y)) {
-            cropDrag = { type: 'move', startX: x, startY: y, origRect: { ...cropRect } };
-        } else {
-            // Start new crop from click position
-            cropRect = { x, y, w: 0, h: 0 };
-            cropDrag = { type: 'new', startX: x, startY: y };
-        }
-
-        document.addEventListener('mousemove', onCropMouseMove);
-        document.addEventListener('mouseup', onCropMouseUp);
-    }
-
-    function onCropTouchStart(e) {
-        if (e.touches.length !== 1) return;
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = cropOverlay.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-
-        const handle = e.target.dataset?.handle;
-        if (handle) {
-            cropDrag = { type: 'resize', handle, startX: x, startY: y, origRect: { ...cropRect } };
-        } else if (isInsideCrop(x, y)) {
-            cropDrag = { type: 'move', startX: x, startY: y, origRect: { ...cropRect } };
-        } else {
-            cropRect = { x, y, w: 0, h: 0 };
-            cropDrag = { type: 'new', startX: x, startY: y };
-        }
-
-        document.addEventListener('touchmove', onCropTouchMove, { passive: false });
-        document.addEventListener('touchend', onCropTouchEnd);
-    }
-
-    function onCropMouseMove(e) {
-        const rect = cropOverlay.getBoundingClientRect();
-        handleCropMove(e.clientX - rect.left, e.clientY - rect.top);
-    }
-
-    function onCropTouchMove(e) {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const rect = cropOverlay.getBoundingClientRect();
-        handleCropMove(touch.clientX - rect.left, touch.clientY - rect.top);
-    }
-
-    function handleCropMove(x, y) {
-        if (!cropDrag) return;
-
-        const dx = x - cropDrag.startX;
-        const dy = y - cropDrag.startY;
-        const maxW = previewCanvas.width;
-        const maxH = previewCanvas.height;
-
-        if (cropDrag.type === 'move') {
-            let newX = cropDrag.origRect.x + dx;
-            let newY = cropDrag.origRect.y + dy;
-            newX = Math.max(0, Math.min(newX, maxW - cropRect.w));
-            newY = Math.max(0, Math.min(newY, maxH - cropRect.h));
-            cropRect.x = newX;
-            cropRect.y = newY;
-        } else if (cropDrag.type === 'new') {
-            const sx = cropDrag.startX;
-            const sy = cropDrag.startY;
-            cropRect.x = Math.min(sx, x);
-            cropRect.y = Math.min(sy, y);
-            cropRect.w = Math.abs(x - sx);
-            cropRect.h = Math.abs(y - sy);
-        } else if (cropDrag.type === 'resize') {
-            const o = cropDrag.origRect;
-            const h = cropDrag.handle;
-
-            if (h.includes('e')) cropRect.w = Math.max(10, o.w + dx);
-            if (h.includes('s')) cropRect.h = Math.max(10, o.h + dy);
-            if (h.includes('w')) {
-                cropRect.x = o.x + dx;
-                cropRect.w = o.w - dx;
-                if (cropRect.w < 10) { cropRect.x = o.x + o.w - 10; cropRect.w = 10; }
-            }
-            if (h.includes('n')) {
-                cropRect.y = o.y + dy;
-                cropRect.h = o.h - dy;
-                if (cropRect.h < 10) { cropRect.y = o.y + o.h - 10; cropRect.h = 10; }
-            }
-        }
-
-        updateCropUI();
-    }
-
-    function onCropMouseUp() {
-        cropDrag = null;
-        document.removeEventListener('mousemove', onCropMouseMove);
-        document.removeEventListener('mouseup', onCropMouseUp);
-    }
-
-    function onCropTouchEnd() {
-        cropDrag = null;
-        document.removeEventListener('touchmove', onCropTouchMove);
-        document.removeEventListener('touchend', onCropTouchEnd);
-    }
-
-    function isInsideCrop(x, y) {
-        return x >= cropRect.x && x <= cropRect.x + cropRect.w &&
-               y >= cropRect.y && y <= cropRect.y + cropRect.h;
-    }
-
-    // ==============================================
-    // RESIZE
-    // ==============================================
-    // --- Aspect Ratio Lock ---
-    if (aspectLockBtn) {
-        aspectLockBtn.addEventListener('click', () => {
-            aspectLocked = !aspectLocked;
-            aspectLockBtn.classList.toggle('active', aspectLocked);
-            aspectLockBtn.title = aspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked';
-            // Update icon
-            aspectLockBtn.innerHTML = aspectLocked
-                ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
-                : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
-        });
-        // Set initial state
-        aspectLockBtn.classList.add('active');
-    }
-
-    // Width/Height sync when aspect locked
-    resizeWidth.addEventListener('input', () => {
-        if (aspectLocked && editCanvas) {
-            const w = parseInt(resizeWidth.value);
-            if (w > 0) {
-                const ratio = editCanvas.height / editCanvas.width;
-                resizeHeight.value = Math.round(w * ratio);
-            }
-        }
-    });
-
-    resizeHeight.addEventListener('input', () => {
-        if (aspectLocked && editCanvas) {
-            const h = parseInt(resizeHeight.value);
-            if (h > 0) {
-                const ratio = editCanvas.width / editCanvas.height;
-                resizeWidth.value = Math.round(h * ratio);
-            }
-        }
-    });
-
-    // --- Reset to Default Size ---
-    if (resetSizeBtn) {
-        resetSizeBtn.addEventListener('click', () => {
-            if (!originalImage) return;
-            resizeWidth.value = originalWidth;
-            resizeHeight.value = originalHeight;
-        });
-    }
-
-    applyResizeBtn.addEventListener('click', () => {
-        const w = parseInt(resizeWidth.value);
-        const h = parseInt(resizeHeight.value);
-        if (!w && !h) return;
-
-        // Don't resize if dimensions are the same
-        let targetW = w || Math.round((h / editCanvas.height) * editCanvas.width);
-        let targetH = h || Math.round((w / editCanvas.width) * editCanvas.height);
-
-        if (targetW < 1 || targetH < 1) return;
-        if (targetW === editCanvas.width && targetH === editCanvas.height) return;
-
-        saveUndoState();
-        bakeFilters();
-
-        const temp = document.createElement('canvas');
-        temp.width = targetW;
-        temp.height = targetH;
-        const tctx = temp.getContext('2d');
-        tctx.drawImage(editCanvas, 0, 0, targetW, targetH);
-
-        editCanvas.width = targetW;
-        editCanvas.height = targetH;
-        editCtx.drawImage(temp, 0, 0);
-
-        updateMetaDisplay();
-        renderPreview();
-    });
-
-    // Resize presets
-    document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (btn.dataset.percent) {
-                const pct = parseInt(btn.dataset.percent) / 100;
-                resizeWidth.value = Math.round(editCanvas.width * pct);
-                resizeHeight.value = Math.round(editCanvas.height * pct);
-            } else {
-                resizeWidth.value = btn.dataset.w;
-                resizeHeight.value = btn.dataset.h;
-            }
-        });
-    });
-
-    // ==============================================
-    // EXPORT
-    // ==============================================
-    const COMPRESSION_QUALITY = { none: 1.0, light: 0.8, medium: 0.6, heavy: 0.4, extreme: 0.2 };
-
-    outputFormat.addEventListener('change', updateExportUI);
-    compressionSelect.addEventListener('change', onCompressionChange);
-    qualitySlider.addEventListener('input', () => {
-        qualityValue.textContent = qualitySlider.value;
-    });
-
-    function updateExportUI() {
-        const fmt = outputFormat.value;
-        const isPng = fmt === 'image/png';
-        qualityGroup.style.display = isPng ? 'none' : '';
-        compressionSelect.closest('.setting-group').style.display = isPng ? 'none' : '';
-        targetSizeInput.closest('.setting-group').style.display = isPng ? 'none' : '';
-    }
-
-    function onCompressionChange() {
-        const val = compressionSelect.value;
-        if (val !== 'none') {
-            const q = Math.round(COMPRESSION_QUALITY[val] * 100);
-            qualitySlider.value = q;
-            qualityValue.textContent = q;
-        }
-    }
-
-    // Initialize UI state
-    updateExportUI();
-    onCompressionChange();
-
-    exportBtn.addEventListener('click', async () => {
-        if (!editCanvas) return;
-
-        exportBtn.disabled = true;
-        exportBtn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></div> Exporting...';
-        exportEstimate.textContent = '';
-
-        // Always revoke old output first to ensure fresh export
-        if (outputUrl) {
-            URL.revokeObjectURL(outputUrl);
-            outputUrl = null;
-        }
-
-        // Bake adjustments into a final export canvas
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = editCanvas.width;
-        exportCanvas.height = editCanvas.height;
-        const ectx = exportCanvas.getContext('2d');
-        const filterStr = buildFilterString();
-        ectx.filter = filterStr;
-        ectx.drawImage(editCanvas, 0, 0);
-        ectx.filter = 'none';
-
-        const format = outputFormat.value;
-        const targetBytes = getTargetBytes();
-
-        let blob;
+    ui.previewCanvas.width = canvas.width;
+    ui.previewCanvas.height = canvas.height;
+    ui.previewCanvas.getContext('2d').drawImage(canvas, 0, 0);
+
+    updateMeta();
+    if (cropping) positionCropOverlay();
+}
+
+const renderPreviewSoon = debounce(renderPreview, 60);
+
+function updateMeta() {
+    const item = currentItem();
+    if (!item) return;
+    const size = outputSize(item.width, item.height, state);
+    const changed = size.width !== item.width || size.height !== item.height;
+    ui.editorFilename.textContent = item.name;
+    ui.editorMeta.textContent = changed
+        ? `${item.width} × ${item.height} → ${size.width} × ${size.height} · ${formatBytes(item.size)}`
+        : `${item.width} × ${item.height} · ${formatBytes(item.size)}`;
+}
+
+// ============================================
+// Loading
+// ============================================
+
+async function loadFiles(files) {
+    clearNotice(ui.editorNotice);
+    const added = batch.add(files.slice(0, MAX_FILES - batch.size));
+
+    for (const item of added) {
         try {
-            if (targetBytes) {
-                blob = await compressToTargetSize(exportCanvas, format, targetBytes);
-            } else {
-                const quality = format === 'image/png' ? undefined : qualitySlider.value / 100;
-                blob = await canvasToBlob(exportCanvas, format, quality);
-            }
-        } catch (err) {
-            exportEstimate.textContent = 'Export failed: ' + err.message;
-            exportBtn.disabled = false;
-            restoreExportBtn();
-            return;
+            item.source = await decodeImageFile(item.file);
+            item.width = item.source.width;
+            item.height = item.source.height;
+            item.exif = await readExifFromFile(item.file);
+            item.status = 'ready';
+        } catch {
+            item.status = 'error';
+            item.error = 'Could not decode this image.';
         }
-
-        // Display result — create fresh blob URL
-        outputUrl = URL.createObjectURL(blob);
-
-        const ext = FORMAT_EXT[format] || 'png';
-        const outFileName = stripExtension(originalFileName) + '.' + ext;
-
-        outputPreview.src = outputUrl;
-        outputName.textContent = outFileName;
-        outputSize.textContent = formatSize(blob.size);
-
-        const savingsNum = originalFileSize > 0 ? ((originalFileSize - blob.size) / originalFileSize) * 100 : 0;
-        if (savingsNum > 0) {
-            outputSavings.textContent = savingsNum.toFixed(1) + '% smaller';
-            outputSavings.className = 'output-savings positive';
-        } else if (savingsNum < 0) {
-            outputSavings.textContent = Math.abs(savingsNum).toFixed(1) + '% larger';
-            outputSavings.className = 'output-savings negative';
-        } else {
-            outputSavings.textContent = 'Same size';
-            outputSavings.className = 'output-savings';
-        }
-
-        downloadBtn.href = outputUrl;
-        downloadBtn.download = outFileName;
-
-        resultsInfo.textContent = `${editCanvas.width} × ${editCanvas.height} · ${formatSize(blob.size)}`;
-        results.style.display = '';
-
-        exportBtn.disabled = false;
-        restoreExportBtn();
-    });
-
-    function restoreExportBtn() {
-        exportBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export &amp; Download';
     }
 
-    function getTargetBytes() {
-        const val = parseInt(targetSizeInput.value);
-        if (!val || val <= 0) return null;
-        const unit = targetSizeUnit.value;
-        return unit === 'mb' ? val * 1024 * 1024 : val * 1024;
+    const failed = added.filter((item) => item.status === 'error');
+    if (failed.length) {
+        showError(ui.editorNotice, failed.length === added.length
+            ? 'None of those files could be opened as images.'
+            : `${failed.length} of ${added.length} files could not be opened.`);
+        for (const item of failed) batch.remove(item.id);
     }
 
-    function canvasToBlob(canvas, format, quality) {
-        return new Promise((resolve, reject) => {
-            canvas.toBlob(
-                (blob) => blob ? resolve(blob) : reject(new Error('Export failed')),
-                format,
-                quality
-            );
+    if (!batch.size) {
+        showWorkspace(false);
+        return;
+    }
+
+    ui.dropzone.style.display = 'none';
+    showWorkspace(true);
+    resetSizeInputs();
+    renderBatchStrip();
+    renderMetadataNotice();
+    renderPreview();
+    scheduleEstimate();
+}
+
+function showWorkspace(visible) {
+    ui.editorWorkspace.style.display = visible ? '' : 'none';
+    ui.dropzone.style.display = visible ? 'none' : '';
+    ui.results.style.display = 'none';
+}
+
+function clearAll() {
+    batch.clear();
+    singleUrl.revoke();
+    batchUrls.revokeAll();
+    state = createState();
+    history.reset(state);
+    cropping = false;
+    ui.cropOverlay.style.display = 'none';
+    ui.cropConfirmBar.style.display = 'none';
+    ui.cropBtn.classList.remove('active');
+    syncAdjustmentInputs();
+    clearNotice(ui.editorNotice);
+    ui.metadataNotice.hidden = true;
+    ui.outputList.replaceChildren();
+    showWorkspace(false);
+    updateUndoButton();
+}
+
+// ============================================
+// Batch strip
+// ============================================
+
+function renderBatchStrip() {
+    const items = batch.list();
+    ui.batchStrip.hidden = items.length < 2;
+    ui.batchCount.textContent = `${items.length} image${items.length === 1 ? '' : 's'}`;
+
+    ui.fileList.replaceChildren(...items.map((item) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'batch-item';
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-selected', String(item.id === batch.selectedId));
+        if (item.id === batch.selectedId) button.classList.add('active');
+        button.dataset.id = String(item.id);
+
+        const name = document.createElement('span');
+        name.className = 'batch-item-name';
+        name.textContent = item.name;
+
+        const meta = document.createElement('span');
+        meta.className = 'batch-item-meta';
+        meta.textContent = `${item.width}×${item.height}`;
+
+        const remove = document.createElement('span');
+        remove.className = 'batch-item-remove';
+        remove.dataset.remove = String(item.id);
+        remove.setAttribute('role', 'button');
+        remove.setAttribute('aria-label', `Remove ${item.name}`);
+        remove.textContent = '×';
+
+        button.append(name, meta, remove);
+        return button;
+    }));
+}
+
+function renderMetadataNotice() {
+    const item = currentItem();
+    const lines = summariseExif(item?.exif);
+    if (!lines.length) {
+        ui.metadataNotice.hidden = true;
+        return;
+    }
+    // Canvas re-encoding always drops this; there is no API to keep it. Saying
+    // so is the only honest option, and it is genuinely useful for GPS.
+    ui.metadataNotice.hidden = false;
+    ui.metadataNotice.replaceChildren();
+    const heading = document.createElement('strong');
+    heading.textContent = 'This image carries metadata that the export will not include:';
+    const list = document.createElement('ul');
+    for (const line of lines) {
+        const entry = document.createElement('li');
+        entry.textContent = line;
+        list.append(entry);
+    }
+    ui.metadataNotice.append(heading, list);
+}
+
+// ============================================
+// History
+// ============================================
+
+function commit(mutate) {
+    history.push(state);
+    const next = cloneState(state);
+    mutate(next);
+    state = next;
+    history.replace(state);
+    updateUndoButton();
+    renderPreview();
+    scheduleEstimate();
+}
+
+function updateUndoButton() {
+    ui.undoBtn.disabled = !history.canUndo;
+}
+
+// ============================================
+// Crop
+// ============================================
+
+function currentRatio() {
+    const item = currentItem();
+    if (ui.cropAspect.value === 'custom') {
+        const w = Number(ui.cropRatioW.value);
+        const h = Number(ui.cropRatioH.value);
+        return w > 0 && h > 0 ? w / h : null;
+    }
+    const size = item ? outputSize(item.width, item.height, { ...state, crop: FULL_RECT }) : null;
+    return parseRatio(ui.cropAspect.value, size?.width ?? 1, size?.height ?? 1);
+}
+
+function croppableSize() {
+    const item = currentItem();
+    if (!item) return { width: 1, height: 1 };
+    // The crop rect is relative to the source, before any resize.
+    const rotated = normaliseRotation(state.rotate) % 180 === 90;
+    return rotated
+        ? { width: item.height, height: item.width }
+        : { width: item.width, height: item.height };
+}
+
+function enterCropMode() {
+    if (!currentItem()) return;
+    cropping = true;
+    ui.cropBtn.classList.add('active');
+    ui.cropOverlay.style.display = '';
+    ui.cropConfirmBar.style.display = '';
+    const { width, height } = croppableSize();
+    cropRect = centredRect(currentRatio(), width, height, 0.8);
+    positionCropOverlay();
+    syncCropInputs();
+}
+
+function cancelCrop() {
+    cropping = false;
+    ui.cropBtn.classList.remove('active');
+    ui.cropOverlay.style.display = 'none';
+    ui.cropConfirmBar.style.display = 'none';
+}
+
+function positionCropOverlay() {
+    // Positioned as percentages of the overlay, so the rect stays correct at any
+    // rendered size. This is what the pixel-based version got wrong.
+    ui.cropSelection.style.left = `${cropRect.x * 100}%`;
+    ui.cropSelection.style.top = `${cropRect.y * 100}%`;
+    ui.cropSelection.style.width = `${cropRect.w * 100}%`;
+    ui.cropSelection.style.height = `${cropRect.h * 100}%`;
+
+    const { width, height } = croppableSize();
+    const px = normalisedToPx(cropRect, width, height);
+    ui.cropSizeLabel.textContent = `${px.width} × ${px.height}`;
+    ui.cropInfo.textContent = `Crop area: ${px.width} × ${px.height} px`;
+}
+
+function syncCropInputs() {
+    const { width, height } = croppableSize();
+    const px = normalisedToPx(cropRect, width, height);
+    ui.cropX.value = String(px.x);
+    ui.cropY.value = String(px.y);
+    ui.cropW.value = String(px.width);
+    ui.cropH.value = String(px.height);
+}
+
+function applyCropFromInputs() {
+    const { width, height } = croppableSize();
+    const next = pxToNormalised({
+        x: Number(ui.cropX.value) || 0,
+        y: Number(ui.cropY.value) || 0,
+        width: Number(ui.cropW.value) || 1,
+        height: Number(ui.cropH.value) || 1,
+    }, width, height);
+    cropRect = clampRect(next);
+    positionCropOverlay();
+}
+
+// Pointer handling. One path for mouse and touch, in normalised coordinates.
+let dragMode = null;      // 'move' | handle name
+let dragOrigin = null;
+let dragStartRect = null;
+
+function pointerPosition(event) {
+    const point = event.touches?.[0] ?? event;
+    return elementToNormalised(point.clientX, point.clientY, ui.cropOverlay);
+}
+
+function onCropPointerDown(event) {
+    if (!cropping) return;
+    const handle = event.target?.dataset?.handle;
+    const position = pointerPosition(event);
+
+    const inside = position.x >= cropRect.x && position.x <= cropRect.x + cropRect.w
+        && position.y >= cropRect.y && position.y <= cropRect.y + cropRect.h;
+
+    if (!handle && !inside) return;
+    dragMode = handle || 'move';
+    dragOrigin = position;
+    dragStartRect = { ...cropRect };
+    event.preventDefault();
+}
+
+function onCropPointerMove(event) {
+    if (!dragMode) return;
+    const position = pointerPosition(event);
+    const dx = position.x - dragOrigin.x;
+    const dy = position.y - dragOrigin.y;
+    const { width, height } = croppableSize();
+
+    cropRect = dragMode === 'move'
+        ? moveRect(dragStartRect, dx, dy)
+        : resizeRectByHandle(dragStartRect, dragMode, dx, dy, {
+            ratio: currentRatio(), srcW: width, srcH: height,
         });
+
+    positionCropOverlay();
+    syncCropInputs();
+    event.preventDefault();
+}
+
+function onCropPointerUp() {
+    dragMode = null;
+}
+
+// ============================================
+// Resize
+// ============================================
+
+function resetSizeInputs() {
+    const item = currentItem();
+    if (!item) return;
+    const size = outputSize(item.width, item.height, { ...state, resize: null });
+    if (ui.resizeUnit.value === 'percent') {
+        ui.resizeWidth.value = '100';
+        ui.resizeHeight.value = '100';
+    } else {
+        ui.resizeWidth.value = String(size.width);
+        ui.resizeHeight.value = String(size.height);
+    }
+    updateResizeHint();
+}
+
+function updateResizeUnitLabels() {
+    const percent = ui.resizeUnit.value === 'percent';
+    ui.resizeWidthLabel.textContent = percent ? 'Scale (%)' : 'Width (px)';
+    ui.resizeHeightLabel.textContent = percent ? 'Scale (%)' : 'Height (px)';
+    // A percentage scales both axes together, so a second field and the aspect
+    // lock would both be meaningless.
+    ui.resizeHeight.disabled = percent;
+    ui.aspectLockBtn.disabled = percent;
+}
+
+function updateResizeHint() {
+    const item = currentItem();
+    if (!item) return;
+    const size = outputSize(item.width, item.height, state);
+    ui.resizeHint.textContent = batch.size > 1
+        ? `Applied to all ${batch.size} images. Preview: ${size.width} × ${size.height}.`
+        : `Output: ${size.width} × ${size.height}`;
+}
+
+function applyResize() {
+    const item = currentItem();
+    if (!item) return;
+    const base = outputSize(item.width, item.height, { ...state, resize: null });
+    const resolved = resolveResize({
+        unit: ui.resizeUnit.value,
+        width: ui.resizeWidth.value,
+        height: ui.resizeHeight.value,
+        lockAspect: aspectLocked,
+        currentWidth: base.width,
+        currentHeight: base.height,
+        lastEdited: lastResizeEdited,
+    });
+    if (!resolved) return;
+    commit((next) => { next.resize = { ...resolved, mode: ui.resizeMode.value }; });
+    updateResizeHint();
+}
+
+function syncLockedDimension(edited) {
+    if (!aspectLocked || ui.resizeUnit.value === 'percent') return;
+    const item = currentItem();
+    if (!item) return;
+    const base = outputSize(item.width, item.height, { ...state, resize: null });
+    const resolved = resolveResize({
+        unit: 'px',
+        width: ui.resizeWidth.value,
+        height: ui.resizeHeight.value,
+        lockAspect: true,
+        currentWidth: base.width,
+        currentHeight: base.height,
+        lastEdited: edited,
+    });
+    if (!resolved) return;
+    if (edited === 'width') ui.resizeHeight.value = String(resolved.height);
+    else ui.resizeWidth.value = String(resolved.width);
+}
+
+// ============================================
+// Export settings
+// ============================================
+
+function needsMatte() {
+    return !isLossless(ui.outputFormat.value) && ui.outputFormat.value === 'image/jpeg';
+}
+
+function updateExportUI() {
+    const lossless = isLossless(ui.outputFormat.value);
+    ui.qualityGroup.hidden = lossless;
+    ui.compressionGroup.hidden = lossless;
+    ui.matteGroup.hidden = !needsMatte();
+    // PNG ignores quality entirely, but a target size is still reachable by
+    // downscaling, so that field stays available.
+    ui.targetSizeGroup.hidden = false;
+}
+
+function currentQuality() {
+    return Number(ui.qualitySlider.value) / 100;
+}
+
+function syncPresetFromSlider() {
+    ui.qualityValue.textContent = ui.qualitySlider.value;
+    ui.compressionSelect.value = presetForQuality(currentQuality());
+}
+
+function syncSliderFromPreset() {
+    const quality = qualityForPreset(ui.compressionSelect.value);
+    if (quality === null) return;   // 'custom' — leave the slider alone
+    ui.qualitySlider.value = String(Math.round(quality * 100));
+    ui.qualityValue.textContent = ui.qualitySlider.value;
+}
+
+// ============================================
+// Live size estimate
+// ============================================
+
+async function estimate() {
+    const item = currentItem();
+    if (!item?.source) return;
+
+    const size = outputSize(item.width, item.height, state);
+    if (!shouldAutoEstimate(size.width, size.height)) {
+        ui.exportEstimate.textContent = `${size.width} × ${size.height} — too large to estimate live.`;
+        return;
     }
 
-    async function compressToTargetSize(canvas, format, targetBytes) {
-        let lo = 0.01, hi = 1.0;
-        let bestBlob = null;
-        const maxIter = 10;
+    const token = ++estimateToken;
+    try {
+        const canvas = renderState(item.source, state, {
+            background: needsMatte() ? ui.matteColor.value : null,
+        });
+        const source = needsMatte()
+            ? drawWithBackground(canvas, ui.outputFormat.value, ui.matteColor.value)
+            : canvas;
+        const { blob, fellBack } = await encodeVerified(
+            source, ui.outputFormat.value, currentQuality(),
+        );
+        // A slower earlier estimate must not overwrite a newer one.
+        if (token !== estimateToken) return;
 
-        // Binary search for the right quality
-        for (let i = 0; i < maxIter; i++) {
-            const mid = (lo + hi) / 2;
-            const blob = await canvasToBlob(canvas, format, mid);
+        const delta = savings(item.size, blob.size);
+        ui.exportEstimate.textContent =
+            `${size.width} × ${size.height} · ${formatBytes(item.size)} → about `
+            + `${formatBytes(blob.size)}${delta.label ? ` (${delta.label})` : ''}`;
 
-            if (blob.size <= targetBytes) {
-                bestBlob = blob;
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-
-            // Close enough (within 5% of target)
-            if (bestBlob && Math.abs(bestBlob.size - targetBytes) / targetBytes < 0.05) break;
+        if (fellBack) {
+            notify(ui.editorNotice,
+                'Your browser cannot encode that format and substituted PNG. '
+                + 'Pick a different format, or the file will not match its extension.',
+                { level: 'error' });
         }
-
-        if (!bestBlob) {
-            // Even lowest quality is too big — return the smallest we got
-            bestBlob = await canvasToBlob(canvas, format, 0.01);
-            exportEstimate.textContent = `⚠ Could not reach target (min: ${formatSize(bestBlob.size)})`;
-        } else {
-            exportEstimate.textContent = `✓ Compressed to ${formatSize(bestBlob.size)} (target: ${formatSize(targetBytes)})`;
-        }
-
-        return bestBlob;
+    } catch {
+        if (token === estimateToken) ui.exportEstimate.textContent = '';
     }
+}
 
-    // --- Window resize handler ---
-    let resizeTimer;
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => { if (editCanvas) renderPreview(); }, 150);
+const scheduleEstimate = debounce(estimate, 300);
+
+// ============================================
+// Export
+// ============================================
+
+async function encodeItem(item) {
+    const format = ui.outputFormat.value;
+    const targetBytes = parseTargetBytes(ui.targetSizeInput.value, ui.targetSizeUnit.value);
+    const background = needsMatte() ? ui.matteColor.value : '#ffffff';
+
+    const canvas = renderState(item.source, state, {
+        background: needsMatte() ? ui.matteColor.value : null,
     });
 
-    // Initialize — hide quality/compression for PNG (default)
-    qualityGroup.style.display = 'none';
+    if (targetBytes) {
+        const result = await compressToTarget(canvas, format, targetBytes, {
+            background,
+            onProgress: ({ attempt, size }) => {
+                ui.exportProgressText.textContent =
+                    `Attempt ${attempt}: ${formatBytes(size)} (target ${formatBytes(targetBytes)})`;
+            },
+        });
+        return { blob: result.blob, note: describeTargetResult(result, targetBytes, formatBytes) };
+    }
 
-    // Sync compression preset to quality slider on init
-    // (default compression preset is 'medium' which = 60%)
-    onCompressionChange();
+    const source = drawWithBackground(canvas, format, background);
+    const { blob } = await encodeVerified(source, format, currentQuality());
+    return { blob, note: '' };
+}
 
-    console.log('Image Editor / Converter initialized');
-})();
+async function exportAll() {
+    const items = batch.list().filter((item) => item.source);
+    if (!items.length) return;
+
+    exportAborted = false;
+    clearNotice(ui.editorNotice);
+    setBusy(ui.exportBtn, true, 'Exporting…');
+    ui.cancelExportBtn.hidden = items.length < 2;
+    ui.exportProgress.hidden = items.length < 2;
+    batchUrls.revokeAll();
+    ui.outputList.replaceChildren();
+
+    const extension = EXT_BY_MIME[ui.outputFormat.value] ?? 'png';
+    let completed = 0;
+    let lastNote = '';
+
+    try {
+        // Strictly serial. Encoding 50 large images in parallel will exhaust the
+        // tab's memory and fail with nothing useful to show the user.
+        for (const item of items) {
+            if (exportAborted) break;
+            ui.exportProgressText.textContent = `Encoding ${item.name}…`;
+
+            try {
+                const { blob, note } = await encodeItem(item);
+                lastNote = note || lastNote;
+                item.result = { blob, filename: outputFilename(item.name, extension) };
+                item.status = 'done';
+            } catch {
+                item.status = 'error';
+                item.error = 'Encoding failed.';
+            }
+
+            completed += 1;
+            const percent = Math.round((completed / items.length) * 100);
+            ui.exportProgressBar.style.width = `${percent}%`;
+        }
+
+        showResults(items, lastNote);
+    } finally {
+        setBusy(ui.exportBtn, false);
+        ui.cancelExportBtn.hidden = true;
+        ui.exportProgress.hidden = true;
+        ui.exportProgressBar.style.width = '0%';
+        ui.exportProgressText.textContent = '';
+    }
+}
+
+function showResults(items, note) {
+    const done = items.filter((item) => item.status === 'done' && item.result);
+    if (!done.length) {
+        showError(ui.editorNotice, 'Nothing could be exported.');
+        return;
+    }
+
+    ui.results.style.display = '';
+    ui.exportEstimate.textContent = note;
+
+    const single = done.length === 1;
+    ui.outputItem.hidden = !single;
+    ui.downloadZipBtn.hidden = single;
+    ui.resultsInfo.textContent = single
+        ? '1 image exported'
+        : `${done.length} of ${items.length} images exported`;
+
+    if (single) {
+        const item = done[0];
+        const url = singleUrl.set(item.result.blob);
+        ui.outputPreview.src = url;
+        ui.outputName.textContent = item.result.filename;
+        ui.outputSize.textContent = formatBytes(item.result.blob.size);
+        const delta = savings(item.size, item.result.blob.size);
+        ui.outputSavings.textContent = delta.label;
+        ui.outputSavings.className =
+            `output-savings ${delta.direction === 'smaller' ? 'positive' : 'negative'}`;
+        ui.downloadBtn.href = url;
+        ui.downloadBtn.download = item.result.filename;
+        ui.outputList.replaceChildren();
+    } else {
+        ui.outputList.replaceChildren(...done.map((item) => renderResultRow(item)));
+    }
+
+    announce(`${done.length} image${done.length === 1 ? '' : 's'} exported`);
+}
+
+function renderResultRow(item) {
+    const url = batchUrls.set(item.id, item.result.blob);
+    const row = document.createElement('div');
+    row.className = 'output-item';
+
+    const preview = document.createElement('div');
+    preview.className = 'output-item-preview';
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    preview.append(img);
+
+    const info = document.createElement('div');
+    info.className = 'output-item-info';
+    const name = document.createElement('div');
+    name.className = 'output-item-name';
+    name.textContent = item.result.filename;
+    const meta = document.createElement('div');
+    meta.className = 'output-item-meta';
+    const delta = savings(item.size, item.result.blob.size);
+    meta.textContent = `${formatBytes(item.result.blob.size)}${delta.label ? ` · ${delta.label}` : ''}`;
+    info.append(name, meta);
+
+    const link = document.createElement('a');
+    link.className = 'btn btn-primary btn-sm';
+    link.href = url;
+    link.download = item.result.filename;
+    link.textContent = 'Download';
+
+    row.append(preview, info, link);
+    return row;
+}
+
+/**
+ * Download every result.
+ *
+ * Not a ZIP yet -- js/shared/zip.js arrives with the converter hub. Browsers
+ * throttle rapid successive downloads, hence the stagger.
+ */
+function downloadAll() {
+    const done = batch.list().filter((item) => item.status === 'done' && item.result);
+    done.forEach((item, index) => {
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = batchUrls.get(item.id);
+            link.download = item.result.filename;
+            link.click();
+        }, index * 350);
+    });
+}
+
+// ============================================
+// Wiring
+// ============================================
+
+createDropzone({
+    dropzone: ui.dropzone,
+    fileInput: ui.fileInput,
+    browseBtn: ui.browseBtn,
+    accept: ['image/*'],
+    multiple: true,
+    maxFiles: MAX_FILES,
+    maxBytes: MAX_BYTES,
+    paste: true,
+    onFiles: (files) => loadFiles(Array.from(files)),
+    onReject: (rejections) => {
+        const first = rejections[0];
+        if (first) showError(ui.editorNotice, first.message);
+    },
+});
+
+ui.addMoreBtn.addEventListener('click', () => ui.fileInput.click());
+ui.removeImageBtn.addEventListener('click', clearAll);
+
+ui.fileList.addEventListener('click', (event) => {
+    const removeId = event.target?.dataset?.remove;
+    if (removeId) {
+        event.stopPropagation();
+        batchUrls.revoke(Number(removeId));
+        batch.remove(Number(removeId));
+        if (!batch.size) { clearAll(); return; }
+        renderBatchStrip();
+        renderMetadataNotice();
+        renderPreview();
+        return;
+    }
+    const button = event.target?.closest?.('.batch-item');
+    if (!button) return;
+    batch.select(Number(button.dataset.id));
+    renderBatchStrip();
+    renderMetadataNotice();
+    resetSizeInputs();
+    renderPreview();
+    scheduleEstimate();
+});
+
+for (const [key, slider, display, unit] of ADJUST_CONTROLS) {
+    slider.addEventListener('input', () => {
+        state.adjust[key] = Number(slider.value);
+        display.textContent = `${slider.value}${unit}`;
+        history.replace(state);
+        renderPreviewSoon();
+        scheduleEstimate();
+    });
+    // One undo step per gesture, not per pixel of slider travel.
+    slider.addEventListener('change', () => history.push(state));
+}
+
+ui.straightenSlider.addEventListener('input', () => {
+    state.straighten = Number(ui.straightenSlider.value);
+    ui.straightenValue.textContent = `${ui.straightenSlider.value}°`;
+    history.replace(state);
+    renderPreviewSoon();
+});
+ui.straightenSlider.addEventListener('change', () => { history.push(state); scheduleEstimate(); });
+ui.autoCropStraighten.addEventListener('change', () => {
+    commit((next) => { next.autoCropStraighten = ui.autoCropStraighten.checked; });
+});
+
+ui.resetAdjustBtn.addEventListener('click', () => {
+    commit((next) => {
+        next.adjust = { ...createState().adjust };
+        next.straighten = 0;
+    });
+    syncAdjustmentInputs();
+});
+
+ui.cropBtn.addEventListener('click', () => (cropping ? cancelCrop() : enterCropMode()));
+ui.cancelCropBtn.addEventListener('click', cancelCrop);
+ui.applyCropBtn.addEventListener('click', () => {
+    // Compose with any existing crop rather than replacing it, so two
+    // successive crops behave the way the preview implied.
+    commit((next) => {
+        next.crop = {
+            x: state.crop.x + cropRect.x * state.crop.w,
+            y: state.crop.y + cropRect.y * state.crop.h,
+            w: state.crop.w * cropRect.w,
+            h: state.crop.h * cropRect.h,
+        };
+        next.resize = null;
+    });
+    cancelCrop();
+    resetSizeInputs();
+});
+
+ui.cropAspect.addEventListener('change', () => {
+    ui.cropCustomRatio.hidden = ui.cropAspect.value !== 'custom';
+    const { width, height } = croppableSize();
+    cropRect = centredRect(currentRatio(), width, height, Math.max(cropRect.w, cropRect.h));
+    positionCropOverlay();
+    syncCropInputs();
+});
+for (const input of [ui.cropRatioW, ui.cropRatioH]) {
+    input.addEventListener('input', () => {
+        if (ui.cropAspect.value !== 'custom') return;
+        const { width, height } = croppableSize();
+        cropRect = centredRect(currentRatio(), width, height, Math.max(cropRect.w, cropRect.h));
+        positionCropOverlay();
+        syncCropInputs();
+    });
+}
+for (const input of [ui.cropX, ui.cropY, ui.cropW, ui.cropH]) {
+    input.addEventListener('change', applyCropFromInputs);
+}
+
+ui.cropOverlay.addEventListener('mousedown', onCropPointerDown);
+ui.cropOverlay.addEventListener('touchstart', onCropPointerDown, { passive: false });
+window.addEventListener('mousemove', onCropPointerMove);
+window.addEventListener('touchmove', onCropPointerMove, { passive: false });
+window.addEventListener('mouseup', onCropPointerUp);
+window.addEventListener('touchend', onCropPointerUp);
+
+ui.rotateLeftBtn.addEventListener('click', () => commit((next) => {
+    next.rotate = normaliseRotation(next.rotate - 90);
+    next.resize = null;
+}));
+ui.rotateRightBtn.addEventListener('click', () => commit((next) => {
+    next.rotate = normaliseRotation(next.rotate + 90);
+    next.resize = null;
+}));
+ui.flipHBtn.addEventListener('click', () => commit((next) => { next.flipH = !next.flipH; }));
+ui.flipVBtn.addEventListener('click', () => commit((next) => { next.flipV = !next.flipV; }));
+
+ui.undoBtn.addEventListener('click', () => {
+    const previous = history.undo();
+    if (!previous) return;
+    state = previous;
+    syncAdjustmentInputs();
+    resetSizeInputs();
+    updateUndoButton();
+    renderPreview();
+    scheduleEstimate();
+});
+
+ui.resetBtn.addEventListener('click', () => {
+    commit((next) => Object.assign(next, createState()));
+    syncAdjustmentInputs();
+    resetSizeInputs();
+    cancelCrop();
+});
+
+ui.resizeUnit.addEventListener('change', () => { updateResizeUnitLabels(); resetSizeInputs(); });
+ui.resizeWidth.addEventListener('input', () => { lastResizeEdited = 'width'; syncLockedDimension('width'); });
+ui.resizeHeight.addEventListener('input', () => { lastResizeEdited = 'height'; syncLockedDimension('height'); });
+ui.applyResizeBtn.addEventListener('click', applyResize);
+ui.resizeMode.addEventListener('change', () => {
+    if (state.resize) commit((next) => { next.resize = { ...next.resize, mode: ui.resizeMode.value }; });
+});
+ui.resetSizeBtn.addEventListener('click', () => {
+    commit((next) => { next.resize = null; });
+    resetSizeInputs();
+});
+
+ui.aspectLockBtn.addEventListener('click', () => {
+    aspectLocked = !aspectLocked;
+    ui.aspectLockBtn.classList.toggle('active', aspectLocked);
+    ui.aspectLockBtn.setAttribute('aria-pressed', String(aspectLocked));
+    ui.aspectLockBtn.title = aspectLocked ? 'Aspect ratio locked' : 'Aspect ratio unlocked';
+});
+
+for (const button of document.querySelectorAll('.preset-btn')) {
+    button.addEventListener('click', () => {
+        const item = currentItem();
+        if (!item) return;
+        const base = outputSize(item.width, item.height, { ...state, resize: null });
+
+        if (button.dataset.percent) {
+            ui.resizeUnit.value = 'percent';
+            updateResizeUnitLabels();
+            ui.resizeWidth.value = button.dataset.percent;
+        } else {
+            ui.resizeUnit.value = 'px';
+            updateResizeUnitLabels();
+            ui.resizeWidth.value = button.dataset.w;
+            ui.resizeHeight.value = button.dataset.h;
+        }
+        // Presets used only to fill the fields, leaving the user to press
+        // Resize as well. Undo covers the mistake if this was not wanted.
+        applyResize();
+        void base;
+    });
+}
+
+ui.outputFormat.addEventListener('change', () => { updateExportUI(); scheduleEstimate(); });
+ui.qualitySlider.addEventListener('input', () => { syncPresetFromSlider(); scheduleEstimate(); });
+ui.compressionSelect.addEventListener('change', () => { syncSliderFromPreset(); scheduleEstimate(); });
+ui.targetSizeInput.addEventListener('input', scheduleEstimate);
+ui.targetSizeUnit.addEventListener('change', scheduleEstimate);
+ui.matteColor.addEventListener('input', () => { renderPreviewSoon(); scheduleEstimate(); });
+
+ui.exportBtn.addEventListener('click', exportAll);
+ui.cancelExportBtn.addEventListener('click', () => { exportAborted = true; });
+ui.downloadZipBtn.addEventListener('click', downloadAll);
+
+window.addEventListener('resize', debounce(() => { if (batch.size) renderPreview(); }, 150));
+
+// AVIF encoding is not universal; offering it where it silently falls back to
+// PNG would produce a .avif file containing a PNG.
+if (!canEncode('image/avif')) ui.avifOption.remove();
+
+updateExportUI();
+updateResizeUnitLabels();
+syncAdjustmentInputs();
+syncPresetFromSlider();
+updateUndoButton();
+
+// Keep the preset dropdown honest about the initial slider value.
+if (COMPRESSION_PRESETS[ui.compressionSelect.value] === undefined) syncPresetFromSlider();

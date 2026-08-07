@@ -49,6 +49,33 @@ video converter, audio converter (both ffmpeg.wasm), colour converter, QR genera
 
 ## Done
 
+### Image editor
+**The crop rect is stored in normalised image space (0..1), not pixels.** It used to be clamped in
+canvas-attribute pixels while drags were measured in CSS pixels via `getBoundingClientRect()`, so on
+any viewport narrow enough to scale the canvas, crops landed somewhere other than where they were
+drawn. Do not "simplify" this back to pixels. It is also what makes one crop rect apply correctly
+across a batch of differently-sized images, and what lets the overlay position itself in percentages.
+
+**There is exactly one renderer** (`image-converter/js/render.js`), used by both the preview and the
+export. Previously the preview set `ctx.filter` while the export baked filters separately, and
+geometry ops destructively flattened the backing canvas in between — so the preview showed something
+the export did not produce. The edit is now a plain state object (`js/shared/pipeline.js`) that both
+render from; undo is a stack of those rather than canvas snapshots.
+
+Order is **crop → straighten → rotate/flip → resize → colour → sharpen**: geometry first so filters
+are never resampled by a later scale, sharpen last so it works on the pixels that ship. Preview skips
+the sharpen pass only — it is a full `getImageData`/`putImageData` round trip and stutters at slider
+speed. Export never skips it.
+
+A 1:1 crop on a 2000×1000 image is **0.5 × 1.0 in normalised space, not a normalised square**;
+`applyAspect` divides the image's own aspect out. Getting that wrong is what makes "square" crops
+rectangular.
+
+`npm run verify:image-editor` drives a real browser and checks the actual bytes — magic numbers per
+format, JPEG matte colour, resize dimensions, and a 1:1 crop at a 420px viewport. **Run it after
+touching the editor or `js/shared/{geometry,pipeline,image}.js`.** jsdom has no canvas, so this is
+the only thing that can catch the whole failure class. Needs `npm run dev` running.
+
 ### QR generator
 Encoding is in `js/shared/qr.js`, which returns a plain grid with the quiet zone baked in, so the
 canvas and SVG renderers stay trivial and the encoding is testable in jsdom (which has no canvas).
@@ -164,14 +191,29 @@ One PR per step; each independently green and deployable.
 - **P2b** — `js/config.js` becomes a re-export shim of `js/shared/config.js`; convert the two pages
   that load it (`youtube-downloader`, `instagram-downloader`) to `<script type="module">`.
 - **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
-  favour of `js/shared/*`, and rewrite its test to import real source. The video converter is
-  done; image converter, colour picker and the two downloaders remain.
+  favour of `js/shared/*`, and rewrite its test to import real source. The video converter and
+  image editor are done; colour picker and the two downloaders remain.
 - **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus `tests/tool-registry.test.js`
   asserting registry↔HTML parity. **Keep the homepage grid as static HTML** — client-rendering it
   would break every homepage assertion in `deployed-site.test.js`, which fetches raw HTML with no
   JS. Same reasoning for nav/footer: don't inject them, assert they match across every page.
   Rewrite `script.js` search to tokenise on whitespace (so "image convert" matches), debounce, and
   hide with `hidden` not `style.display`. *(The counter check is already done — see Done above.)*
+
+### The `convert/` hub
+All format conversion behind one dropzone that detects the input kind and routes to an engine
+(image / media / document), leaving `image-converter/` as a pure editor. Routing lives in a **pure
+registry** (`detectKind`, `targetsFor`, `outputName`, declarative option specs) so it is testable
+without a browser and adding a format is a row in a table, not a branch in the controller. Engines
+are lazily `import()`ed, so a PNG→WebP job downloads no ffmpeg. `video-converter/` and
+`audio-converter/` become thin redirects once it has been live for a while — that step deletes ~30
+assertions across two test files, so do it alone.
+
+Then: `js/shared/zip.js` (hand-written; `CompressionStream('deflate-raw')` makes it ~130 lines, and
+STORE is the right default for already-compressed payloads), a favicon/ICO generator, and a PDF
+toolkit. **If a "compress PDF" option appears, label it honestly** — pdf-lib cannot recompress
+embedded image streams, so the only real lever rasterises pages and destroys text selection,
+vectors and links.
 
 ### P3 — Instagram backend rewrite
 Extract `api/_lib/` (leading underscore ⇒ Vercel does not route it). Add a `Deadline` budget —
