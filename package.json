@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "npx --yes serve -l 5500 .",
     "dev:api": "python backend.py",
-    "test": "jest --verbose --testPathIgnorePatterns=deployed-site",
-    "test:ci": "jest --ci --coverage --verbose --testPathIgnorePatterns=deployed-site",
-    "test:build": "jest --ci --silent --testPathIgnorePatterns=deployed-site",
-    "test:e2e": "jest tests/deployed-site.test.js --verbose",
+    "test": "jest --verbose",
+    "test:ci": "jest --ci --coverage --verbose",
+    "test:build": "jest --ci --silent",
+    "test:e2e": "jest tests/deployed-site.test.js --verbose --testPathIgnorePatterns=/node_modules/",
     "verify:converters": "node scripts/verify-converters.mjs"
   },
   "jest": {
@@ -17,11 +17,22 @@
     "testMatch": [
       "**/tests/**/*.test.js"
     ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/vendor/",
+      "/tests/browser/",
+      "deployed-site"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/js/vendor/"
+    ],
     "collectCoverageFrom": [
       "*/js/*.js",
       "js/*.js",
+      "js/shared/*.js",
       "script.js",
-      "!node_modules/**"
+      "!node_modules/**",
+      "!js/vendor/**"
     ]
   },
   "keywords": [],
