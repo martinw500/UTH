@@ -73,7 +73,7 @@ js/vendor/                            Vendored third-party code — see js/vendo
 api/<name>/index.py                   Vercel serverless functions
 backend.py                            Local dev mirror of the API
 tests/                                Jest suite
-scripts/verify-converters.mjs         Real-browser verification of the ffmpeg tools
+scripts/verify-*.mjs                  Real-browser verification, one per artefact-producing tool
 ```
 
 ## Tests

@@ -32,6 +32,10 @@ styles.css            All styling. Design tokens are CSS custom properties on :r
 
 js/config.js          API base URL (classic script, loaded by the downloaders).
 js/shared/*.js        ES modules shared between tools. Fully unit-tested.
+                      geometry, pipeline, compression, convolve, exif, zip, ico,
+                      convert-registry, pdf-pages, ffmpeg, image, colour, qr…
+                      Geometry, edit pipeline, compression, zip, ico, exif,
+                      convert-registry, pdf-pages, ffmpeg, colour, qr…
 js/vendor/*.js        Third-party code, vendored deliberately. See js/vendor/README.md.
 
 <tool>/index.html     One directory per tool.
@@ -109,7 +113,7 @@ Three non-obvious things it handles:
    contained `import.meta`, a parse-time error there, and silently never
    registered.
 
-None of that is visible to jsdom, which is why `npm run verify:converters` exists.
+None of that is visible to jsdom, which is why the `scripts/verify-*.mjs` family exists.
 
 ## Testing layers
 
@@ -120,11 +124,29 @@ None of that is visible to jsdom, which is why `npm run verify:converters` exist
 | Markup | `tests/html-structure.test.js` | Missing controls, broken internal links, counter drift |
 | Conventions | `tests/esm-conventions.test.js` | Import paths that 404 only in a browser |
 | Deployed site | `tests/deployed-site.test.js` | Headers, 404s, CDN availability |
-| Real browser | `scripts/verify-converters.mjs` | Everything above missed |
+| Real browser | `scripts/verify-*.mjs` | Everything above missed |
 
-The last row is not optional for ffmpeg work. Two bugs shipped to production
-while 500+ unit tests were green, because nothing fails until a file is actually
-converted.
+**The last row is not optional.** jsdom has no canvas, no `toBlob` and no
+`SharedArrayBuffer`, so for anything producing a file the unit suite mostly
+proves the code did not throw. Two ffmpeg bugs shipped to production while 500+
+tests were green, and every `verify:*` script since has caught a real bug while
+being written.
+
+There is one script per artefact-producing tool:
+
+| Script | Proves |
+| --- | --- |
+| `verify-converters.mjs` | video/audio pages convert, ffprobe agrees |
+| `verify-image-editor.mjs` | format magic bytes, JPEG matte, crop at a narrow viewport |
+| `verify-convert-hub.mjs` | routing, rendered options, a real MP4, no ffmpeg for images |
+| `verify-favicon.mjs` | a **different** unzip reads the archive; .ico offsets hit real PNGs |
+| `verify-pdf-tools.mjs` | page counts and rotations, read back out of the output |
+
+Two habits they all follow. **Wait for the artefact to change, not merely to
+exist** — the previous run leaves a blob URL behind, so waiting on the selector
+alone reads a stale result and every assertion is one export behind. And
+**verify with a different implementation than the one under test**: asserting
+our own zip byte layout back at ourselves would prove nothing.
 
 ## Deployment gating
 

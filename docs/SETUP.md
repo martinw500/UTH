@@ -12,6 +12,7 @@ Everything below assumes a clone of https://github.com/martinw500/UTH.
 | **Python** | 3.12 (see `.python-version`) | the local API backend |
 | **Git** | any | — |
 | **ffmpeg** + **ffprobe** | any recent | **only** `npm run verify:converters` |
+| **unzip** or bsdtar | any | **only** `npm run verify:favicon` (Windows has bsdtar built in) |
 
 `ffmpeg`/`ffprobe` must be **on your PATH**, not just installed. On Windows:
 
@@ -33,13 +34,13 @@ Nothing in the deployed site uses your local ffmpeg — the converters run
 
 ```bash
 npm ci                              # exact versions from package-lock.json
-npx playwright install chromium     # browser for verify:converters — npm ci does NOT do this
+npx playwright install chromium     # browser for every verify:* script — npm ci does NOT do this
 pip install -r requirements.txt     # Flask backend deps
 ```
 
 `npx playwright install` downloads ~115 MB to a shared location outside the repo
 (`~/AppData/Local/ms-playwright` on Windows). It is a separate step from `npm ci`
-and is easy to forget; `verify:converters` fails without it.
+and is easy to forget; every `verify:*` script fails without it.
 
 A virtualenv for the Python side is optional but tidy:
 
@@ -73,14 +74,23 @@ downloaders. Every other tool is client-side.
 ## 4. Check everything works
 
 ```bash
-npm test                    # ~580 unit tests, no network needed
-npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
+npm test                     # ~1200 unit tests, no network needed
+
+# Real-browser checks. All need `npm run dev` running in another terminal.
+npm run verify:converters    # video + audio pages (also needs ffmpeg/ffprobe)
+npm run verify:image-editor  # image editor: exported bytes, crop at a narrow viewport
+npm run verify:convert-hub   # convert/ hub: routing, rendered options, a real MP4
+npm run verify:favicon       # unzips the output with a DIFFERENT implementation
+npm run verify:pdf-tools     # reads produced PDFs back, checks pages and rotation
 ```
 
-`verify:converters` is the important one after any change to `js/shared/ffmpeg.js`
-or either converter. It drives a real browser and ffprobes the output, because
-the bugs that actually broke production were invisible to the unit suite. It can
-also be pointed at a deployment:
+The `verify:*` scripts matter more than their runtime suggests. jsdom has no
+canvas, no `toBlob` and no `SharedArrayBuffer`, so the unit suite cannot see the
+class of bug that has actually broken this project — **every one of these scripts
+caught a real bug while being written.** Run whichever covers what you touched;
+`verify:converters` is the one after any change to `js/shared/ffmpeg.js`.
+
+Each can be pointed at a deployment instead of localhost:
 
 ```bash
 SITE_URL=https://useful-tool-hub.vercel.app npm run verify:converters

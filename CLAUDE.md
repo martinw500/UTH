@@ -22,8 +22,19 @@ Pages** (frontend only, served from `/UTH/`).
 npm test                    # unit suite, hermetic
 npm run dev                 # static server on :5500  — required for module pages
 npm run dev:api             # Flask backend on :5000
-npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
 npm run test:e2e            # hits the live site; SITE_URL to target a preview
+```
+
+Real-browser checks. **All need `npm run dev` running**, and none are part of
+`npm test` — they need a browser and a network, and `npm test` gates the deploy.
+Run the one that covers what you touched:
+
+```bash
+npm run verify:converters    # video + audio pages; also needs ffmpeg/ffprobe on PATH
+npm run verify:image-editor  # image editor: exported bytes, crop at a narrow viewport
+npm run verify:convert-hub   # convert/ hub: routing, rendered options, a real MP4
+npm run verify:favicon       # unzips the output with a DIFFERENT implementation
+npm run verify:pdf-tools     # reads every produced PDF back, checks pages and rotation
 ```
 
 ## Rules that are not preferences
@@ -63,10 +74,28 @@ Each of these shipped to production and was invisible to a green test suite.
   through any breakage of the real file.
 - **Latin-1 truncation in the QR encoder.** `charCodeAt(i) & 0xff` turns `☕`
   into one wrong byte; the code scans fine and decodes to mojibake, no error.
+- **A crop rect clamped in canvas pixels while drags were measured in CSS
+  pixels.** The two units agree only when the canvas happens to be displayed at
+  its attribute size, so every crop on a narrow viewport landed somewhere other
+  than where it was drawn. It is stored normalised (0..1) now — don't "simplify"
+  it back.
+- **`createDropzone` calls `onReject` once per file with a single object**, not
+  with an array. Two pages had written `rejections[0]`, so every rejection was
+  swallowed and dropping an unsupported file gave no feedback at all.
 
-The pattern: for canvas pixels, `SharedArrayBuffer`, service workers, workers and
-downloads, **jsdom proves almost nothing**. Drive a real browser and check the
-artefact — `scripts/verify-converters.mjs` is the template.
+The pattern: for canvas pixels, `SharedArrayBuffer`, service workers, workers,
+binary formats and downloads, **jsdom proves almost nothing**. Drive a real
+browser and check the artefact — the `scripts/verify-*.mjs` files are the
+template. Every one of them caught a real bug while being written.
+
+Two rules those scripts follow, both learned the hard way:
+
+- **Wait for the artefact to *change*, not merely to exist.** The previous run
+  leaves a blob URL in the download link, so waiting on the selector alone reads
+  a stale result and every assertion is silently one export behind.
+- **Verify with a different implementation than the one under test.** The zip
+  writer is checked by unzipping with Info-ZIP; asserting our own byte layout
+  back at ourselves would prove nothing.
 
 ## When verifying
 

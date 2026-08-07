@@ -97,6 +97,31 @@ House style: lowercase sentence-style test names stating the invariant or the bu
 ("rejects nonsense instead of printing NaN"), British spelling, and a comment
 above any non-obvious test naming the real-world bug it pins.
 
+> Registering a tool currently means the same five edits — the card, both
+> counters, and `PAGES` in two test files. Three tools were added in a row that
+> way. `js/shared/tools.js` plus a registry↔HTML parity test collapses it to one;
+> see P2h in `STATE.md`. If you are about to do this a fourth time, do P2h first.
+
+## 3b. If the tool produces a file, add a `scripts/verify-<tool>.mjs`
+
+Not optional, and not covered by anything above. jsdom has no canvas, no
+`toBlob` and no `SharedArrayBuffer`, so for a tool that emits an artefact the
+unit suite largely proves the code did not throw. Every `verify:*` script in this
+repo caught a real bug while being written.
+
+Copy the shape from an existing one and add the npm script. What they do:
+
+- build their own fixtures **in the page** (canvas, `MediaRecorder`, pdf-lib) so
+  no binary test files enter the repo;
+- read the produced bytes back and assert something specific — magic bytes, page
+  count, pixel dimensions — never just "a file appeared";
+- **wait for the artefact to change, not merely to exist.** The previous run
+  leaves a blob URL in the download link, so waiting on the selector alone reads
+  a stale result and every assertion is silently one export behind;
+- **verify with a different implementation than the one under test** where one
+  exists. The zip writer is checked by unzipping with Info-ZIP; asserting our own
+  byte layout back at ourselves would prove nothing.
+
 ## 4. Only if the tool needs it
 
 **Special headers** (`vercel.json`) — only for ffmpeg.wasm tools, which need
