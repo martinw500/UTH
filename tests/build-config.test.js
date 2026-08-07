@@ -12,6 +12,18 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf-8');
 
+/** Every tracked HTML page, found rather than listed so none is forgotten. */
+function pages() {
+    const skip = ['node_modules', '.git', 'coverage', 'js', 'api', 'tests', 'scripts', 'docs'];
+    return fs.readdirSync(ROOT, { withFileTypes: true }).flatMap((entry) => {
+        if (entry.isFile() && entry.name.endsWith('.html')) return [entry.name];
+        if (!entry.isDirectory() || skip.includes(entry.name)) return [];
+        return fs.readdirSync(path.join(ROOT, entry.name))
+            .filter((f) => f.endsWith('.html'))
+            .map((f) => `${entry.name}/${f}`);
+    });
+}
+
 describe('jest is configured so vendored code cannot break the build', () => {
     const pkg = JSON.parse(read('package.json'));
 
@@ -66,6 +78,30 @@ describe('styles.css defines every custom property it uses', () => {
         );
         const used = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
         expect([...used].filter((name) => !defined.has(name))).toEqual([]);
+    });
+
+    // The Instagram help page referenced four properties that had never
+    // existed (--bg-secondary, --border-color, --primary-color, --bg-color)
+    // from an inline <style>, so its cards rendered with no background and no
+    // border. Checking styles.css alone could not see it.
+    test('no HTML page references an undefined property either', () => {
+        const css = read('styles.css');
+        const defined = new Set(
+            [...css.matchAll(/(?:^|[{;])\s*(--[\w-]+)\s*:/gm)].map((m) => m[1]),
+        );
+        const offenders = [];
+        for (const page of pages()) {
+            const html = read(page);
+            const localDefs = new Set(
+                [...html.matchAll(/(?:^|[{;])\s*(--[\w-]+)\s*:/gm)].map((m) => m[1]),
+            );
+            for (const match of html.matchAll(/var\((--[\w-]+)/g)) {
+                if (!defined.has(match[1]) && !localDefs.has(match[1])) {
+                    offenders.push(`${page} → ${match[1]}`);
+                }
+            }
+        }
+        expect([...new Set(offenders)]).toEqual([]);
     });
 
     test('the spacing scale exists', () => {

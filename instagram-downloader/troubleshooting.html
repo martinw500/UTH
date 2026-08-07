@@ -18,87 +18,57 @@
             } catch (e) { /* private mode or file:// */ }
         })();
     </script>
-    <style>
-        .troubleshooting-section {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 40px 24px;
-        }
-
-        .troubleshooting-section h1 {
-            color: var(--text-primary);
-            font-size: 2.5rem;
-            margin-bottom: 32px;
-        }
-
-        .error-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-        }
-
-        .error-card h2 {
-            color: var(--primary-color);
-            font-size: 1.5rem;
-            margin-bottom: 12px;
-        }
-
-        .error-card h3 {
-            color: var(--text-primary);
-            font-size: 1.1rem;
-            margin-top: 16px;
-            margin-bottom: 8px;
-        }
-
-        .error-card p {
-            color: var(--text-secondary);
-            line-height: 1.8;
-            margin-bottom: 12px;
-        }
-
-        .error-card ul {
-            color: var(--text-secondary);
-            margin-left: 24px;
-            line-height: 1.8;
-        }
-
-        .error-card code {
-            background: var(--bg-color);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            color: var(--primary-color);
-        }
-
-        .back-link {
-            display: inline-block;
-            color: var(--primary-color);
-            text-decoration: none;
-            margin-bottom: 24px;
-            font-size: 1rem;
-        }
-
-        .back-link:hover {
-            text-decoration: underline;
-        }
-    </style>
     <script src="../js/site.js" defer></script>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <h1 class="site-title">Instagram Downloader Help</h1>
-            <p class="site-subtitle">Common issues and solutions</p>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+                <li>
+                    <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch theme">
+                        <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                        <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    </button>
+                </li>
+            </ul>
+            <button type="button" class="nav-toggle" data-nav-toggle
+                    aria-expanded="false" aria-controls="navLinks" aria-label="Menu">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+                <svg class="nav-toggle-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
         </div>
-    </header>
+    </nav>
 
-    <main class="main-content">
-        <div class="troubleshooting-section">
-            <a href="index.html" class="back-link">← Back to Instagram Downloader</a>
-            
-            <h1>Troubleshooting Guide</h1>
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <a href="index.html">Instagram Downloader</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">Troubleshooting</span>
+            </div>
+
+            <div class="tool-header">
+                <div class="tool-header-icon tone-instagram">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>Troubleshooting</h1>
+                    <p>Common Instagram Downloader problems, and what to do about them</p>
+                </div>
+            </div>
+
+            <div class="troubleshooting-section">
 
             <div class="error-card">
                 <h2>❌ "Please wait a few minutes before you try again"</h2>
@@ -189,14 +159,21 @@
 
             <div class="error-card">
                 <h2>📧 Still Need Help?</h2>
-                <p>If you're experiencing issues not covered here, please visit our <a href="../feedback.html" style="color: var(--primary-color); text-decoration: underline;">Feedback Page</a> to report the problem.</p>
+                <p>If you're experiencing issues not covered here, please visit our <a href="../feedback.html">Feedback Page</a> to report the problem.</p>
             </div>
+            </div>
+
         </div>
     </main>
 
-    <footer style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); padding: 24px 0; text-align: center; color: var(--text-secondary); margin-top: 60px;">
-        <div class="container">
-            <p>Made with ❤ by <a href="../feedback.html" style="color: var(--primary-color); text-decoration: none; border-bottom: 1px dashed var(--primary-color);">Us</a></p>
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="index.html">Instagram Downloader</a></li>
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
         </div>
     </footer>
 </body>
