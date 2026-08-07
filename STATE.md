@@ -50,6 +50,23 @@ colour converter, QR generator.
 
 ## Done
 
+### The tool registry and the homepage
+`js/shared/tools.js` is the single source of truth for what tools exist, their copy, category and
+tone. **It does not render the homepage** — the grid stays static HTML, because
+`deployed-site.test.js` fetches raw HTML with no JavaScript and a crawler sees the same.
+`tests/tool-registry.test.js` is what keeps the two from drifting, and it checks copy, keywords,
+tones, category counts and both counters.
+
+Search **tokenises**: every whitespace-separated term must appear somewhere in the tool's text. The
+old version matched the whole query as one substring against title, description and keywords
+separately, so "image convert" found nothing — those words are never adjacent in any single field.
+
+**`[hidden]` now carries `!important`.** The user-agent rule is the lowest possible specificity,
+so any author `display` beats it; `.tool-card` is `display: flex`, which meant search filtered
+correctly and then rendered the hidden cards anyway. `js/shared/dom.js` and `notify()` both toggle
+that attribute, so it has to be reliable.
+
+
 ### Theming and site chrome
 Hues live as **bare RGB channels** (`--primary-rgb: 99 102 241`) so a tint can be written
 `rgb(var(--primary-rgb) / 0.08)` and still follow the theme. Forty-odd hardcoded

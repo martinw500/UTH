@@ -45,6 +45,25 @@ function contrast(fg, bg) {
 const parseRgb = (s) => (s.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
 
 /**
+ * Navigate, tolerating a reload from the page we are leaving.
+ *
+ * `coi-serviceworker.js` calls `location.reload()` on first activation, and
+ * that reload supersedes the next goto — which surfaces as net::ERR_ABORTED
+ * rather than anything mentioning service workers.
+ */
+async function gotoSettled(page, url, attempts = 3) {
+    for (let i = 0; i < attempts; i += 1) {
+        try {
+            return await page.goto(url, { waitUntil: 'load' });
+        } catch (error) {
+            if (!/ERR_ABORTED/.test(String(error)) || i === attempts - 1) throw error;
+            await page.waitForTimeout(300);
+        }
+    }
+    return undefined;
+}
+
+/**
  * Evaluate, tolerating the page navigating out from under us.
  *
  * The ffmpeg pages register `coi-serviceworker.js`, which calls
@@ -150,7 +169,7 @@ async function main() {
                 // 'load', not 'domcontentloaded': the dev server redirects some
                 // paths, and evaluating between the two navigations destroys
                 // the execution context mid-call.
-                await page.goto(BASE + path, { waitUntil: 'load' });
+                await gotoSettled(page, BASE + path);
                 const seen = await evaluateSettled(page, () => {
                     const bg = getComputedStyle(document.body).backgroundColor;
                     const samples = [];
@@ -175,6 +194,42 @@ async function main() {
                 `worst text contrast is at least 4.5:1`,
                 `${worst.ratio.toFixed(2)}:1 (${worst.kind} on ${worst.page})`);
         }
+
+        // ---- Homepage layout and search ----
+        console.log('\nHomepage');
+        await page.goto(`${BASE}/`, { waitUntil: 'load' });
+
+        const visibleCards = () => page.$$eval('.tool-card', (nodes) => nodes
+            .filter((c) => c.getBoundingClientRect().height > 0)
+            .map((c) => c.dataset.tool));
+
+        check((await visibleCards()).length === 10, 'every tool is listed');
+        check(await page.locator('.cat-section').count() === 3, 'grouped into three categories');
+        check(await page.isVisible('.app-sidebar'), 'the category rail is present');
+
+        console.log('\nSearch');
+        // `hidden` loses to any author `display` rule, and .tool-card is
+        // display:flex — results were filtered correctly and rendered anyway.
+        await page.fill('#searchInput', 'zzzz');
+        check((await visibleCards()).length === 0, 'a non-match really hides the cards');
+        check(await page.isVisible('#noResults'), 'and says so');
+
+        // The whole point of tokenising: those two words are never adjacent in
+        // any single field, so a substring match found nothing.
+        for (const [query, expected] of [
+            ['image convert', ['convert', 'image-converter']],
+            ['convert image', ['convert', 'image-converter']],
+            ['merge pdf', ['pdf-tools']],
+            ['reel', ['instagram-downloader']],
+        ]) {
+            await page.fill('#searchInput', query);
+            const shown = await visibleCards();
+            check(JSON.stringify(shown) === JSON.stringify(expected),
+                `"${query}" finds the right tools`, shown.join(', ') || '(none)');
+        }
+
+        await page.fill('#searchInput', '');
+        check((await visibleCards()).length === 10, 'clearing the query restores everything');
 
         // ---- Mobile nav ----
         console.log('\nMobile nav');

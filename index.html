@@ -52,211 +52,229 @@
         </div>
     </nav>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="container">
-            <div class="hero-badge">
-                <span class="hero-badge-dot"></span>
-                Free & Open Source
-            </div>
-            <h1>The tools you need,<br><span class="gradient-text">all in one place</span></h1>
-            <p class="hero-subtitle">
-                A growing collection of free online tools — no sign-ups, no ads, no BS. Just paste a link and go.
-            </p>
+    <main class="app" id="main">
+        <div class="app-inner">
 
-            <!-- Search -->
-            <div class="search-wrapper">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.3-4.3"></path>
-                </svg>
-                <input type="text" id="searchInput" class="search-bar" placeholder="Search tools...">
-                <div class="search-kbd">
-                    <kbd>Ctrl</kbd>
-                    <kbd>K</kbd>
-                </div>
-            </div>
+            <!-- Category rail. Anchor links, so it works with JavaScript off. -->
+            <aside class="app-sidebar" aria-label="Tool categories">
+                <nav class="app-sidebar-inner">
+                    <a class="cat-link is-active" href="#toolsGrid" data-cat-link="all">
+                        <span>All tools</span><span class="cat-count" id="toolCount">10</span>
+                    </a>
+                    <a class="cat-link" href="#cat-convert" data-cat-link="convert">
+                        <span>Convert</span><span class="cat-count">4</span>
+                    </a>
+                    <a class="cat-link" href="#cat-edit" data-cat-link="edit">
+                        <span>Create & edit</span><span class="cat-count">4</span>
+                    </a>
+                    <a class="cat-link" href="#cat-download" data-cat-link="download">
+                        <span>Download</span><span class="cat-count">2</span>
+                    </a>
+                    <div class="sidebar-divider"></div>
+                    <a class="cat-link" href="feedback.html"><span>Feedback</span></a>
+                    <a class="cat-link" href="https://github.com/martinw500/UTH" target="_blank" rel="noopener"><span>GitHub</span></a>
+                </nav>
+            </aside>
 
-            <div class="hero-stats">
-                <div class="stat">
-                    <div class="stat-value" id="toolCount">10</div>
-                    <div class="stat-label">Tools Available</div>
+            <div class="app-main">
+
+                <div class="app-head">
+                    <h1 class="app-title">The tools you need, <span class="gradient-text">all in one place</span></h1>
+                    <p class="app-sub">
+                        Free, no sign-ups, no ads. Everything but the two downloaders runs entirely
+                        in your browser — those files never leave your device.
+                    </p>
+
+                    <div class="search-wrapper">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.3-4.3"></path>
+                        </svg>
+                        <input type="text" id="searchInput" class="search-bar" placeholder="Search tools…" aria-label="Search tools">
+                        <div class="search-kbd">
+                            <kbd>Ctrl</kbd>
+                            <kbd>K</kbd>
+                        </div>
+                    </div>
+
+                    <div class="app-meta"><span id="visibleCount">10 tools</span></div>
                 </div>
-                <div class="stat">
-                    <div class="stat-value">100%</div>
-                    <div class="stat-label">Free to Use</div>
+
+                <div id="toolsGrid">
+
+                <section class="cat-section" id="cat-convert" data-category="convert">
+                    <div class="cat-header">
+                        <h2 class="cat-title">Convert</h2>
+                        <p class="cat-blurb">Change a file from one format into another.</p>
+                    </div>
+                    <div class="tools-grid">
+                    <a href="convert/index.html" class="tool-card" data-tool="convert" data-keywords="convert converter image video audio format png jpg webp avif mp4 webm gif mp3 wav flac transcode change turn into">
+                        <div class="tool-card-icon tone-cyan">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">File Converter</div>
+                            <div class="tool-card-desc">Convert images, video and audio between formats — one place, no uploads</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="pdf-tools/index.html" class="tool-card" data-tool="pdf-tools" data-keywords="pdf merge split rotate combine join extract pages document images to pdf compress optimise">
+                        <div class="tool-card-icon tone-red">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">PDF Tools</div>
+                            <div class="tool-card-desc">Merge, split, rotate and trim PDFs, or turn images into one</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="video-converter/index.html" class="tool-card" data-tool="video-converter" data-keywords="video convert mp4 webm gif mkv avi mov trim resize compress ffmpeg extract audio">
+                        <div class="tool-card-icon tone-purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Video Converter</div>
+                            <div class="tool-card-desc">MP4, WEBM and GIF — trim, resize and extract the audio</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="audio-converter/index.html" class="tool-card" data-tool="audio-converter" data-keywords="audio convert mp3 m4a ogg opus wav flac trim extract sound music bitrate normalise">
+                        <div class="tool-card-icon tone-emerald">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Audio Converter</div>
+                            <div class="tool-card-desc">MP3, M4A, OGG, Opus, WAV and FLAC — trim, or pull the sound out of a video</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+                    </div>
+                </section>
+
+                <section class="cat-section" id="cat-edit" data-category="edit">
+                    <div class="cat-header">
+                        <h2 class="cat-title">Create & edit</h2>
+                        <p class="cat-blurb">Make something, or change what you already have.</p>
+                    </div>
+                    <div class="tools-grid">
+                    <a href="image-converter/index.html" class="tool-card" data-tool="image-converter" data-keywords="image editor photo crop resize compress rotate straighten filter brightness contrast batch convert jpg jpeg png webp avif quality format resize picture">
+                        <div class="tool-card-icon tone-green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Image Editor</div>
+                            <div class="tool-card-desc">Crop, straighten, adjust, resize and compress — several images at once</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="favicon-generator/index.html" class="tool-card" data-tool="favicon-generator" data-keywords="favicon icon ico generator apple touch manifest pwa website logo browser tab">
+                        <div class="tool-card-icon tone-amber">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Favicon Generator</div>
+                            <div class="tool-card-desc">One image into a full favicon set — .ico, every PNG size and a manifest</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="qr-generator/index.html" class="tool-card" data-tool="qr-generator" data-keywords="qr code generator barcode link url wifi vcard png svg scan">
+                        <div class="tool-card-icon tone-indigo">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">QR Code Generator</div>
+                            <div class="tool-card-desc">Any text or link into a QR code, saved as PNG or SVG</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="color-converter/index.html" class="tool-card" data-tool="color-converter" data-keywords="colour color picker hex rgb hsl convert palette eyedropper contrast css">
+                        <div class="tool-card-icon tone-pink">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Colour Picker</div>
+                            <div class="tool-card-desc">Pick a colour and convert between HEX, RGB and HSL</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs" title="Runs entirely in your browser — the file never leaves your device">On device</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+                    </div>
+                </section>
+
+                <section class="cat-section" id="cat-download" data-category="download">
+                    <div class="cat-header">
+                        <h2 class="cat-title">Download</h2>
+                        <p class="cat-blurb">Pull media off the web. These are the only tools that use a server.</p>
+                    </div>
+                    <div class="tools-grid">
+                    <a href="youtube-downloader/index.html" class="tool-card" data-tool="youtube-downloader" data-keywords="youtube video download mp4 mp3 save clip">
+                        <div class="tool-card-icon tone-red">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">YouTube Downloader</div>
+                            <div class="tool-card-desc">Download videos from YouTube in several formats and qualities</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs is-server" title="Sends the link to a server to fetch the media">Uses a server</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+
+                    <a href="instagram-downloader/index.html" class="tool-card" data-tool="instagram-downloader" data-keywords="instagram post reel image photo video download save carousel">
+                        <div class="tool-card-icon tone-instagram">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                        </div>
+                        <div class="tool-card-content">
+                            <div class="tool-card-title">Instagram Downloader</div>
+                            <div class="tool-card-desc">Save photos and videos from public Instagram posts and reels</div>
+                        </div>
+                        <div class="tool-card-footer">
+                            <span class="tool-card-runs is-server" title="Sends the link to a server to fetch the media">Uses a server</span>
+                            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </div>
+                    </a>
+                    </div>
+                </section>
+
                 </div>
-                <div class="stat">
-                    <div class="stat-value">0</div>
-                    <div class="stat-label">Sign-ups Required</div>
-                </div>
+
+                <p class="no-results" id="noResults" hidden>
+                    Nothing matches that. Try a format name — <code>webp</code>, <code>mp3</code>, <code>pdf</code>.
+                </p>
+
             </div>
         </div>
-    </section>
-
-    <!-- Tools Grid -->
-    <section class="tools-section">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title">All Tools</h2>
-                <span class="section-count" id="visibleCount">10 tools</span>
-            </div>
-
-            <div class="tools-grid" id="toolsGrid">
-
-                <!-- File Converter -->
-                <a href="convert/index.html" class="tool-card" data-keywords="convert converter image video audio format png jpg webp avif mp4 webm gif mp3 wav flac transcode">
-                    <div class="tool-card-icon tone-cyan">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">File Converter</div>
-                        <div class="tool-card-desc">Convert images, video and audio between formats — one place, no uploads</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- PDF Tools -->
-                <a href="pdf-tools/index.html" class="tool-card" data-keywords="pdf merge split rotate combine join extract pages document images to pdf">
-                    <div class="tool-card-icon tone-red">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">PDF Tools</div>
-                        <div class="tool-card-desc">Merge, split, rotate and trim PDFs, or turn images into one</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Favicon Generator -->
-                <a href="favicon-generator/index.html" class="tool-card" data-keywords="favicon icon ico generator apple touch manifest pwa website logo">
-                    <div class="tool-card-icon tone-amber">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Favicon Generator</div>
-                        <div class="tool-card-desc">One image into a full favicon set — .ico, every PNG size and a manifest</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- YouTube Downloader -->
-                <a href="youtube-downloader/index.html" class="tool-card" data-keywords="youtube video download mp4 mp3">
-                    <div class="tool-card-icon youtube">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">YouTube Downloader</div>
-                        <div class="tool-card-desc">Download videos from YouTube in multiple formats and quality levels</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Instagram Downloader -->
-                <a href="instagram-downloader/index.html" class="tool-card" data-keywords="instagram post reel image photo download">
-                    <div class="tool-card-icon instagram">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Instagram Downloader</div>
-                        <div class="tool-card-desc">Save photos and videos from public Instagram posts and reels</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Image Editor / Converter -->
-                <a href="image-converter/index.html" class="tool-card" data-keywords="image edit convert crop compress resize jpg jpeg png webp bmp gif format editor">
-                    <div class="tool-card-icon image">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Image Editor / Converter</div>
-                        <div class="tool-card-desc">Edit, crop, compress, and convert images — all in your browser</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Video Converter -->
-                <a href="video-converter/index.html" class="tool-card" data-keywords="video convert mp4 webm gif mp3 wav audio ffmpeg format">
-                    <div class="tool-card-icon tone-purple">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Video Converter</div>
-                        <div class="tool-card-desc">Convert videos between MP4, WEBM, GIF, and extract audio — powered by FFmpeg</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Colour Picker -->
-                <a href="color-converter/index.html" class="tool-card" data-keywords="colour color picker hex rgb hsl css palette">
-                    <div class="tool-card-icon tone-pink">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Colour Picker</div>
-                        <div class="tool-card-desc">Pick and convert colours between HEX, RGB, and HSL formats</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- Audio Converter -->
-                <a href="audio-converter/index.html" class="tool-card" data-keywords="audio convert converter mp3 m4a aac wav ogg opus flac trim cut clip extract sound music song bitrate ffmpeg normalise normalize">
-                    <div class="tool-card-icon tone-amber">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">Audio Converter</div>
-                        <div class="tool-card-desc">Convert and trim audio between MP3, M4A, WAV, OGG, Opus and FLAC — or pull the sound out of a video</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-                <!-- QR Code Generator -->
-                <a href="qr-generator/index.html" class="tool-card" data-keywords="qr qrcode qr code generator barcode scan scanner url link wifi vcard text png svg encode">
-                    <div class="tool-card-icon tone-emerald">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
-                    </div>
-                    <div class="tool-card-content">
-                        <div class="tool-card-title">QR Code Generator</div>
-                        <div class="tool-card-desc">Turn any text or link into a QR code and save it as PNG or SVG</div>
-                    </div>
-                    <div class="tool-card-footer">
-                        <span class="tool-card-status live">Live</span>
-                        <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </div>
-                </a>
-
-            </div>
-        </div>
-    </section>
+    </main>
 
     <!-- Footer -->
     <footer class="footer">

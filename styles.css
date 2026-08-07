@@ -600,22 +600,27 @@ body::before {
 
 .tools-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
+    /* 260px fits three across in the ~900px column beside the rail, and falls
+       back to two then one on its own. */
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-3);
 }
 
 .tool-card {
     position: relative;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 28px;
-    transition: all var(--transition);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    /* Not `all`: transitioning every property means the browser animates
+       things like border-color on theme switch too. */
+    transition: border-color var(--transition), background var(--transition),
+                transform var(--transition), box-shadow var(--transition);
     cursor: pointer;
     text-decoration: none;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-3);
     overflow: hidden;
 }
 
@@ -633,8 +638,7 @@ body::before {
 
 .tool-card:hover {
     border-color: var(--border-hover);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg), var(--shadow-glow);
+    background: var(--bg-elevated);
 }
 
 .tool-card:hover::before {
@@ -642,9 +646,9 @@ body::before {
 }
 
 .tool-card-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-md);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -677,23 +681,26 @@ body::before {
 }
 
 .tool-card-title {
-    font-size: 1.1rem;
-    font-weight: 700;
+    font-size: 0.98rem;
+    font-weight: 650;
     color: var(--text-primary);
-    margin-bottom: 6px;
+    margin-bottom: var(--space-1);
 }
 
 .tool-card-desc {
-    font-size: 0.9rem;
+    font-size: 0.84rem;
     color: var(--text-secondary);
-    line-height: 1.6;
+    line-height: 1.55;
 }
 
 .tool-card-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 16px;
+    /* Pins the footer to the bottom so cards in a row line up regardless of
+       how long each description runs. */
+    margin-top: auto;
+    padding-top: var(--space-3);
     border-top: 1px solid var(--border);
 }
 
@@ -2301,6 +2308,198 @@ body::before {
 
 .editor-section-head .editor-section-title {
     margin-bottom: 0;
+}
+
+/* ============================================
+   Homepage app shell
+
+   A rail of categories beside the tool list, rather than a marketing hero.
+   The rail is plain anchor links, so it still navigates with JavaScript off.
+   ============================================ */
+
+.app {
+    padding: var(--space-7) 0 var(--space-8);
+}
+
+.app-inner {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: var(--space-8);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--space-6);
+}
+
+.app-sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    /* Nav is 64px tall and sticky, so the rail parks just below it. */
+    position: sticky;
+    top: 84px;
+}
+
+.cat-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+}
+
+.cat-link:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+}
+
+.cat-link.is-active {
+    color: var(--primary-readable);
+    background: var(--tint-primary);
+}
+
+.cat-count {
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+}
+
+.sidebar-divider {
+    height: 1px;
+    margin: var(--space-3) var(--space-3);
+    background: var(--border);
+}
+
+.app-head {
+    margin-bottom: var(--space-7);
+}
+
+.app-title {
+    font-size: clamp(1.6rem, 3.4vw, 2.3rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--text-primary);
+}
+
+.app-sub {
+    max-width: 62ch;
+    margin-top: var(--space-3);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+}
+
+.app-head .search-wrapper {
+    margin: var(--space-5) 0 0;
+}
+
+.app-meta {
+    margin-top: var(--space-3);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.cat-section + .cat-section {
+    margin-top: var(--space-8);
+}
+
+.cat-header {
+    margin-bottom: var(--space-4);
+}
+
+.cat-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.cat-blurb {
+    margin-top: var(--space-1);
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+}
+
+/* Says where the work happens, which is the thing users actually care about. */
+.tool-card-runs {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: var(--success-text);
+    background: var(--tint-success);
+}
+
+.tool-card-runs.is-server {
+    color: var(--warning-text);
+    background: var(--tint-warning);
+}
+
+.no-results {
+    padding: var(--space-7) 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
+.no-results code {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.86em;
+}
+
+/**
+ * `hidden` must actually hide.
+ *
+ * The user-agent rule is `[hidden] { display: none }` at the lowest possible
+ * specificity, so ANY author rule setting `display` beats it. `.tool-card`
+ * computes to `display: flex`, which meant search results were filtered
+ * correctly and then rendered anyway. js/shared/dom.js's show()/hide() and
+ * notify() both toggle this attribute, so it has to be reliable everywhere.
+ */
+[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 900px) {
+    .app-inner {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-6);
+    }
+
+    /* The rail becomes a horizontal strip of chips above the list. */
+    .app-sidebar-inner {
+        position: static;
+        flex-direction: row;
+        gap: var(--space-2);
+        overflow-x: auto;
+        padding-bottom: var(--space-2);
+    }
+
+    .cat-link {
+        flex: 0 0 auto;
+        border: 1px solid var(--border);
+    }
+
+    .sidebar-divider {
+        display: none;
+    }
+
+    /* Feedback and GitHub are already in the nav; the rail is for categories. */
+    .app-sidebar-inner > .cat-link[href$="feedback.html"],
+    .app-sidebar-inner > .cat-link[target="_blank"] {
+        display: none;
+    }
 }
 
 /* ============================================
