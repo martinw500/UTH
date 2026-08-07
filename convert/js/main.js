@@ -10,6 +10,7 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, showSuccess, clearNotice, announce } from '../../js/shared/notify.js';
 import { createUrlPool } from '../../js/shared/objecturl.js';
+import { buildZip } from '../../js/shared/zip.js';
 import {
     detectKind,
     targetsFor,
@@ -303,16 +304,33 @@ function renderFailureRow(item) {
     return row;
 }
 
-/** Browsers throttle rapid successive downloads, hence the stagger. */
-function downloadAll() {
-    queue.filter((item) => item.status === 'done' && item.result).forEach((item, index) => {
-        setTimeout(() => {
-            const link = document.createElement('a');
-            link.href = urls.get(item.id);
-            link.download = item.result.filename;
-            link.click();
-        }, index * 350);
-    });
+/**
+ * Download every result as one zip.
+ *
+ * A zip rather than N downloads: browsers throttle rapid successive downloads
+ * and Chrome blocks them outright after a handful, so a large batch silently
+ * arrived incomplete.
+ */
+async function downloadAll() {
+    const done = queue.filter((item) => item.status === 'done' && item.result);
+    if (!done.length) return;
+
+    setBusy(ui.downloadAllBtn, true, 'Zipping…');
+    try {
+        const zip = await buildZip(done.map((item) => ({
+            name: item.result.filename,
+            data: item.result.blob,
+        })));
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zip);
+        link.download = 'converted.zip';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    } catch (error) {
+        showError(ui.notice, error?.message || 'Could not build the zip.');
+    } finally {
+        setBusy(ui.downloadAllBtn, false);
+    }
 }
 
 // ============================================

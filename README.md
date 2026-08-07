@@ -21,6 +21,7 @@ Will be updated with more tools as I build them out.
 | **Image Editor** | Crop, straighten, adjust, resize, compress — in batches | browser |
 | **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
 | **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |
+| **Favicon Generator** | One image into a full favicon set — .ico, PNGs, manifest | browser |
 | **Colour Picker** | Convert between HEX, RGB and HSL | browser |
 | **QR Code Generator** | Any text or link to a QR code, saved as PNG or SVG | browser |
 
@@ -77,10 +78,11 @@ scripts/verify-converters.mjs         Real-browser verification of the ffmpeg to
 ## Tests
 
 ```bash
-npm test                     # unit suite (~980 tests), no network needed
+npm test                     # unit suite (~1100 tests), no network needed
 npm run verify:converters    # video + audio pages: real browser + ffprobe
 npm run verify:image-editor  # image editor: real browser, checks exported bytes
 npm run verify:convert-hub   # the convert/ hub: routing, options, a real MP4
+npm run verify:favicon       # unzips the output with a different implementation
 npm run test:e2e             # checks the deployed site; SITE_URL to target a preview
 ```
 

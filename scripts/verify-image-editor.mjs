@@ -207,6 +207,33 @@ async function main() {
             'three results are produced');
         check(await page.isVisible('#downloadZipBtn'), 'the download-all button appears');
 
+        // A zip rather than N downloads, because Chrome blocks rapid
+        // successive downloads and a batch would silently arrive incomplete.
+        const zip = await page.evaluate(async () => {
+            const clicked = new Promise((resolve) => {
+                const original = HTMLAnchorElement.prototype.click;
+                HTMLAnchorElement.prototype.click = function intercept() {
+                    if (this.download?.endsWith('.zip')) {
+                        HTMLAnchorElement.prototype.click = original;
+                        resolve(this.href);
+                    } else {
+                        original.call(this);
+                    }
+                };
+            });
+            document.getElementById('downloadZipBtn').click();
+            const url = await clicked;
+            const buffer = await (await fetch(url)).arrayBuffer();
+            return Array.from(new Uint8Array(buffer));
+        });
+        const zipBytes = Buffer.from(zip);
+        check(zipBytes.slice(0, 4).toString('latin1') === 'PK',
+            'download-all produces a real zip', `${zipBytes.length} bytes`);
+        // End of central directory, with the entry count in it.
+        const eocd = zipBytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+        check(eocd > 0 && zipBytes.readUInt16LE(eocd + 8) === 3,
+            'the zip holds all three images', `count=${eocd > 0 ? zipBytes.readUInt16LE(eocd + 8) : '?'}`);
+
         check(consoleErrors.length === 0, 'no console errors overall', consoleErrors.join(' | '));
     } finally {
         await browser.close();

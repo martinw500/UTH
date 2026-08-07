@@ -2035,6 +2035,74 @@ body::before {
     margin-bottom: 0;
 }
 
+/* ============================================
+   Favicon Generator
+   ============================================ */
+
+.favicon-preview-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    align-items: flex-end;
+}
+
+.favicon-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
+}
+
+/* The canvas keeps its real pixel size — a 16px preview shows exactly the
+   detail a 16px favicon has — but is capped so 512 sits beside it. */
+.favicon-preview-canvas {
+    display: block;
+    max-width: 96px;
+    max-height: 96px;
+    background:
+        linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%) 0 0 / 12px 12px,
+        linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%) 6px 6px / 12px 12px,
+        #1a1a1d;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    image-rendering: pixelated;
+}
+
+.favicon-preview-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.favicon-preview-purpose {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    max-width: 100px;
+    line-height: 1.35;
+}
+
+.code-snippet {
+    padding: var(--space-4);
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.option-hint {
+    margin-top: var(--space-1);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
 /* Editor Sections */
 .editor-section {
     padding: 20px 0;

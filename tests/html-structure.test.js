@@ -31,6 +31,8 @@ const PAGES = [
     'instagram-downloader/index.html',
     'qr-generator/index.html',
     'audio-converter/index.html',
+    'convert/index.html',
+    'favicon-generator/index.html',
 ];
 
 // ============================================

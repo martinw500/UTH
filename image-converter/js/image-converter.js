@@ -10,6 +10,7 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, clearNotice, notify, announce } from '../../js/shared/notify.js';
 import { createUrlSlot, createUrlPool } from '../../js/shared/objecturl.js';
+import { buildZip } from '../../js/shared/zip.js';
 import { readExifFromFile, summariseExif } from '../../js/shared/exif.js';
 import {
     EXT_BY_MIME,
@@ -743,21 +744,33 @@ function renderResultRow(item) {
 }
 
 /**
- * Download every result.
+ * Download every result as one zip.
  *
- * Not a ZIP yet -- js/shared/zip.js arrives with the converter hub. Browsers
- * throttle rapid successive downloads, hence the stagger.
+ * A zip rather than N downloads: browsers throttle rapid successive downloads
+ * and Chrome blocks them outright after a handful, so a batch of twenty images
+ * silently arrived incomplete.
  */
-function downloadAll() {
+async function downloadAll() {
     const done = batch.list().filter((item) => item.status === 'done' && item.result);
-    done.forEach((item, index) => {
-        setTimeout(() => {
-            const link = document.createElement('a');
-            link.href = batchUrls.get(item.id);
-            link.download = item.result.filename;
-            link.click();
-        }, index * 350);
-    });
+    if (!done.length) return;
+
+    setBusy(ui.downloadZipBtn, true, 'Zipping…');
+    try {
+        const zip = await buildZip(done.map((item) => ({
+            name: item.result.filename,
+            data: item.result.blob,
+        })));
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zip);
+        link.download = 'images.zip';
+        link.click();
+        // The click is synchronous, so the URL can be released on the next turn.
+        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    } catch (error) {
+        showError(ui.editorNotice, error?.message || 'Could not build the zip.');
+    } finally {
+        setBusy(ui.downloadZipBtn, false);
+    }
 }
 
 // ============================================

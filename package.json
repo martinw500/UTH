@@ -12,7 +12,8 @@
     "test:e2e": "jest tests/deployed-site.test.js --verbose --testPathIgnorePatterns=/node_modules/",
     "verify:converters": "node scripts/verify-converters.mjs",
     "verify:image-editor": "node scripts/verify-image-editor.mjs",
-    "verify:convert-hub": "node scripts/verify-convert-hub.mjs"
+    "verify:convert-hub": "node scripts/verify-convert-hub.mjs",
+    "verify:favicon": "node scripts/verify-favicon.mjs"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -27,6 +28,9 @@
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/js/vendor/"
+    ],
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
     ],
     "collectCoverageFrom": [
       "*/js/*.js",

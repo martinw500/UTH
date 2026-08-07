@@ -42,13 +42,40 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Eight tools: YouTube downloader, Instagram downloader (both server-backed), file converter (the
-`convert/` hub), image editor, video converter, audio converter (all ffmpeg.wasm or canvas),
-colour converter, QR generator.
+Nine tools: YouTube downloader, Instagram downloader (both server-backed), file converter (the
+`convert/` hub), image editor, favicon generator, video converter, audio converter, colour
+converter, QR generator.
 
 ---
 
 ## Done
+
+### ZIP and ICO are hand-written, not vendored
+`js/shared/zip.js` and `js/shared/ico.js` are both pure byte layout, which is exactly why they are
+not libraries: every field can be asserted directly in jsdom, where a vendored bundle would be
+opaque. `CompressionStream('deflate-raw')` does the DEFLATE; because complete Blobs are always in
+hand, sizes and CRCs are known before writing, so **no data descriptors are needed** and the format
+reduces to `[local header + data] × N`, `[central entry] × N`, EOCD.
+
+`'auto'` **stores** already-compressed payloads (JPEG/PNG/MP4/MP3…). That is the better default, not
+a shortcut — DEFLATE gains ~0% on them and costs real time. Zip64 is out of scope: >65535 entries or
+>4 GB is refused with a clear message rather than written as a corrupt archive.
+
+Both writers use **brand checks, not `instanceof`** (`ArrayBuffer.isView`, `Object.prototype
+.toString`). A typed array that crossed a realm — from a worker, or from Node under test — is still
+a real typed array but fails `instanceof` against the local constructor.
+
+`npm run verify:favicon` extracts the archive with a **different** implementation (Info-ZIP, or
+bsdtar) and checks every `.ico` offset lands on a real PNG. Asserting our own layout back at
+ourselves would prove nothing. Note Git Bash's `tar` is GNU tar and **cannot read ZIP at all**;
+the script tries several extractors and names the one that worked.
+
+### Favicon generator
+One image → every PNG size, a real multi-size `.ico`, a web manifest and a README, zipped. Squares
+the source by **centre-cropping, not stretching**, and steps the downscale — 1024px straight to 16px
+in one draw is what makes small icons mushy. Warns when the source is under 512px rather than
+silently upscaling. The previews are canvases at their true pixel size, so the 16px preview shows
+exactly the detail a 16px favicon has.
 
 ### The `convert/` hub
 One page for image, video and audio conversion. **Routing is data, not code**:
@@ -232,14 +259,10 @@ trust. **Do it alone, in its own commit** — it is the only step that deletes a
 adding them, ~30 of them across `html-structure` and `deployed-site`, plus their `vercel.json`
 blocks and `coi-serviceworker.js` copies.
 
-### ZIP, favicon generator, PDF toolkit
-`js/shared/zip.js` first, hand-written rather than vendored: `CompressionStream('deflate-raw')` does
-the DEFLATE, and because complete Blobs are always in hand the sizes and CRCs are known up front, so
-no data descriptors are needed and it lands around 130 lines. STORE is the right default for
-already-compressed payloads (JPEG/PNG/MP4) where DEFLATE gains ~0% and costs real time. It is also
-byte-level testable in jsdom, which a vendored library would not be. Then `js/shared/ico.js` and a
-favicon generator on top of both, then a PDF toolkit (vendored pdf-lib + pdf.js) as a `document`
-engine in the hub — merge/split/rotate first, images↔PDF next.
+### PDF toolkit
+A `document` engine in the hub, on vendored pdf-lib (write) + pdf.js (render), ~3 MB into
+`js/vendor/`. Ship in ascending difficulty: merge / split / reorder / rotate (pdf-lib alone) →
+images↔PDF → compress.
 
 **If a "compress PDF" option appears, label it honestly.** pdf-lib cannot recompress embedded image
 streams; the only real lever rasterises every page and destroys text selection, vectors and links.
