@@ -774,10 +774,9 @@ createDropzone({
     maxBytes: MAX_BYTES,
     paste: true,
     onFiles: (files) => loadFiles(Array.from(files)),
-    onReject: (rejections) => {
-        const first = rejections[0];
-        if (first) showError(ui.editorNotice, first.message);
-    },
+    // createDropzone calls this once per rejected file with a single
+    // {file, reason, message}, not with an array of them.
+    onReject: (rejection) => showError(ui.editorNotice, rejection.message),
 });
 
 ui.addMoreBtn.addEventListener('click', () => ui.fileInput.click());

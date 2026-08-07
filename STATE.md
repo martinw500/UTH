@@ -42,12 +42,37 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Seven tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
-video converter, audio converter (both ffmpeg.wasm), colour converter, QR generator.
+Eight tools: YouTube downloader, Instagram downloader (both server-backed), file converter (the
+`convert/` hub), image editor, video converter, audio converter (all ffmpeg.wasm or canvas),
+colour converter, QR generator.
 
 ---
 
 ## Done
+
+### The `convert/` hub
+One page for image, video and audio conversion. **Routing is data, not code**:
+`js/shared/convert-registry.js` holds the target table, which kinds reach which targets, and a
+declarative `OPTION_SPECS`. `convert/js/ui.js` renders the option panel from that, so adding a
+format is a row in the table plus at most one branch in one engine — never an edit to
+`convert/js/main.js`, which knows nothing about how any format is produced.
+
+Engines share one contract: `convert(file, { target, options, signal, onProgress })` →
+`{ blob, filename, meta }`. They are loaded with a native dynamic `import()`, so an image job never
+parses the media engine. The two ffmpeg UMD scripts are ~15 KB and load eagerly; the ~32 MB core
+stays lazy inside `loadFFmpeg`, and `verify:convert-hub` asserts an image conversion fetches none of
+it.
+
+Detection is **extension first, MIME second**. Browsers report an empty type for `.mkv`/`.avi`/
+`.mov`, and Windows reports `.m4a` as `audio/mp4`, which by prefix is indistinguishable from
+`video/mp4`. Video can become audio (extracting a soundtrack); audio can never become video and
+neither becomes an image — a frame grab is a different feature, not a format conversion.
+
+Mixed input kinds are rejected with a message rather than silently dropped: one target list cannot
+serve both. Conversion is **strictly serial** — ffmpeg.wasm has one fixed heap.
+
+`convert/` needs its own `coi-serviceworker.js` copy (worker scope is per-directory) and its own
+`vercel.json` header block, exactly like the two older converter pages.
 
 ### Image editor
 **The crop rect is stored in normalised image space (0..1), not pixels.** It used to be clamped in
@@ -200,20 +225,25 @@ One PR per step; each independently green and deployable.
   Rewrite `script.js` search to tokenise on whitespace (so "image convert" matches), debounce, and
   hide with `hidden` not `style.display`. *(The counter check is already done — see Done above.)*
 
-### The `convert/` hub
-All format conversion behind one dropzone that detects the input kind and routes to an engine
-(image / media / document), leaving `image-converter/` as a pure editor. Routing lives in a **pure
-registry** (`detectKind`, `targetsFor`, `outputName`, declarative option specs) so it is testable
-without a browser and adding a format is a row in a table, not a branch in the controller. Engines
-are lazily `import()`ed, so a PNG→WebP job downloads no ffmpeg. `video-converter/` and
-`audio-converter/` become thin redirects once it has been live for a while — that step deletes ~30
-assertions across two test files, so do it alone.
+### Fold the old converter pages into the hub
+`video-converter/` and `audio-converter/` now duplicate what `convert/` does. Turn them into thin
+redirects (a visible link, not just `<meta refresh>`) once the hub has been live long enough to
+trust. **Do it alone, in its own commit** — it is the only step that deletes assertions rather than
+adding them, ~30 of them across `html-structure` and `deployed-site`, plus their `vercel.json`
+blocks and `coi-serviceworker.js` copies.
 
-Then: `js/shared/zip.js` (hand-written; `CompressionStream('deflate-raw')` makes it ~130 lines, and
-STORE is the right default for already-compressed payloads), a favicon/ICO generator, and a PDF
-toolkit. **If a "compress PDF" option appears, label it honestly** — pdf-lib cannot recompress
-embedded image streams, so the only real lever rasterises pages and destroys text selection,
-vectors and links.
+### ZIP, favicon generator, PDF toolkit
+`js/shared/zip.js` first, hand-written rather than vendored: `CompressionStream('deflate-raw')` does
+the DEFLATE, and because complete Blobs are always in hand the sizes and CRCs are known up front, so
+no data descriptors are needed and it lands around 130 lines. STORE is the right default for
+already-compressed payloads (JPEG/PNG/MP4) where DEFLATE gains ~0% and costs real time. It is also
+byte-level testable in jsdom, which a vendored library would not be. Then `js/shared/ico.js` and a
+favicon generator on top of both, then a PDF toolkit (vendored pdf-lib + pdf.js) as a `document`
+engine in the hub — merge/split/rotate first, images↔PDF next.
+
+**If a "compress PDF" option appears, label it honestly.** pdf-lib cannot recompress embedded image
+streams; the only real lever rasterises every page and destroys text selection, vectors and links.
+Call it "Flatten & compress (converts pages to images)".
 
 ### P3 — Instagram backend rewrite
 Extract `api/_lib/` (leading underscore ⇒ Vercel does not route it). Add a `Deadline` budget —

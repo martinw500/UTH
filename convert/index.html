@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Converter — Useful Tool Hub</title>
+    <meta name="description" content="Convert images, video and audio between formats in your browser. Drop a file and pick an output — nothing is uploaded.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
+</head>
+<body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/convert/</code>.
+        </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">File Converter</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(6, 182, 212, 0.12); color: #22d3ee;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>File Converter</h1>
+                    <p>Images, video and audio — drop a file and pick what it should become</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Everything runs in your browser. Your files are never uploaded to any server.</span>
+                </div>
+
+                <!-- Dropzone -->
+                <div class="converter-dropzone" id="dropzone" data-dropzone tabindex="0" role="button" aria-label="Drop files here or press Enter to browse">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <div class="dropzone-text">
+                        <strong>Drop files here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">Images (JPG, PNG, WebP, AVIF, GIF, BMP) · Video (MP4, WebM, MKV, AVI, MOV) · Audio (MP3, M4A, OGG, WAV, FLAC)</div>
+                    <input type="file" id="fileInput" accept="image/*,video/*,audio/*,.mkv,.avi,.mov,.flac,.opus,.m4a" multiple hidden>
+                </div>
+
+                <div class="notice" id="notice" hidden></div>
+
+                <!-- Workspace -->
+                <div id="workspace" hidden>
+
+                    <div class="editor-info-bar">
+                        <div class="editor-file-info">
+                            <span class="editor-filename" id="queueSummary"></span>
+                        </div>
+                        <div class="editor-info-actions">
+                            <button class="btn btn-ghost btn-sm" id="addMoreBtn" type="button">Add more</button>
+                            <button class="btn btn-ghost btn-sm" id="clearBtn" type="button">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="file-list" id="fileList"></div>
+
+                    <div class="editor-section">
+                        <h3 class="editor-section-title">Convert to</h3>
+                        <div class="export-grid">
+                            <div class="setting-group" id="targetGroup">
+                                <label class="input-label" for="targetFormat">Output format</label>
+                                <select class="format-select" id="targetFormat"></select>
+                            </div>
+                        </div>
+                        <!-- Rendered from the registry by convert/js/ui.js -->
+                        <div class="export-grid" id="optionsPanel" hidden></div>
+                    </div>
+
+                    <div class="export-actions">
+                        <button class="btn btn-primary" id="convertBtn" type="button">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                            Convert
+                        </button>
+                        <button class="btn btn-secondary" id="cancelBtn" type="button" hidden>Cancel</button>
+                    </div>
+
+                    <div class="converter-progress" id="progress" hidden>
+                        <div class="progress-bar-container"><div class="progress-bar-fill" id="progressBar"></div></div>
+                        <div class="progress-text" id="progressText"></div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="converter-results" id="results" hidden>
+                        <div class="results-header">
+                            <span class="results-count" id="resultsInfo"></span>
+                            <button class="btn btn-secondary btn-sm" id="downloadAllBtn" type="button" hidden>Download all</button>
+                        </div>
+                        <div class="output-list" id="outputList"></div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <!-- ~15 KB between them. The expensive part is ffmpeg-core.wasm, which
+         js/shared/ffmpeg.js only fetches when a video or audio job actually
+         runs — an image conversion downloads none of it. -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js" crossorigin="anonymous"></script>
+    <!-- Service worker to enable SharedArrayBuffer on GitHub Pages (adds COOP/COEP headers).
+         Its scope is this directory, so convert/ needs its own copy of the file. -->
+    <script>
+        if (!window.crossOriginIsolated && navigator.serviceWorker) {
+            navigator.serviceWorker.register('coi-serviceworker.js').then(
+                function (reg) {
+                    if (reg.active && !navigator.serviceWorker.controller) {
+                        window.location.reload();
+                    } else if (reg.installing || reg.waiting) {
+                        var sw = reg.installing || reg.waiting;
+                        sw.addEventListener('statechange', function () {
+                            if (this.state === 'activated') window.location.reload();
+                        });
+                    }
+                },
+                function (err) {
+                    console.warn('COI service worker registration failed:', err);
+                }
+            );
+            navigator.serviceWorker.addEventListener('controllerchange', function () {
+                if (!window.crossOriginIsolated) window.location.reload();
+            });
+        }
+    </script>
+    <!-- Module, so it runs after the two classic scripts above have defined
+         FFmpegWASM and FFmpegUtil. -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

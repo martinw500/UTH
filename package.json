@@ -11,7 +11,8 @@
     "test:build": "jest --ci --silent",
     "test:e2e": "jest tests/deployed-site.test.js --verbose --testPathIgnorePatterns=/node_modules/",
     "verify:converters": "node scripts/verify-converters.mjs",
-    "verify:image-editor": "node scripts/verify-image-editor.mjs"
+    "verify:image-editor": "node scripts/verify-image-editor.mjs",
+    "verify:convert-hub": "node scripts/verify-convert-hub.mjs"
   },
   "jest": {
     "testEnvironment": "jsdom",
