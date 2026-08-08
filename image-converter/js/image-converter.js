@@ -10,7 +10,7 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, clearNotice, notify, announce } from '../../js/shared/notify.js';
 import { createUrlSlot, createUrlPool } from '../../js/shared/objecturl.js';
-import { buildZip } from '../../js/shared/zip.js';
+import { attachDownload, saveAllAsZip } from '../../js/shared/download.js';
 import { readExifFromFile, summariseExif } from '../../js/shared/exif.js';
 import {
     EXT_BY_MIME,
@@ -692,16 +692,15 @@ function showResults(items, note) {
 
     if (single) {
         const item = done[0];
-        const url = singleUrl.set(item.result.blob);
+        const url = attachDownload(
+            ui.downloadBtn, item.result.blob, item.result.filename, singleUrl,
+        );
         ui.outputPreview.src = url;
         ui.outputName.textContent = item.result.filename;
         ui.outputSize.textContent = formatBytes(item.result.blob.size);
         const delta = savings(item.size, item.result.blob.size);
         ui.outputSavings.textContent = delta.label;
-        ui.outputSavings.className =
-            `output-savings ${delta.direction === 'smaller' ? 'positive' : 'negative'}`;
-        ui.downloadBtn.href = url;
-        ui.downloadBtn.download = item.result.filename;
+        ui.outputSavings.className = `output-savings ${savingsClass(delta.direction)}`;
         ui.outputList.replaceChildren();
     } else {
         ui.outputList.replaceChildren(...done.map((item) => renderResultRow(item)));
@@ -710,10 +709,30 @@ function showResults(items, note) {
     announce(`${done.length} image${done.length === 1 ? '' : 's'} exported`);
 }
 
+/**
+ * Which colour the savings figure gets.
+ *
+ * `savings()` has three directions, and this used to be a two-way ternary on
+ * `=== 'smaller'`, so a byte-identical re-encode -- direction 'same', the
+ * honest and unremarkable outcome -- was painted in the error colour as though
+ * something had gone wrong.
+ */
+function savingsClass(direction) {
+    if (direction === 'smaller') return 'positive';
+    if (direction === 'larger') return 'negative';
+    return 'neutral';
+}
+
 function renderResultRow(item) {
-    const url = batchUrls.set(item.id, item.result.blob);
     const row = document.createElement('div');
     row.className = 'output-item';
+
+    // The pool owns this URL; the preview and the button deliberately share it
+    // rather than creating a second one for the same bytes.
+    const link = document.createElement('a');
+    link.className = 'btn btn-primary btn-sm';
+    link.textContent = 'Download';
+    const url = attachDownload(link, item.result.blob, item.result.filename, batchUrls, item.id);
 
     const preview = document.createElement('div');
     preview.className = 'output-item-preview';
@@ -733,39 +752,21 @@ function renderResultRow(item) {
     meta.textContent = `${formatBytes(item.result.blob.size)}${delta.label ? ` · ${delta.label}` : ''}`;
     info.append(name, meta);
 
-    const link = document.createElement('a');
-    link.className = 'btn btn-primary btn-sm';
-    link.href = url;
-    link.download = item.result.filename;
-    link.textContent = 'Download';
-
     row.append(preview, info, link);
     return row;
 }
 
-/**
- * Download every result as one zip.
- *
- * A zip rather than N downloads: browsers throttle rapid successive downloads
- * and Chrome blocks them outright after a handful, so a batch of twenty images
- * silently arrived incomplete.
- */
+/** Download every result as one zip. See saveAllAsZip for why a zip. */
 async function downloadAll() {
     const done = batch.list().filter((item) => item.status === 'done' && item.result);
     if (!done.length) return;
 
     setBusy(ui.downloadZipBtn, true, 'Zipping…');
     try {
-        const zip = await buildZip(done.map((item) => ({
+        await saveAllAsZip(done.map((item) => ({
             name: item.result.filename,
             data: item.result.blob,
-        })));
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(zip);
-        link.download = 'images.zip';
-        link.click();
-        // The click is synchronous, so the URL can be released on the next turn.
-        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+        })), 'images.zip');
     } catch (error) {
         showError(ui.editorNotice, error?.message || 'Could not build the zip.');
     } finally {

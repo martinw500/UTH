@@ -1880,6 +1880,13 @@ body::before {
     color: var(--error);
 }
 
+/* "Same size" is a normal outcome, not a failure. The image editor mapped
+   savings() to a two-way ternary on 'smaller', so a byte-identical re-encode
+   was painted in the error colour. */
+.output-savings.neutral {
+    color: var(--text-muted);
+}
+
 /* Progress Bar */
 .converter-progress {
     margin-top: 24px;

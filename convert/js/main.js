@@ -10,7 +10,7 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, showSuccess, clearNotice, announce } from '../../js/shared/notify.js';
 import { createUrlPool } from '../../js/shared/objecturl.js';
-import { buildZip } from '../../js/shared/zip.js';
+import { attachDownload, saveAllAsZip } from '../../js/shared/download.js';
 import {
     detectKind,
     targetsFor,
@@ -262,7 +262,6 @@ function showResults() {
 }
 
 function renderResultRow(item) {
-    const url = urls.set(item.id, item.result.blob);
     const row = document.createElement('div');
     row.className = 'output-item';
 
@@ -280,9 +279,10 @@ function renderResultRow(item) {
 
     const link = document.createElement('a');
     link.className = 'btn btn-primary btn-sm';
-    link.href = url;
-    link.download = item.result.filename;
     link.textContent = 'Download';
+    // The pool owns the URL, so it survives until the batch is cleared and is
+    // revoked exactly once.
+    attachDownload(link, item.result.blob, item.result.filename, urls, item.id);
 
     row.append(info, link);
     return row;
@@ -304,28 +304,17 @@ function renderFailureRow(item) {
     return row;
 }
 
-/**
- * Download every result as one zip.
- *
- * A zip rather than N downloads: browsers throttle rapid successive downloads
- * and Chrome blocks them outright after a handful, so a large batch silently
- * arrived incomplete.
- */
+/** Download every result as one zip. See saveAllAsZip for why a zip. */
 async function downloadAll() {
     const done = queue.filter((item) => item.status === 'done' && item.result);
     if (!done.length) return;
 
     setBusy(ui.downloadAllBtn, true, 'Zipping…');
     try {
-        const zip = await buildZip(done.map((item) => ({
+        await saveAllAsZip(done.map((item) => ({
             name: item.result.filename,
             data: item.result.blob,
-        })));
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(zip);
-        link.download = 'converted.zip';
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(link.href), 0);
+        })), 'converted.zip');
     } catch (error) {
         showError(ui.notice, error?.message || 'Could not build the zip.');
     } finally {

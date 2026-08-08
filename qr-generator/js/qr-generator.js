@@ -5,6 +5,7 @@
 import { byId, debounce } from '../../js/shared/dom.js';
 import { showError, clearNotice, notify } from '../../js/shared/notify.js';
 import { copyWithFeedback } from '../../js/shared/clipboard.js';
+import { saveBlob } from '../../js/shared/download.js';
 import { hexToRgb, contrastRatio } from '../../js/shared/color.js';
 import {
     generateMatrix,
@@ -118,21 +119,6 @@ function filenameStem() {
         .slice(0, 40)
         .toLowerCase();
     return slug ? `qr-${slug}` : 'qr-code';
-}
-
-function saveBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    // Revoking immediately can cancel the download in some browsers.
-    setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }, 100);
 }
 
 function currentSvg() {

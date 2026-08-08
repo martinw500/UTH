@@ -6,6 +6,7 @@ import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, showSuccess, clearNotice } from '../../js/shared/notify.js';
 import { copyWithFeedback } from '../../js/shared/clipboard.js';
 import { createUrlSlot } from '../../js/shared/objecturl.js';
+import { attachDownload } from '../../js/shared/download.js';
 import { decodeImageFile } from '../../js/shared/image.js';
 import { FAVICON_SIZES } from '../../js/shared/ico.js';
 import {
@@ -105,9 +106,7 @@ async function generate() {
             },
         });
 
-        const url = zipUrl.set(zip);
-        ui.downloadZipBtn.href = url;
-        ui.downloadZipBtn.download = 'favicons.zip';
+        attachDownload(ui.downloadZipBtn, zip, 'favicons.zip', zipUrl);
         ui.resultsInfo.textContent =
             `${FAVICON_SIZES.length} PNGs, favicon.ico and a web manifest — ${formatBytes(zip.size)}`;
         ui.results.hidden = false;

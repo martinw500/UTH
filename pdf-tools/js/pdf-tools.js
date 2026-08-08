@@ -6,6 +6,7 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, showSuccess, clearNotice } from '../../js/shared/notify.js';
 import { createUrlSlot } from '../../js/shared/objecturl.js';
+import { attachDownload } from '../../js/shared/download.js';
 import { buildZip } from '../../js/shared/zip.js';
 import { parsePageRange, describePageRange } from '../../js/shared/pdf-pages.js';
 import { savings } from '../../js/shared/compression.js';
@@ -284,7 +285,6 @@ async function run() {
 }
 
 function showResult(result, operation) {
-    const url = resultUrl.set(result.blob);
     ui.results.hidden = false;
 
     const details = [
@@ -306,9 +306,8 @@ function showResult(result, operation) {
 
     const link = document.createElement('a');
     link.className = 'btn btn-primary btn-sm';
-    link.href = url;
-    link.download = result.filename;
     link.textContent = `Download ${result.filename}`;
+    attachDownload(link, result.blob, result.filename, resultUrl);
 
     ui.resultList.replaceChildren(link);
     showSuccess(ui.notice, 'Done. Nothing left your device.');

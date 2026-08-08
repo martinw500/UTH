@@ -291,10 +291,31 @@ Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
   transcoding, so the extension lied about the container. Don't add them back.
 - `tests/deployed-site.test.js` is driven by `SITE_URL`; PR runs test that PR's Vercel preview.
 
+### Saving files — `js/shared/download.js`
+This existed four times and the four copies **disagreed**. Two appended the anchor to the
+document and waited 100 ms before revoking; two did neither — no append, `setTimeout(…, 0)`. Both
+details are load-bearing and are now settled in one place:
+
+- **The anchor must be in the document.** A detached `<a>.click()` is ignored by Firefox. Chrome
+  tolerates it, which is why the two detached copies looked fine to whoever wrote them.
+- **The URL must outlive the click by ~1 s.** `.click()` returns when the event dispatches, not
+  when the browser has finished reading the blob, so revoking on the next tick races that read and
+  fails the download for a large file.
+
+`attachDownload(anchor, blob, name, slot, key)` is the form for a **persistent** button: the slot
+or pool from `objecturl.js` keeps owning the URL, so nothing revokes a URL still wired to a visible
+preview. `saveRemote` is separate from `saveBlob` on purpose — the `download` attribute is
+**ignored cross-origin**, which is why the YouTube download passes its filename to the backend as a
+query parameter instead.
+
+The two ffmpeg converter pages still hand-manage `currentOutputUrl`. That is correct as written and
+they are on the redirect path anyway; `color-converter` and the two downloaders are classic scripts
+and cannot import this until P2b/P2c.
+
 ### P2a — shared modules
 `js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. The image, video
 and colour test files now import the real source **with their original assertions unchanged**, so
-green means the extraction preserved behaviour. 245 → 363 tests.
+green means the extraction preserved behaviour.
 
 Loaded by the QR generator and both converters. The other four pages are still classic scripts
 with their own helper copies — converting those is P2c–g.
@@ -435,7 +456,7 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 ## Verifying
 
 ```bash
-npm test              # unit suite (currently 363 passing)
+npm test              # unit suite (currently 1462 passing)
 npm run test:build    # what Vercel runs on deploy — must stay green or deploys freeze
 npm run dev           # static server on :5500
 npm run dev:api       # Flask backend on :5000
