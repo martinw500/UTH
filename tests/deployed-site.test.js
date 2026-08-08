@@ -423,9 +423,11 @@ describe('Image Editor — all controls present', () => {
         expect(page.status).toBe(200);
     });
 
+    // Plural since the editor gained batch editing — it takes several images
+    // at once now, and the copy says so.
     test('has file dropzone', () => {
         expect(page.body).toContain('id="dropzone"');
-        expect(page.body).toContain('Drop an image');
+        expect(page.body).toContain('Drop images here');
     });
 
     test('has file input accepting images', () => {

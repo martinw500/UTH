@@ -407,6 +407,12 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 
 ## Gotchas
 
+- **`npm test` does not run `deployed-site.test.js`** — it needs the network, so it only runs in
+  CI after a push. That means a copy change can pass everything locally, ship, and turn the E2E job
+  red afterwards. `tests/e2e-parity.test.js` closes the gap: it reads the literals that suite
+  expects and checks them against the local HTML, in the hermetic suite. If you change wording on a
+  page, that is what tells you.
+
 - **Module pages do not work over `file://`.** `type="module"` is CORS-blocked there. The guard
   and the README fix are shipped, so the page explains itself rather than rendering blank — but
   local testing of any module page needs `npm run dev` (port 5500), not a double-click.
