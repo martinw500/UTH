@@ -312,6 +312,27 @@ The two ffmpeg converter pages still hand-manage `currentOutputUrl`. That is cor
 they are on the redirect path anyway; `color-converter` and the two downloaders are classic scripts
 and cannot import this until P2b/P2c.
 
+### The result row — `js/shared/result-card.js`
+`renderResult`/`renderFailure`/`renderResultList`, plus the pure `resultSummary`. The convert hub
+and the image editor had grown near-identical copies and had **already drifted**: the hub computed
+its own percentage inline instead of using `savings()`, and the editor coloured a byte-identical
+re-encode as an error. Neither was a hard bug, which is why both survived.
+
+The panel does not exist until the user acts, so nothing that reads raw HTML can see it — **the
+static-HTML rule for the homepage grid does not apply here.** Each page keeps its own container and
+heading, because those carry copy `e2e-parity.test.js` pins.
+
+**Class names are written as literals at the point they are applied.** `esm-conventions.test.js`
+extracts them from the source to check they are styled, and a name that arrives as a function
+argument is invisible to it — which would leave the file *listed* as gated while actually being
+ungated. A test asserts the extractor really found all eleven.
+
+The `convert/` target-size chips are declared as `presets` on the option spec, so a format wanting
+different shortcuts is a registry row. They are labelled **by size, not by service**: a chip saying
+"Discord" would assert someone else's current upload limit, which changes without notice and would
+be confidently wrong until a send failed. Clicking the active chip clears it — otherwise a preset
+is a one-way door with no route back to "no target size".
+
 ### P2a — shared modules
 `js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. The image, video
 and colour test files now import the real source **with their original assertions unchanged**, so
@@ -456,7 +477,7 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 ## Verifying
 
 ```bash
-npm test              # unit suite (currently 1462 passing)
+npm test              # unit suite (currently 1518 passing)
 npm run test:build    # what Vercel runs on deploy — must stay green or deploys freeze
 npm run dev           # static server on :5500
 npm run dev:api       # Flask backend on :5000

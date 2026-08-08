@@ -93,8 +93,39 @@ async function main() {
         check(ids.includes('opt-quality'), 'JPEG offers quality');
         check(ids.includes('opt-matte'), 'JPEG offers a background — it has no alpha');
 
-        console.log('\nConversion');
+        // Rendered from the registry's `presets`, so this also proves the
+        // declarative route works for something other than a plain control.
+        console.log('\nTarget-size presets');
         await page.selectOption('#targetFormat', 'webp');
+        const chips = page.locator('#optionsPanel .resize-presets .preset-btn');
+        check(await chips.count() > 0, 'the size chips render', `${await chips.count()} chips`);
+
+        const tenMb = page.locator('#optionsPanel .preset-btn', { hasText: '10 MB' });
+        await tenMb.click();
+        check(await page.inputValue('#opt-targetSize') === '10',
+            'a chip fills in the size');
+        check(await page.inputValue('#opt-targetSize-unit') === 'mb',
+            'and switches the unit to match');
+        check((await tenMb.getAttribute('class')).includes('is-active'),
+            'and shows which one is in force');
+
+        // A preset must not be a one-way door: there was no other way to get
+        // back to "no target size" once one had been clicked.
+        await tenMb.click();
+        check(await page.inputValue('#opt-targetSize') === '',
+            'clicking the active chip clears it again');
+        check(!(await tenMb.getAttribute('class')).includes('is-active'),
+            'and stops showing as active');
+
+        // Typing by hand must light the matching chip, or the two controls
+        // disagree about the same number.
+        await page.fill('#opt-targetSize', '25');
+        check((await page.locator('#optionsPanel .preset-btn', { hasText: '25 MB' })
+            .getAttribute('class')).includes('is-active'),
+            'typing a size lights the chip that matches');
+        await page.fill('#opt-targetSize', '');
+
+        console.log('\nConversion');
         await page.click('#convertBtn');
         await page.waitForSelector('#outputList .output-item a[download]', { timeout: 30000 });
         const href = await page.getAttribute('#outputList a[download]', 'href');

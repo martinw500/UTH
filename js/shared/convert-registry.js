@@ -145,7 +145,21 @@ export const OPTION_SPECS = Object.freeze([
     },
     {
         id: 'targetSize', label: 'Target file size', type: 'size', default: null,
-        hint: 'Optional. Compresses towards this size.',
+        // "Small enough to send" is the actual goal behind most conversions,
+        // and typing a number is a worse way to express it than picking one.
+        //
+        // The chips are labelled by SIZE, not by service. A chip saying
+        // "Discord" or "Gmail" would be asserting a third party's current
+        // upload limit, which changes without notice -- Discord's free limit
+        // has already moved once -- and a stale number here would be
+        // confidently wrong in a way nobody would notice until a send failed.
+        presets: [
+            { label: '1 MB', value: 1, unit: 'mb' },
+            { label: '5 MB', value: 5, unit: 'mb' },
+            { label: '10 MB', value: 10, unit: 'mb' },
+            { label: '25 MB', value: 25, unit: 'mb' },
+        ],
+        hint: 'Optional. Compresses towards this size — email and chat apps usually cap attachments around 25 MB.',
     },
     {
         id: 'matte', label: 'Background', type: 'colour', default: '#ffffff',

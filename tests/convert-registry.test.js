@@ -153,6 +153,27 @@ describe('the target table is internally consistent', () => {
         }
     });
 
+    // The target-size chips exist so "small enough to send" does not require
+    // typing a number. They are deliberately labelled by size rather than by
+    // service: a chip saying "Discord" would assert someone else's current
+    // upload limit, which changes without notice and would then be
+    // confidently wrong until a send failed.
+    test('size presets are usable by the unit dropdown that renders them', () => {
+        const units = ['kb', 'mb'];
+        for (const spec of OPTION_SPECS.filter((s) => s.presets)) {
+            expect(spec.type).toBe('size');
+            for (const preset of spec.presets) {
+                expect(units).toContain(preset.unit);
+                expect(Number.isFinite(preset.value)).toBe(true);
+                expect(preset.value).toBeGreaterThan(0);
+                // The label has to state the size, since that is all that
+                // distinguishes one chip from the next.
+                expect(preset.label).toContain(String(preset.value));
+                expect(preset.label.toLowerCase()).toContain(preset.unit);
+            }
+        }
+    });
+
     test('the table is frozen against accidental mutation', () => {
         expect(Object.isFrozen(TARGETS)).toBe(true);
         expect(Object.isFrozen(OPTION_SPECS)).toBe(true);

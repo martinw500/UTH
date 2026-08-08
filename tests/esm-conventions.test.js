@@ -115,7 +115,11 @@ describe('shared modules are never loaded as classic scripts', () => {
 describe('styles.css defines the classes the shared modules apply', () => {
     // Derived from source rather than hardcoded, so adding a class to notify.js
     // without styling it fails here instead of shipping an invisible message.
-    const SOURCES = ['js/shared/notify.js', 'js/shared/clipboard.js'];
+    const SOURCES = [
+        'js/shared/notify.js',
+        'js/shared/clipboard.js',
+        'js/shared/result-card.js',
+    ];
 
     function classNamesIn(source) {
         const names = new Set();
@@ -143,6 +147,21 @@ describe('styles.css defines the classes the shared modules apply', () => {
     test('the extractor found the known notice classes', () => {
         expect(applied.has('notice-error')).toBe(true);
         expect(applied.has('copied')).toBe(true);
+    });
+
+    // The extractor only sees class names written as literals at the point they
+    // are applied. result-card.js builds several elements through a helper, and
+    // if that helper took the class as an argument every one of them would be
+    // invisible here -- leaving the file listed as gated while actually being
+    // ungated, which is worse than not listing it. This is what catches that.
+    test('the extractor found the result-card classes, not just the row', () => {
+        for (const name of [
+            'output-item', 'output-error', 'output-item-preview', 'output-item-info',
+            'output-item-name', 'output-item-meta', 'output-savings', 'output-actions',
+            'positive', 'negative', 'neutral',
+        ]) {
+            expect(applied).toContain(name);
+        }
     });
 
     Array.from(applied).sort().forEach(name => {

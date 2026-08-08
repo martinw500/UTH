@@ -80,10 +80,45 @@ function buildControl(spec, initial) {
             });
             const unit = el('select', { class: 'format-select input-sm', id: `opt-${spec.id}-unit` },
                 el('option', { value: 'kb' }, 'KB'), el('option', { value: 'mb' }, 'MB'));
+
+            // Declared in the registry, so a target that wants different
+            // shortcuts changes a row there rather than this switch. Clicking
+            // the active chip clears it, so a preset is never a one-way door.
+            const chosen = (preset) => value.value === String(preset.value)
+                && unit.value === preset.unit;
+
+            let presets = null;
+            const chips = [];
+
+            function syncChips() {
+                chips.forEach((chip, i) => {
+                    chip.classList.toggle('is-active', chosen(spec.presets[i]));
+                });
+            }
+
+            if (spec.presets?.length) {
+                for (const preset of spec.presets) {
+                    const chip = el('button', { type: 'button', class: 'preset-btn' }, preset.label);
+                    chip.addEventListener('click', () => {
+                        const clear = chosen(preset);
+                        value.value = clear ? '' : String(preset.value);
+                        if (!clear) unit.value = preset.unit;
+                        syncChips();
+                    });
+                    chips.push(chip);
+                }
+                presets = el('div', { class: 'resize-presets' }, ...chips);
+                // Typing a size by hand must light the matching chip too, or the
+                // two controls disagree about the same number.
+                value.addEventListener('input', syncChips);
+                unit.addEventListener('change', syncChips);
+            }
+
             return {
                 node: el('div', { class: 'setting-group' },
                     el('label', { for: `opt-${spec.id}`, class: 'input-label' }, spec.label),
                     el('div', { class: 'target-size-row' }, value, unit),
+                    presets,
                     spec.hint ? el('div', { class: 'option-hint' }, spec.hint) : null),
                 read: () => (value.value ? { value: value.value, unit: unit.value } : null),
             };

@@ -1887,6 +1887,14 @@ body::before {
     color: var(--text-muted);
 }
 
+/* Extra buttons on a result row (js/shared/result-card.js). Kept off the
+   download button's own spacing so a row with no actions looks unchanged. */
+.output-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
 /* Progress Bar */
 .converter-progress {
     margin-top: 24px;
@@ -2811,6 +2819,14 @@ body::before {
     border-color: var(--border-hover);
     color: var(--text-primary);
     background: rgb(var(--primary-rgb) / 0.06);
+}
+
+/* A preset that is currently in force. The target-size chips in convert/ are
+   a toggle, so "which one am I on" has to be visible. */
+.preset-btn.is-active {
+    border-color: var(--primary);
+    color: var(--primary-readable);
+    background: rgb(var(--primary-rgb) / 0.12);
 }
 
 /* Aspect Ratio Lock Button */

@@ -10,7 +10,8 @@ import { formatBytes } from '../../js/shared/format.js';
 import { createDropzone } from '../../js/shared/dropzone.js';
 import { showError, showSuccess, clearNotice, announce } from '../../js/shared/notify.js';
 import { createUrlPool } from '../../js/shared/objecturl.js';
-import { attachDownload, saveAllAsZip } from '../../js/shared/download.js';
+import { saveAllAsZip } from '../../js/shared/download.js';
+import { renderResultList } from '../../js/shared/result-card.js';
 import {
     detectKind,
     targetsFor,
@@ -248,10 +249,18 @@ function showResults() {
         ? `${succeeded.length} converted, ${failed.length} failed`
         : `${succeeded.length} file${succeeded.length === 1 ? '' : 's'} converted`;
 
-    ui.outputList.replaceChildren(
-        ...succeeded.map(renderResultRow),
-        ...failed.map(renderFailureRow),
-    );
+    renderResultList(ui.outputList, {
+        results: succeeded.map((item) => ({
+            filename: item.result.filename,
+            blob: item.result.blob,
+            originalSize: item.size,
+            // The pool owns the URL, so it survives until the batch is cleared
+            // and is revoked exactly once.
+            slot: urls,
+            key: item.id,
+        })),
+        failures: failed.map((item) => ({ filename: item.name, error: item.error })),
+    });
 
     if (failed.length) {
         showError(ui.notice, `${failed[0].name}: ${failed[0].error}`);
@@ -259,49 +268,6 @@ function showResults() {
         showSuccess(ui.notice, 'Done. Your files never left this device.');
     }
     announce(`${succeeded.length} file${succeeded.length === 1 ? '' : 's'} converted`);
-}
-
-function renderResultRow(item) {
-    const row = document.createElement('div');
-    row.className = 'output-item';
-
-    const info = document.createElement('div');
-    info.className = 'output-item-info';
-    const name = document.createElement('div');
-    name.className = 'output-item-name';
-    name.textContent = item.result.filename;
-    const meta = document.createElement('div');
-    meta.className = 'output-item-meta';
-    const ratio = item.size > 0 ? Math.round((1 - item.result.blob.size / item.size) * 100) : 0;
-    meta.textContent = `${formatBytes(item.result.blob.size)}`
-        + (ratio > 0 ? ` · ${ratio}% smaller` : ratio < 0 ? ` · ${-ratio}% larger` : '');
-    info.append(name, meta);
-
-    const link = document.createElement('a');
-    link.className = 'btn btn-primary btn-sm';
-    link.textContent = 'Download';
-    // The pool owns the URL, so it survives until the batch is cleared and is
-    // revoked exactly once.
-    attachDownload(link, item.result.blob, item.result.filename, urls, item.id);
-
-    row.append(info, link);
-    return row;
-}
-
-function renderFailureRow(item) {
-    const row = document.createElement('div');
-    row.className = 'output-item output-error';
-    const info = document.createElement('div');
-    info.className = 'output-item-info';
-    const name = document.createElement('div');
-    name.className = 'output-item-name';
-    name.textContent = item.name;
-    const meta = document.createElement('div');
-    meta.className = 'output-item-meta';
-    meta.textContent = item.error;
-    info.append(name, meta);
-    row.append(info);
-    return row;
 }
 
 /** Download every result as one zip. See saveAllAsZip for why a zip. */
