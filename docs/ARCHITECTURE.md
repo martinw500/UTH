@@ -32,10 +32,13 @@ styles.css            All styling. Design tokens are CSS custom properties on :r
 
 js/config.js          API base URL (classic script, loaded by the downloaders).
 js/shared/*.js        ES modules shared between tools. Fully unit-tested.
-                      geometry, pipeline, compression, convolve, exif, zip, ico,
-                      convert-registry, pdf-pages, ffmpeg, image, colour, qr…
-                      Geometry, edit pipeline, compression, zip, ico, exif,
-                      convert-registry, pdf-pages, ffmpeg, colour, qr…
+                      Plumbing:  dom, format, storage, notify, clipboard,
+                                 dropzone, objecturl, download, result-card,
+                                 site-url, tools, search, config
+                      Maths:     geometry, pipeline, compression, convolve,
+                                 exif, image, colour, qr, zip, ico, pdf-pages
+                      Registries: tools (what tools exist),
+                                 convert-registry (what converts to what)
 js/vendor/*.js        Third-party code, vendored deliberately. See js/vendor/README.md.
 
 <tool>/index.html     One directory per tool.
