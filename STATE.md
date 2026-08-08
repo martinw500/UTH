@@ -57,9 +57,23 @@ tone. **It does not render the homepage** — the grid stays static HTML, becaus
 `tests/tool-registry.test.js` is what keeps the two from drifting, and it checks copy, keywords,
 tones, category counts and both counters.
 
-Search **tokenises**: every whitespace-separated term must appear somewhere in the tool's text. The
-old version matched the whole query as one substring against title, description and keywords
-separately, so "image convert" found nothing — those words are never adjacent in any single field.
+Search lives in `js/shared/search.js` and **ranks rather than filters**. People type what they want
+to *do* ("shrink my photo"), not a tool name, and they typo; a binary substring filter answers both
+with a blank page.
+
+- **Synonyms are additive** — a word always searches for itself plus its expansions. Every synonym
+  target is asserted to exist somewhere in the registry, so a synonym cannot point at a word no tool
+  contains. That check found `grayscale`, a real image-editor feature that was unsearchable.
+- **Typo tolerance is length-gated.** Words of three letters or fewer get none: at that length one
+  edit reaches half the dictionary, so "gif" would match "if", "git" and "of".
+- **Two tiers.** Every term matched and none fuzzily → a direct hit. Otherwise → *related*, shown
+  under a quieter heading, because a guess presented like a result is a lie about confidence. A
+  suggestion must cover at least half the query, or "pull the song out of a video" suggests
+  everything that mentions video.
+
+`script.js` is a **module** so it imports that logic instead of copying it — the duplicate it used
+to carry would certainly have drifted. Ranking has to cross category boundaries, so searching moves
+matched cards into one ranked list and clearing puts them back.
 
 **`[hidden]` now carries `!important`.** The user-agent rule is the lowest possible specificity,
 so any author `display` beats it; `.tool-card` is `display: flex`, which meant search filtered

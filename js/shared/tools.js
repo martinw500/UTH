@@ -88,7 +88,7 @@ export const TOOLS = Object.freeze([
         tone: 'tone-green',
         runs: 'browser',
         desc: 'Crop, straighten, adjust, resize and compress — several images at once',
-        keywords: 'image editor photo crop resize compress rotate straighten filter brightness contrast batch convert jpg jpeg png webp avif quality format resize picture',
+        keywords: 'image editor photo crop resize compress rotate straighten filter brightness contrast saturation sharpen grayscale greyscale sepia invert hue batch convert jpg jpeg png webp avif quality format picture',
     }),
     Object.freeze({
         id: 'favicon-generator',

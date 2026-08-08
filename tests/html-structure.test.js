@@ -131,8 +131,11 @@ describe('Homepage structure', () => {
         expect(html).toMatch(new RegExp(`id="visibleCount">${cards} tools<`));
     });
 
-    test('loads main script', () => {
-        expect(html).toContain('<script src="script.js"');
+    // A module, so it can import the real ranking from js/shared/search.js
+    // instead of carrying a copy that would drift. Being deferred is fine: the
+    // grid is static HTML and complete before this runs.
+    test('loads main script as a module', () => {
+        expect(html).toContain('<script type="module" src="script.js"');
     });
 
     test('loads stylesheet', () => {

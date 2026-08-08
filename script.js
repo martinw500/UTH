@@ -1,126 +1,164 @@
-// ============================================
-// Useful Tool Hub — homepage
+// Homepage: search and the category rail.
 //
-// A CLASSIC script, not a module: the grid is static HTML that must work with
-// JavaScript off (a crawler, or a failed request), and this only enhances it.
-// The matching logic itself lives in js/shared/tools.js so the search and the
-// registry cannot disagree about what a tool is searchable by — but it is
-// duplicated below rather than imported, because importing would make this
-// page a module and defer it.
-// ============================================
+// A MODULE, so it can import the real ranking from js/shared/search.js rather
+// than carry a copy. That logic is now large enough that a duplicate would
+// certainly drift, and a drifted copy is exactly the failure this project has
+// hit before.
+//
+// Being a module means this is deferred, which is fine: the grid is static HTML
+// and complete before any of this runs. With JavaScript off you get every tool,
+// grouped by category, and working links — just no filtering.
 
-(function () {
-    'use strict';
+import { searchTools, suggestSpelling } from './js/shared/search.js';
+import { TOOLS } from './js/shared/tools.js';
 
-    var searchInput = document.getElementById('searchInput');
-    var toolsGrid = document.getElementById('toolsGrid');
-    var visibleCount = document.getElementById('visibleCount');
-    var noResults = document.getElementById('noResults');
-    if (!toolsGrid) return;
+const searchInput = document.getElementById('searchInput');
+const toolsGrid = document.getElementById('toolsGrid');
+const visibleCount = document.getElementById('visibleCount');
+const noResults = document.getElementById('noResults');
+const resultsPane = document.getElementById('searchResults');
+const resultsList = document.getElementById('resultsList');
+const resultsHeading = document.getElementById('resultsHeading');
+const relatedBlock = document.getElementById('relatedBlock');
+const relatedList = document.getElementById('relatedList');
+const spellingHint = document.getElementById('spellingHint');
 
-    var cards = Array.prototype.slice.call(toolsGrid.querySelectorAll('.tool-card'));
-    var sections = Array.prototype.slice.call(toolsGrid.querySelectorAll('.cat-section'));
-    var catLinks = Array.prototype.slice.call(document.querySelectorAll('[data-cat-link]'));
-
-    /** Everything a card can be matched against, computed once. */
-    var haystacks = cards.map(function (card) {
-        var title = card.querySelector('.tool-card-title');
-        var desc = card.querySelector('.tool-card-desc');
-        return [
-            title ? title.textContent : '',
-            desc ? desc.textContent : '',
-            card.dataset.keywords || '',
-        ].join(' ').toLowerCase();
-    });
-
+if (toolsGrid) {
     /**
-     * Every term must appear somewhere in the card's text.
+     * Cards, indexed by tool id, plus where each one lives.
      *
-     * The old version matched the whole query as one substring against title,
-     * description and keywords SEPARATELY, so "image convert" found nothing —
-     * those two words never sit next to each other in any single field.
+     * Searching moves cards into a single ranked list, because ranking across
+     * category sections is impossible while they stay in separate containers.
+     * Clearing the query puts them back — hence remembering the home.
      */
-    function matches(index, terms) {
-        for (var i = 0; i < terms.length; i += 1) {
-            if (haystacks[index].indexOf(terms[i]) === -1) return false;
-        }
-        return true;
+    const cards = new Map();
+    for (const card of toolsGrid.querySelectorAll('.tool-card')) {
+        cards.set(card.dataset.tool, { node: card, home: card.parentElement });
     }
 
-    function filterTools(query) {
-        var terms = query.split(/\s+/).filter(Boolean);
-        var visible = 0;
+    const sections = [...toolsGrid.querySelectorAll('.cat-section')];
+    const catLinks = [...document.querySelectorAll('[data-cat-link]')];
 
-        cards.forEach(function (card, i) {
-            var show = terms.length === 0 || matches(i, terms);
-            // `hidden` rather than style.display, so nothing has to remember
-            // which display value the element started with.
-            card.hidden = !show;
-            if (show) visible += 1;
-        });
-
-        // A category heading with no cards under it reads as an empty promise.
-        sections.forEach(function (section) {
-            var any = Array.prototype.some.call(
-                section.querySelectorAll('.tool-card'),
-                function (card) { return !card.hidden; },
-            );
-            section.hidden = !any;
-        });
-
-        if (visibleCount) {
-            visibleCount.textContent = visible + ' tool' + (visible === 1 ? '' : 's');
+    function restoreBrowse() {
+        // Re-append in registry order so each section's original order returns.
+        for (const tool of TOOLS) {
+            const entry = cards.get(tool.id);
+            if (entry && entry.node.parentElement !== entry.home) entry.home.append(entry.node);
         }
-        if (noResults) noResults.hidden = visible !== 0;
+        for (const entry of cards.values()) entry.node.hidden = false;
+        for (const section of sections) section.hidden = false;
+
+        toolsGrid.hidden = false;
+        if (resultsPane) resultsPane.hidden = true;
+        if (noResults) noResults.hidden = true;
+        if (spellingHint) spellingHint.hidden = true;
+        if (visibleCount) visibleCount.textContent = `${TOOLS.length} tools`;
+    }
+
+    function showRanked(entries, host) {
+        for (const entry of entries) {
+            const card = cards.get(entry.tool.id);
+            if (!card) continue;
+            card.node.hidden = false;
+            host.append(card.node);
+        }
+    }
+
+    function runSearch(query) {
+        if (!query) { restoreBrowse(); return; }
+
+        const { direct, related } = searchTools(query);
+
+        // Everything is hidden first; the two lists below un-hide what they take.
+        for (const entry of cards.values()) entry.node.hidden = true;
+
+        toolsGrid.hidden = true;
+        if (resultsPane) resultsPane.hidden = false;
+        if (resultsList) { resultsList.replaceChildren(); showRanked(direct, resultsList); }
+        if (relatedList) { relatedList.replaceChildren(); showRanked(related, relatedList); }
+
+        if (resultsHeading) {
+            resultsHeading.hidden = direct.length === 0;
+            resultsHeading.textContent = direct.length === 1 ? '1 match' : `${direct.length} matches`;
+        }
+
+        // The whole point of the two-tier result: a near miss should suggest
+        // something rather than showing a blank page.
+        if (relatedBlock) {
+            relatedBlock.hidden = related.length === 0;
+            const label = relatedBlock.querySelector('[data-related-label]');
+            if (label) {
+                label.textContent = direct.length
+                    ? 'You might also want'
+                    : 'No exact match — you might want';
+            }
+        }
+
+        if (spellingHint) {
+            const suggestion = suggestSpelling(query);
+            spellingHint.hidden = !suggestion;
+            if (suggestion) {
+                spellingHint.replaceChildren(
+                    document.createTextNode('Showing results for '),
+                    Object.assign(document.createElement('strong'), { textContent: suggestion.to }),
+                    document.createTextNode(` instead of “${suggestion.from}”.`),
+                );
+            }
+        }
+
+        const total = direct.length + related.length;
+        if (visibleCount) visibleCount.textContent = total === 1 ? '1 tool' : `${total} tools`;
+        if (noResults) noResults.hidden = total !== 0;
     }
 
     // --- Category rail ---
-    //
-    // The links are real anchors and scroll on their own; this only moves the
-    // active marker, so the rail still works if the script never runs.
     function markActive(id) {
-        catLinks.forEach(function (link) {
+        for (const link of catLinks) {
             link.classList.toggle('is-active', link.dataset.catLink === id);
+        }
+    }
+
+    for (const link of catLinks) {
+        const href = link.getAttribute('href') || '';
+        if (href.charAt(0) !== '#') continue;
+        link.addEventListener('click', () => {
+            // A category is meaningless while a search is filtering the list.
+            if (searchInput && searchInput.value) {
+                searchInput.value = '';
+                runSearch('');
+            }
+            markActive(link.dataset.catLink);
         });
     }
 
-    catLinks.forEach(function (link) {
-        if (!link.getAttribute('href') || link.getAttribute('href').charAt(0) !== '#') return;
-        link.addEventListener('click', function () { markActive(link.dataset.catLink); });
-    });
-
-    // Follow the rail to whichever category is on screen. Guarded because
-    // IntersectionObserver is absent in some embedded webviews.
     if (window.IntersectionObserver && sections.length) {
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
+        const observer = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
                 if (entry.isIntersecting) markActive(entry.target.dataset.category);
-            });
+            }
         }, { rootMargin: '-96px 0px -70% 0px' });
-        sections.forEach(function (section) { observer.observe(section); });
+        for (const section of sections) observer.observe(section);
     }
 
-    // --- Search wiring ---
+    // --- Wiring ---
     if (searchInput) {
-        searchInput.addEventListener('input', function () {
-            filterTools(searchInput.value.trim().toLowerCase());
-        });
+        searchInput.addEventListener('input', () => runSearch(searchInput.value.trim()));
 
-        document.addEventListener('keydown', function (e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
+        document.addEventListener('keydown', (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+                event.preventDefault();
                 searchInput.focus();
                 searchInput.select();
             }
-            if (e.key === 'Escape' && document.activeElement === searchInput) {
+            if (event.key === 'Escape' && document.activeElement === searchInput) {
                 searchInput.value = '';
-                filterTools('');
+                runSearch('');
                 searchInput.blur();
             }
         });
 
         // A browser restoring a typed query on back/forward would otherwise
         // show the full list under a non-empty search box.
-        if (searchInput.value) filterTools(searchInput.value.trim().toLowerCase());
+        if (searchInput.value) runSearch(searchInput.value.trim());
     }
-})();
+}

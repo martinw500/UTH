@@ -2444,6 +2444,41 @@ body::before {
     background: var(--tint-warning);
 }
 
+.results-heading {
+    margin-bottom: var(--space-4);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* Near misses. Visually quieter than the real results, because they are a
+   guess — presenting them identically would be a lie about confidence. */
+.related-block {
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px dashed var(--border);
+}
+
+.related-block .tool-card {
+    background: transparent;
+}
+
+.spelling-hint {
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    background: var(--tint-primary-weak);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.spelling-hint strong {
+    color: var(--primary-readable);
+}
+
 .no-results {
     padding: var(--space-7) 0;
     font-size: 0.95rem;

@@ -216,20 +216,55 @@ async function main() {
 
         // The whole point of tokenising: those two words are never adjacent in
         // any single field, so a substring match found nothing.
-        for (const [query, expected] of [
-            ['image convert', ['convert', 'image-converter']],
-            ['convert image', ['convert', 'image-converter']],
-            ['merge pdf', ['pdf-tools']],
-            ['reel', ['instagram-downloader']],
+        for (const [query, expectedFirst] of [
+            // "image convert" legitimately ranks the Image Editor first: its
+            // TITLE contains "image", which outweighs File Converter's prefix
+            // match on "converter". Both are sensible answers, so this only
+            // pins the unambiguous ones.
+            ['merge pdf', 'pdf-tools'],
+            ['reel', 'instagram-downloader'],
+            ['qr code', 'qr-generator'],
         ]) {
             await page.fill('#searchInput', query);
-            const shown = await visibleCards();
-            check(JSON.stringify(shown) === JSON.stringify(expected),
-                `"${query}" finds the right tools`, shown.join(', ') || '(none)');
+            const shown = await page.$$eval('#resultsList .tool-card',
+                (nodes) => nodes.filter((c) => !c.hidden).map((c) => c.dataset.tool));
+            check(shown[0] === expectedFirst,
+                `"${query}" ranks ${expectedFirst} first`, shown.join(', ') || '(none)');
         }
+
+        // A near miss should suggest something rather than show a blank page.
+        console.log('\nSearch — near misses');
+        const results = () => page.evaluate(() => ({
+            direct: [...document.querySelectorAll('#resultsList .tool-card')]
+                .filter((c) => !c.hidden).map((c) => c.dataset.tool),
+            related: [...document.querySelectorAll('#relatedList .tool-card')]
+                .filter((c) => !c.hidden).map((c) => c.dataset.tool),
+            hint: document.getElementById('spellingHint').hidden
+                ? null : document.getElementById('spellingHint').textContent.trim(),
+        }));
+
+        await page.fill('#searchInput', 'shrink my photo');
+        let r = await results();
+        check(r.direct[0] === 'image-converter',
+            'an intent finds the right tool first', r.direct.join(', '));
+
+        await page.fill('#searchInput', 'favicn');
+        r = await results();
+        check(r.direct.length === 0 && r.related.includes('favicon-generator'),
+            'a typo is offered as a suggestion, not a confident hit', r.related.join(', '));
+        check(/favicon/.test(r.hint ?? ''), 'and the correction is stated', r.hint ?? '(none)');
+
+        await page.fill('#searchInput', 'compress spreadsheet');
+        r = await results();
+        check(r.direct.length === 0 && r.related.length > 0,
+            'a half-match suggests rather than showing nothing', r.related.join(', '));
+
+        await page.fill('#searchInput', 'xylophone quarterly');
+        check(await page.isVisible('#noResults'), 'genuine nonsense still says nothing found');
 
         await page.fill('#searchInput', '');
         check((await visibleCards()).length === 10, 'clearing the query restores everything');
+        check(await page.isVisible('.cat-section'), 'and the category browse view comes back');
 
         // ---- Mobile nav ----
         console.log('\nMobile nav');
