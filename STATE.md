@@ -26,8 +26,14 @@ picking the work back up on a new machine or in a new session.
 
 - **Remote:** `origin` → https://github.com/martinw500/UTH
 - Work goes straight to `main` after `npm test` passes. It is a solo repo; PRs bought nothing that
-  pushing does not, since CI and both deploy gates run on `main` too. The exception is anything
-  touching `api/` — see the note under P-social below.
+  pushing does not, since CI and both deploy gates run on `main` too.
+- **The exception is anything touching `api/`: branch it and open a PR.** Not for review — for the
+  Vercel preview deployment. The Python functions only ever really run on Vercel, and the things
+  that break there (a serverless import that resolves locally and not in their runtime, the
+  response cap, the function timeout) are invisible to `npm test` and to the local backend, which
+  has ffmpeg and a residential IP. `tests/deployed-site.test.js` is driven by `SITE_URL`, so the
+  PR job tests that PR's preview; merge once it is green.
+  *(This used to say "see the note under P-social", which had already been deleted.)*
 
 **Everything needed to pick the work up is in this repo.** *Next up* below is self-contained;
 `docs/SETUP.md` covers a new machine. Earlier planning documents lived under `~/.claude/plans/`
@@ -42,8 +48,9 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Seven tools: YouTube downloader, Instagram downloader (both server-backed), image converter,
-video converter, audio converter (both ffmpeg.wasm), colour converter, QR generator.
+Ten tools: YouTube downloader, YouTube transcript, Instagram downloader (all server-backed),
+image converter, video converter, audio converter (all ffmpeg.wasm), colour converter,
+QR generator, PDF toolkit, EXIF viewer.
 
 ---
 
@@ -129,6 +136,50 @@ Details are in `git log` (`128c949`, `cf1c761`). What still constrains you:
   transcoding, so the extension lied about the container. Don't add them back.
 - `tests/deployed-site.test.js` is driven by `SITE_URL`; PR runs test that PR's Vercel preview.
 
+### The YouTube downloader stops lying, and has a way out
+Three problems that compounded into "paste a link, get told to use
+`--cookies-from-browser`".
+
+1. **Errors were forwarded raw.** `api/youtube/_errors.py` now classifies a yt-dlp exception into
+   a stable code (`bot_check`, `age_restricted`, `geo_blocked`, …) and the wording lives entirely
+   client-side in `youtube-downloader/js/yt-messages.js`. The raw text still travels, as `detail`,
+   but only into a collapsed `<details>` written with `textContent`. `messageFor()` falls back to a
+   generic message for an unknown code and **never** to `detail` — `tests/youtube-downloader.test.js`
+   pins that, and asserts no message mentions cookies or yt-dlp.
+2. **The quality list promised what the host could not send** (the old P4). `/api/youtube` now
+   ships `server_can_merge`; without ffmpeg the client shows only already-muxed formats as ready
+   and pushes the rest into a collapsed "Advanced — silent" list, with a notice explaining the
+   360p ceiling *before* the click.
+3. **There was no second path.** A `bot_check` now renders a panel with a copyable `yt-dlp`
+   command built from the row the user actually pressed, plus instructions for running the hub
+   locally — which is the real fix, since a home IP is not bot-checked and has ffmpeg.
+
+`send_file` is gone from both download paths in favour of a chunked generator that deletes its
+`mkdtemp()` in a `finally`. Every download used to leak a temp directory. **This does not lift
+Vercel's ~4.5 MB response cap** — that ceiling is why the escape hatch exists.
+
+### YouTube → MP3, via the audio converter
+`/api/youtube/download?mode=audio` serves `bestaudio[ext=m4a]` — no ffmpeg needed, so it is the
+one thing the hosted backend does well. "Convert to MP3" fetches those bytes, parks them via
+`js/shared/handoff.js` (a one-shot IndexedDB blob store) and navigates to
+`audio-converter/index.html?handoff=<id>&format=mp3`, which picks the file up and preselects MP3.
+
+The 4 MB cap is checked against `audio.filesize_bytes` *before* fetching, so a long track is
+refused in a second with the yt-dlp route offered, instead of after a minute ending in a 504.
+
+**`handoff.js` has no unit test**: jsdom provides no IndexedDB, and adding `fake-indexeddb` for one
+module was not worth a dependency. Verify it by clicking it.
+
+### Cookies are local-only, deliberately
+`backend.py` accepts `?cookies_from_browser=chrome`, refuses it unless `request.remote_addr` is
+loopback, and rejects any browser name outside a fixed allowlist. The deployed functions do not
+accept it at all and there is no paste-your-cookie field anywhere.
+
+A YouTube cookie is a live Google session credential. A hosted service that took one would be
+asking strangers to hand their signed-in account to someone else's server. On your own machine
+talking to your own browser profile that objection disappears — which is the situation yt-dlp's
+own documentation assumes. Do not "improve" this by adding it to `api/`.
+
 ### P2a — shared modules
 `js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. The image, video
 and colour test files now import the real source **with their original assertions unchanged**, so
@@ -136,6 +187,31 @@ green means the extraction preserved behaviour. 245 → 363 tests.
 
 Loaded by the QR generator and both converters. The other four pages are still classic scripts
 with their own helper copies — converting those is P2c–g.
+
+### The three new tools
+- **YouTube transcript** (`/youtube-transcript/`, `api/youtube/subtitles.py`). The one YouTube
+  feature that behaves the same on free hosting as it does locally: no ffmpeg, and the payload is
+  kilobytes. Two requests — list the caption tracks, then fetch one — because the signed caption
+  URLs are short-lived and the language menu should appear before any track is downloaded.
+  `js/shared/subtitles.js` does VTT → SRT/VTT/prose. Its one non-obvious job is dropping the
+  **rolling repeat**: auto-captions restate the previous cue's last line so the viewer can read
+  two lines at a time, and concatenating naively doubles most of the transcript.
+- **EXIF viewer** (`/exif-viewer/`, `js/shared/exif.js`). Hand-written JPEG/PNG/WebP metadata
+  parser — no vendored dependency, and pure ArrayBuffer work, so jsdom tests it properly for once.
+  The stripper **rebuilds the container byte-for-byte** with the metadata segments dropped. Do not
+  replace this with a canvas round-trip: that re-encodes the photo, which is the flaw in most
+  online EXIF removers. `tests/exif.test.js` builds its fixtures byte by byte rather than checking
+  in binaries, and asserts the image data is copied through unchanged.
+  It decodes text by hand instead of with `TextDecoder`, which jest's jsdom does not define as a
+  global — and Latin-1 is the correct decoding for PNG `tEXt` anyway.
+- **PDF toolkit** (`/pdf-toolkit/`, pdf-lib vendored at `js/vendor/pdf-lib.js`, ~510 KB, the
+  largest file in the repo). Merge, split, reorder, rotate, delete, images → PDF, all client-side.
+  The editor holds page *references* (`{ docId, pageIndex, rotation }`) and only rewrites the
+  document on save, so reordering is instant and rotation is reversible; that arithmetic lives in
+  `pdf-toolkit/js/pdf-ops.js` and is tested.
+  **No page thumbnails, deliberately.** pdf-lib cannot rasterise; rendering would mean vendoring
+  pdf.js and its worker too. Pages are numbered cards. If thumbnails ever justify that second
+  dependency, that is a decision to make on purpose.
 
 ### ESM groundwork
 - **`file://` guard.** A classic inline `<head>` script sets `.needs-http`; CSS then hides the page
@@ -161,11 +237,14 @@ for `9e0160f` if one surprises you.
 
 ### P2b–h — finish the ESM migration (foundational, risky)
 One PR per step; each independently green and deployable.
-- **P2b** — `js/config.js` becomes a re-export shim of `js/shared/config.js`; convert the two pages
-  that load it (`youtube-downloader`, `instagram-downloader`) to `<script type="module">`.
+- **P2b** — `instagram-downloader` is the last page still loading `js/config.js` as a classic
+  script. Convert it to `<script type="module">` importing `js/shared/config.js`, then delete
+  `js/config.js` and the `global.API_CONFIG` mock in `tests/instagram-downloader.test.js`. The
+  YouTube downloader already moved; `js/config.js` survives only for this one page.
 - **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
-  favour of `js/shared/*`, and rewrite its test to import real source. The video converter is
-  done; image converter, colour picker and the two downloaders remain.
+  favour of `js/shared/*`, and rewrite its test to import real source. The video converter, audio
+  converter and YouTube downloader are done; image converter, colour picker and the Instagram
+  downloader remain.
 - **P2h** — `js/shared/tools.js` exporting a frozen `TOOLS[]`, plus `tests/tool-registry.test.js`
   asserting registry↔HTML parity. **Keep the homepage grid as static HTML** — client-rendering it
   would break every homepage assertion in `deployed-site.test.js`, which fetches raw HTML with no
@@ -182,14 +261,6 @@ most expensive *and* the most blocked on cloud IPs, yet runs first today). Expon
 jitter. Drop base64 from the response. Edge-cache 200s only (`s-maxage=600`); `no-store` on errors
 or a transient Instagram block gets cached for everyone. HMAC-sign proxy URLs, failing **open** to
 allowlist-only when `PROXY_SECRET` is unset.
-
-### P4 — YouTube tells the truth *(independent of P2/P3, can be done any time)*
-Production silently serves 360p when the UI says 1080p: Vercel has no ffmpeg, so
-`api/youtube/download.py:33-39` falls back to progressive muxed MP4, which YouTube only serves at
-360p. `api/youtube/index.py:71` **already computes `has_audio`** and ships it — the client just
-ignores it, so this is mostly a labelling fix. Split formats into "video + audio, ready to
-download" vs a collapsed "advanced (no audio)". Also replace the `send_file` download path: it
-buffers the whole file against Vercel's ~4.5 MB response cap.
 
 ### P5 — CSS, accessibility, theming *(P5b is independent and high-impact)*
 - **P5a** hygiene, zero visual change: `--radius` is used but never defined (silently resolves to
@@ -247,6 +318,11 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 - **`api/_lib/` cross-directory imports are unverified on Vercel's Python runtime.** Confirm on a
   preview deploy before relying on it. This is why `backend.py` currently carries a duplicated
   proxy route with a note rather than importing a shared one.
+- **`api/youtube/_errors.py` is a *same-directory* sibling import**, which is a different and much
+  safer case than the one above — but it is still unconfirmed on a preview deploy. If
+  `from _errors import error_payload` fails there, inline the mapper into `index.py`,
+  `download.py` and `subtitles.py` with a note, matching the precedent the proxy route set.
+  All three YouTube functions break together if this is wrong, so check it first.
 - **`vercel.json` `functions.maxDuration: 60` is unverified** against the account plan. Try it on a
   preview first; fall back to the 10s default with a 2-strategy cascade if rejected.
 - **PR-preview E2E needs `VERCEL_TOKEN` and `VERCEL_PROJECT_ID` repo secrets.** Without them the
@@ -270,8 +346,28 @@ npm run dev:api       # Flask backend on :5000
 SITE_URL=https://<preview>.vercel.app npm run test:e2e
 
 npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
+npm run verify:pages        # real browser; loads every module page, fails on any 404
+npm run verify:yt-errors    # the yt-dlp error classifier, against real upstream messages
 ```
+
+`verify:yt-errors` is a script rather than a jest test because the classifier is Python and there
+is no Python test runner here. **Run it after touching `api/youtube/_errors.py`.** Matching is
+substring-based over English text yt-dlp can reword at any release, and a mis-classification is
+silent — the user simply gets advice for the wrong problem.
+
+`verify:pages` is the cheap version of `verify:converters`: it opens each page in
+Chromium and fails on a console error, an uncaught exception or a 404. That catches the
+missing-`.js`-extension class of bug, an import that only jest can resolve, and a module that
+threw before wiring its listeners — none of which a jsdom test can see. It also round-trips
+`js/shared/handoff.js` through real IndexedDB, which is the only coverage that module has.
+
+**Request directory URLs with the trailing slash** (`/pdf-toolkit/`, not
+`/pdf-toolkit/index.html`). `serve` redirects the explicit filename to a clean URL without a
+trailing slash, which moves the document base up a level and makes every relative import resolve
+against the site root — a wall of false 404s that looks exactly like a real bug.
 
 **No automated test checks that a downloaded file is actually correct.** For any Instagram or
 YouTube change, download a real asset and inspect it — pixel dimensions for images, `ffprobe` for
-video. That is the entire point of the P0/P3/P4 work.
+video. Same for the tools that write files: `ffprobe` the MP3 the hand-off produces, re-open a
+stripped photo in the viewer *and* check its pixels were not re-encoded, and open a merged PDF in
+a real reader rather than the browser's viewer.

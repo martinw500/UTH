@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXIF Viewer &amp; Remover — Useful Tool Hub</title>
+    <meta name="description" content="See what a photo is leaking — GPS location, camera serial number, timestamps — and save a clean copy without re-compressing the image. Runs entirely in your browser.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
+</head>
+<body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/exif-viewer/</code>.
+        </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">EXIF Viewer</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>EXIF Viewer &amp; Remover</h1>
+                    <p>See what a photo says about you — then save a copy that doesn't</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Your photo never leaves this tab — there is no upload, and no server involved.</span>
+                </div>
+
+                <div class="converter-dropzone" id="dropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                    <div class="dropzone-text">
+                        <strong>Drop a photo here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">JPEG, PNG or WebP — up to 100 MB</div>
+                    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+                </div>
+
+                <div class="notice" id="errorMsg" hidden></div>
+
+                <!-- Results -->
+                <div class="results-container" id="results">
+
+                    <div class="exif-summary" id="summary"></div>
+
+                    <div class="download-panel" id="gpsPanel" hidden>
+                        <h3>Location</h3>
+                        <p class="exif-gps-value" id="gpsValue"></p>
+                        <p class="help-note">
+                            This is where the photo was taken, to within a few metres. Anyone you send
+                            the original to can read it.
+                        </p>
+                        <a class="btn btn-secondary btn-sm" id="gpsLink" target="_blank" rel="noopener">Open in a map</a>
+                    </div>
+
+                    <div class="download-panel">
+                        <h3>What's in the file</h3>
+                        <table class="exif-table" id="tagTable"></table>
+                        <p class="help-note" id="emptyNote" hidden>
+                            No readable metadata found. Either it was stripped already, or the app that
+                            saved it never wrote any.
+                        </p>
+                    </div>
+
+                    <div class="download-panel">
+                        <h3>Save a clean copy</h3>
+                        <p class="help-note" id="stripNote"></p>
+                        <div class="help-panel-actions" style="margin-top: 14px;">
+                            <button class="btn btn-primary btn-sm" id="stripBtn">Remove metadata and download</button>
+                            <button class="btn btn-ghost btn-sm" id="clearBtn">Use a different photo</button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script type="module" src="js/exif-viewer.js"></script>
+</body>
+</html>

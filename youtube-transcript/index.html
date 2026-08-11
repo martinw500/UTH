@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Transcript &amp; Subtitles — Useful Tool Hub</title>
+    <meta name="description" content="Get a YouTube video's subtitles or full transcript as SRT, VTT, or plain text. Auto-generated captions included. Free, no sign-up.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
+</head>
+<body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/youtube-transcript/</code>.
+        </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">YouTube Transcript</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(239,68,68,0.12); color: #f87171;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>YouTube Transcript</h1>
+                    <p>Every word of a video, as subtitles or plain readable text</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Works with auto-generated captions too, so most videos have something even when the creator never uploaded subtitles.</span>
+                </div>
+
+                <!-- Input -->
+                <div class="input-group">
+                    <label class="input-label" for="videoUrl">YouTube Video URL</label>
+                    <div class="input-row">
+                        <input
+                            type="url"
+                            id="videoUrl"
+                            class="input-field"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            autocomplete="off"
+                        >
+                        <button class="btn btn-primary" id="fetchBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            Find captions
+                        </button>
+                    </div>
+                </div>
+
+                <div class="notice" id="errorMsg" hidden></div>
+
+                <div class="loading-state" id="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text" id="loadingText">Looking for captions...</div>
+                </div>
+
+                <!-- Results -->
+                <div class="results-container" id="results">
+                    <div class="video-info-card" id="videoInfo"></div>
+
+                    <div class="download-panel">
+                        <h3>Captions</h3>
+
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="input-label" for="langSelect">Language</label>
+                                <select class="format-select" id="langSelect"></select>
+                            </div>
+                            <div class="setting-group">
+                                <label class="input-label" for="formatSelect">Format</label>
+                                <select class="format-select" id="formatSelect">
+                                    <option value="text">Plain text — for reading or pasting</option>
+                                    <option value="text-stamped">Plain text with timestamps</option>
+                                    <option value="srt">SRT — subtitle file</option>
+                                    <option value="vtt">VTT — subtitle file</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="help-panel-actions" style="margin-top: 16px;">
+                            <button class="btn btn-primary btn-sm" id="getBtn">Get transcript</button>
+                            <button class="btn btn-secondary btn-sm" id="copyBtn" hidden>Copy</button>
+                            <button class="btn btn-secondary btn-sm" id="downloadBtn" hidden>Download</button>
+                        </div>
+
+                        <p class="help-note" id="trackNote"></p>
+
+                        <!-- textContent only; a transcript is untrusted text. -->
+                        <pre class="transcript-output" id="output" hidden></pre>
+                    </div>
+
+                    <p class="download-hint">
+                        Wanted the video itself? Use the
+                        <a href="../youtube-downloader/index.html">YouTube downloader</a>.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script type="module" src="js/youtube-transcript.js"></script>
+</body>
+</html>

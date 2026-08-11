@@ -13,6 +13,7 @@ import {
     runFFmpeg,
     ffmpegUnavailableReason,
 } from '../../js/shared/ffmpeg.js';
+import { takeHandoff } from '../../js/shared/handoff.js';
 import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
 
 (function () {
@@ -196,6 +197,41 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
 
     outputFormat.addEventListener('change', updateFormatUI);
     updateFormatUI();
+
+    // --- Hand-off from another tool ---
+    //
+    // The YouTube downloader fetches an audio track and parks it in IndexedDB,
+    // then sends the user here with `?handoff=<id>&format=mp3`. Picking it up
+    // is the whole difference between "one click for an MP3" and "download a
+    // file, find it, come back, drag it in".
+    //
+    // takeHandoff() deletes what it reads, so a refresh does not silently
+    // re-import a file the user has already dealt with.
+    (async function intakeHandoff() {
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('handoff');
+        if (!id) return;
+
+        // Drop the id from the address bar either way: it is single-use, and
+        // leaving it there makes a bookmark or a shared link look meaningful.
+        const clean = window.location.pathname + window.location.hash;
+        window.history.replaceState(null, '', clean);
+
+        const handed = await takeHandoff(id);
+        if (!handed) {
+            showError('That file was not waiting for us any more. Drop it in below, '
+                + 'or go back and try again.');
+            return;
+        }
+
+        const wanted = params.get('format');
+        if (wanted && [...outputFormat.options].some(o => o.value === wanted)) {
+            outputFormat.value = wanted;
+            updateFormatUI();
+        }
+
+        setFile(handed.file);
+    })();
 
     // --- Convert ---
     convertBtn.addEventListener('click', async () => {

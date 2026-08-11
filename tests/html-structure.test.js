@@ -31,6 +31,9 @@ const PAGES = [
     'instagram-downloader/index.html',
     'qr-generator/index.html',
     'audio-converter/index.html',
+    'youtube-transcript/index.html',
+    'exif-viewer/index.html',
+    'pdf-toolkit/index.html',
 ];
 
 // ============================================
@@ -116,6 +119,9 @@ describe('Homepage structure', () => {
         expect(html).toContain('href="color-converter/index.html"');
         expect(html).toContain('href="qr-generator/index.html"');
         expect(html).toContain('href="audio-converter/index.html"');
+        expect(html).toContain('href="youtube-transcript/index.html"');
+        expect(html).toContain('href="exif-viewer/index.html"');
+        expect(html).toContain('href="pdf-toolkit/index.html"');
     });
 
     // Both counters are hardcoded in the markup and script.js never recomputes
@@ -406,6 +412,147 @@ describe('Audio Converter page structure', () => {
     });
 });
 
+describe('YouTube Downloader page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('youtube-downloader/index.html');
+    });
+
+    test('has the URL input and fetch button', () => {
+        expect(html).toContain('id="youtubeUrl"');
+        expect(html).toContain('id="fetchBtn"');
+    });
+
+    // The escape hatch. Without these the page has nothing to offer when the
+    // hosted backend is bot-checked, which is the failure this page exists for.
+    test('has the blocked-server help panel and its controls', () => {
+        ['helpPanel', 'helpTitle', 'helpBody', 'helpEscape', 'ytdlpCmd',
+            'copyCmdBtn', 'retryBtn', 'lowerQualityBtn'].forEach(id => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    // The raw upstream error must be reachable for bug reports but never be
+    // the headline; it lives inside a collapsed <details>.
+    test('the technical detail is hidden behind a disclosure', () => {
+        expect(html).toContain('id="helpTechnical"');
+        expect(html).toMatch(/<details[^>]*id="helpTechnical"[^>]*hidden/);
+    });
+
+    test('separates the ready, silent and audio lists', () => {
+        expect(html).toContain('id="qualityOptions"');
+        expect(html).toContain('id="silentOptions"');
+        expect(html).toContain('id="advancedFormats"');
+        expect(html).toContain('id="audioOptions"');
+    });
+
+    test('has the host-capability notice', () => {
+        expect(html).toContain('id="hostNotice"');
+    });
+
+    // notify() writes textContent into `.notice`; the old markup had an inner
+    // <span> written with innerHTML, which is how the raw error reached users.
+    test('the error host is a shared notice element', () => {
+        expect(html).toMatch(/class="notice" id="errorMsg" hidden/);
+        expect(html).not.toContain('id="errorText"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/youtube-downloader.js"></script>');
+    });
+});
+
+describe('YouTube Transcript page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('youtube-transcript/index.html');
+    });
+
+    test('has the URL input, language and format pickers', () => {
+        expect(html).toContain('id="videoUrl"');
+        expect(html).toContain('id="langSelect"');
+        expect(html).toContain('id="formatSelect"');
+    });
+
+    test('offers all four output formats', () => {
+        ['text', 'text-stamped', 'srt', 'vtt'].forEach(value => {
+            expect(html).toContain(`value="${value}"`);
+        });
+    });
+
+    test('has get, copy and download actions plus an output area', () => {
+        ['getBtn', 'copyBtn', 'downloadBtn', 'output', 'errorMsg'].forEach(id => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/youtube-transcript.js"></script>');
+    });
+});
+
+describe('EXIF Viewer page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('exif-viewer/index.html');
+    });
+
+    test('has dropzone and file input', () => {
+        expect(html).toContain('id="dropzone"');
+        expect(html).toContain('id="fileInput"');
+    });
+
+    // Only the three containers the stripper can rewrite losslessly. Accepting
+    // image/* would let someone load a HEIC and get a confusing refusal.
+    test('accepts only the formats the stripper can rewrite', () => {
+        expect(html).toMatch(/accept="image\/jpeg,image\/png,image\/webp"/);
+    });
+
+    test('has the summary, tag table, GPS panel and strip button', () => {
+        ['summary', 'tagTable', 'gpsPanel', 'gpsValue', 'gpsLink',
+            'stripBtn', 'clearBtn', 'errorMsg'].forEach(id => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/exif-viewer.js"></script>');
+    });
+});
+
+describe('PDF Toolkit page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('pdf-toolkit/index.html');
+    });
+
+    test('has a multi-file dropzone, since merging is the main use', () => {
+        expect(html).toContain('id="dropzone"');
+        expect(html).toContain('id="fileInput"');
+        expect(html).toMatch(/id="fileInput"[^>]*multiple/);
+    });
+
+    test('accepts PDFs and the image types it can wrap into one', () => {
+        expect(html).toMatch(/accept="application\/pdf,image\/jpeg,image\/png"/);
+    });
+
+    test('has the page grid and every page action', () => {
+        ['pageGrid', 'pageCount', 'rangeInput', 'selectAllBtn', 'clearBtn',
+            'rotateLeftBtn', 'rotateRightBtn', 'deleteBtn', 'extractBtn',
+            'saveBtn', 'splitBtn', 'splitEvery', 'errorMsg'].forEach(id => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/pdf-toolkit.js"></script>');
+    });
+});
+
 describe('Documentation', () => {
     const DOCS = [
         'README.md',
@@ -474,6 +621,30 @@ describe('Vendored libraries', () => {
         expect(readme).toContain('kazuhikoarase/qrcode-generator');
         expect(readme).toMatch(/Version:\*\*\s*\d+\.\d+\.\d+/);
     });
+
+    test('pdf-lib ships its licence and its provenance', () => {
+        const licence = fs.readFileSync(path.join(ROOT, 'js/vendor/pdf-lib.LICENSE.txt'), 'utf-8');
+        expect(licence).toContain('MIT');
+        const readme = fs.readFileSync(path.join(ROOT, 'js/vendor/README.md'), 'utf-8');
+        expect(readme).toContain('Hopding/pdf-lib');
+    });
+
+    // The ESM build is deliberate: this project has no bundler, so the page
+    // imports it like any other module. A UMD re-vendor would load but export
+    // nothing under `import`, which fails only in a browser.
+    test('the vendored pdf-lib is the ES module build', () => {
+        const source = fs.readFileSync(path.join(ROOT, 'js/vendor/pdf-lib.js'), 'utf-8');
+        expect(source).toMatch(/export\s*\{/);
+        expect(source).toContain('PDFDocument');
+    });
+
+    // The map file is not vendored, so a leftover comment is a guaranteed 404.
+    test('no vendored file points at a source map that is not here', () => {
+        for (const name of ['pdf-lib.js', 'qrcode-generator.js', 'qrcode-generator-utf8.js']) {
+            const source = fs.readFileSync(path.join(ROOT, 'js/vendor', name), 'utf-8');
+            expect(source).not.toContain('sourceMappingURL');
+        }
+    });
 });
 
 describe('Required static assets exist', () => {
@@ -491,11 +662,21 @@ describe('Required static assets exist', () => {
         'audio-converter/js/audio-converter.js',
         'audio-converter/js/audio-args.js',
         'audio-converter/coi-serviceworker.js',
+        'youtube-downloader/js/yt-messages.js',
+        'youtube-transcript/js/youtube-transcript.js',
+        'exif-viewer/js/exif-viewer.js',
+        'pdf-toolkit/js/pdf-toolkit.js',
+        'pdf-toolkit/js/pdf-ops.js',
         'js/shared/qr.js',
         'js/shared/ffmpeg.js',
+        'js/shared/subtitles.js',
+        'js/shared/exif.js',
+        'js/shared/handoff.js',
         'js/vendor/qrcode-generator.js',
         'js/vendor/qrcode-generator-utf8.js',
         'js/vendor/qrcode-generator.LICENSE.txt',
+        'js/vendor/pdf-lib.js',
+        'js/vendor/pdf-lib.LICENSE.txt',
         'vercel.json',
     ];
 

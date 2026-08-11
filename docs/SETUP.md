@@ -13,6 +13,11 @@ Everything below assumes a clone of https://github.com/martinw500/UTH.
 | **Git** | any | — |
 | **ffmpeg** + **ffprobe** | any recent | **only** `npm run verify:converters` |
 
+`ffmpeg` on PATH also unlocks the local YouTube downloader's full quality range:
+`api/` and `backend.py` both check for it at request time and report the answer
+to the frontend as `server_can_merge`. Without it the local backend behaves like
+the hosted one and can only serve 360p.
+
 `ffmpeg`/`ffprobe` must be **on your PATH**, not just installed. On Windows:
 
 ```powershell
@@ -39,7 +44,7 @@ pip install -r requirements.txt     # Flask backend deps
 
 `npx playwright install` downloads ~115 MB to a shared location outside the repo
 (`~/AppData/Local/ms-playwright` on Windows). It is a separate step from `npm ci`
-and is easy to forget; `verify:converters` fails without it.
+and is easy to forget; `verify:converters` and `verify:pages` both fail without it.
 
 A virtualenv for the Python side is optional but tidy:
 
@@ -64,16 +69,26 @@ Then open **http://localhost:5500/**.
 > modules, which browsers block over `file://` — the page renders blank. Those
 > pages detect it and show an explanation, but the fix is always `npm run dev`.
 
-`js/config.js` auto-detects localhost and points the frontend at the local
-backend, so no configuration is needed.
+`js/shared/config.js` auto-detects localhost and points the frontend at the local
+backend, so no configuration is needed. (`js/config.js` is the old classic-script
+version, still loaded by the Instagram page alone.)
 
-You only need `dev:api` if you are working on the YouTube or Instagram
-downloaders. Every other tool is client-side.
+You only need `dev:api` if you are working on the YouTube tools or the Instagram
+downloader. Every other tool is client-side.
+
+**The local backend is not just a convenience for the YouTube tools — it is
+strictly better than the hosted one.** It has ffmpeg, so it can merge separate
+video and audio streams and offer every quality; and it runs on a residential IP,
+which YouTube bot-checks far less than the datacenter IPs the deployed functions
+sit on. When the live site says "YouTube blocked our server", this is the fix it
+points people at.
 
 ## 4. Check everything works
 
 ```bash
-npm test                    # ~580 unit tests, no network needed
+npm test                    # 851 unit tests, no network needed
+npm run verify:pages        # real browser; needs `npm run dev` running
+npm run verify:yt-errors    # the yt-dlp error classifier; no server needed
 npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
 ```
 
@@ -94,6 +109,17 @@ SITE_URL=https://useful-tool-hub.vercel.app npm run verify:converters
 | `npm run test:build` | **What Vercel runs on deploy.** If it fails, deploys freeze. |
 | `npm run test:ci` | Same plus coverage; what GitHub Actions runs. |
 | `npm run test:e2e` | Fetches the **live deployed site**. Set `SITE_URL` to target a preview. |
+| `npm run verify:pages` | Opens every module page in Chromium; fails on any console error or 404. |
+| `npm run verify:yt-errors` | Checks the Python yt-dlp error classifier against real upstream messages. |
+
+`verify:pages` catches what jsdom structurally cannot: an import specifier missing
+its `.js`, a path only jest can resolve, a module that threw before wiring its
+listeners. It is also the only coverage `js/shared/handoff.js` has, since jsdom
+provides no IndexedDB.
+
+Run `verify:yt-errors` after touching `api/youtube/_errors.py`. The matching is
+substring-based over English text yt-dlp can reword at any release, and getting it
+wrong is silent — the user simply gets advice for a problem they do not have.
 
 ## 5. Deployment
 

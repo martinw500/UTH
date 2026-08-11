@@ -10,7 +10,9 @@
     "test:ci": "jest --ci --coverage --verbose --testPathIgnorePatterns=deployed-site",
     "test:build": "jest --ci --silent --testPathIgnorePatterns=deployed-site",
     "test:e2e": "jest tests/deployed-site.test.js --verbose",
-    "verify:converters": "node scripts/verify-converters.mjs"
+    "verify:converters": "node scripts/verify-converters.mjs",
+    "verify:pages": "node scripts/verify-pages.mjs",
+    "verify:yt-errors": "python scripts/verify-yt-errors.py"
   },
   "jest": {
     "testEnvironment": "jsdom",

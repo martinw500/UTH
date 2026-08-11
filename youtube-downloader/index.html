@@ -4,14 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Downloader — Useful Tool Hub</title>
-    <meta name="description" content="Download YouTube videos in multiple formats and quality levels. Free, no sign-up required.">
+    <meta name="description" content="Download YouTube videos and audio in multiple formats and quality levels. Free, no sign-up required.">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
 </head>
 <body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/youtube-downloader/</code>.
+        </p>
+    </div>
 
     <!-- Navigation -->
     <nav class="nav">
@@ -46,7 +62,7 @@
                 </div>
                 <div class="tool-header-text">
                     <h1>YouTube Downloader</h1>
-                    <p>Download videos in various formats and quality levels</p>
+                    <p>Save a video, or just its audio as an MP3</p>
                 </div>
             </div>
 
@@ -77,25 +93,122 @@
                     </div>
                 </div>
 
-                <!-- Error -->
-                <div class="error-msg" id="errorMsg">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-                    <span id="errorText"></span>
-                </div>
+                <!-- Error. `notify()` writes textContent here, never HTML. -->
+                <div class="notice" id="errorMsg" hidden></div>
+
+                <!-- The escape hatch. Shown whenever the hosted server cannot do
+                     the job, with something the user can actually act on. -->
+                <section class="help-panel" id="helpPanel" hidden>
+                    <div class="help-panel-head">
+                        <svg class="help-panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                        <div>
+                            <h3 id="helpTitle"></h3>
+                            <p id="helpBody"></p>
+                        </div>
+                    </div>
+
+                    <div class="help-panel-actions" id="helpActions">
+                        <button class="btn btn-primary btn-sm" id="retryBtn" hidden>Try again</button>
+                        <button class="btn btn-secondary btn-sm" id="lowerQualityBtn" hidden>Try a lower quality</button>
+                    </div>
+
+                    <details class="help-details" id="helpEscape" hidden>
+                        <summary>Still not working? Two ways that always work</summary>
+
+                        <div class="help-step">
+                            <h4>1. Run one command on your own computer</h4>
+                            <p>
+                                Your home internet is not blocked the way a shared cloud server is, so
+                                this works even when the button above does not. You need
+                                <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">Python</a>
+                                installed, then paste these into Terminal (Mac) or Command Prompt (Windows):
+                            </p>
+                            <div class="code-row">
+                                <code id="installCmd">pip install yt-dlp</code>
+                                <button class="btn btn-ghost btn-sm" id="copyInstallBtn" type="button">Copy</button>
+                            </div>
+                            <div class="code-row">
+                                <code id="ytdlpCmd"></code>
+                                <button class="btn btn-ghost btn-sm" id="copyCmdBtn" type="button">Copy</button>
+                            </div>
+                            <p class="help-note">
+                                The file lands in whichever folder the terminal is sitting in — usually your
+                                home folder.
+                            </p>
+                        </div>
+
+                        <div class="help-step">
+                            <h4>2. Run this whole site on your computer</h4>
+                            <p>
+                                Then every quality works, videos of any length work, and the MP3 button stops
+                                being limited by file size. In the project folder, run these in two terminals:
+                            </p>
+                            <div class="code-row">
+                                <code>npm run dev</code>
+                                <button class="btn btn-ghost btn-sm" id="copyDevBtn" type="button">Copy</button>
+                            </div>
+                            <div class="code-row">
+                                <code>npm run dev:api</code>
+                                <button class="btn btn-ghost btn-sm" id="copyApiBtn" type="button">Copy</button>
+                            </div>
+                            <p class="help-note">
+                                Then open <code>http://localhost:5500/youtube-downloader/</code>. Full
+                                instructions are in
+                                <a href="https://github.com/martinw500/UTH/blob/main/docs/SETUP.md" target="_blank" rel="noopener">docs/SETUP.md</a>.
+                            </p>
+                        </div>
+
+                        <details class="help-technical" id="helpTechnical" hidden>
+                            <summary>Technical details</summary>
+                            <!-- Diagnostic only. Written with textContent; this is
+                                 the raw upstream error and must never be the main
+                                 message or be parsed as HTML. -->
+                            <pre id="helpDetail"></pre>
+                        </details>
+                    </details>
+                </section>
 
                 <!-- Loading -->
                 <div class="loading-state" id="loading">
                     <div class="spinner"></div>
-                    <div class="loading-text">Fetching video information...</div>
+                    <div class="loading-text" id="loadingText">Fetching video information...</div>
                 </div>
 
                 <!-- Results -->
                 <div class="results-container" id="results">
                     <div class="video-info-card" id="videoInfo"></div>
+
+                    <!-- Set when the backend has no ffmpeg, i.e. the hosted site.
+                         Says what the ceiling is before anyone clicks, rather
+                         than after they have waited for the wrong file. -->
+                    <div class="quality-notice" id="hostNotice" hidden></div>
+
                     <div class="download-panel">
-                        <h3>Download Options</h3>
+                        <h3>Video</h3>
                         <div class="quality-list" id="qualityOptions"></div>
+
+                        <details class="advanced-formats" id="advancedFormats" hidden>
+                            <summary id="advancedSummary">Advanced — higher quality, but silent</summary>
+                            <p class="help-note">
+                                These have no sound at all. YouTube stores high-quality picture and sound
+                                as two separate files, and this server has no way to join them back
+                                together. Unless you plan to add the audio yourself, use the list above or
+                                the two options under “Still not working?”.
+                            </p>
+                            <div class="quality-list" id="silentOptions"></div>
+                        </details>
                     </div>
+
+                    <div class="download-panel" id="audioPanel" hidden>
+                        <h3>Audio</h3>
+                        <div class="quality-list" id="audioOptions"></div>
+                        <p class="download-hint" id="audioHint"></p>
+                    </div>
+
+                    <p class="download-hint">
+                        Wanted the words instead? Get the
+                        <a href="../youtube-transcript/index.html">subtitles or transcript</a>.
+                    </p>
                 </div>
 
             </div>
@@ -113,7 +226,6 @@
         </div>
     </footer>
 
-    <script src="../js/config.js"></script>
-    <script src="js/youtube-downloader.js"></script>
+    <script type="module" src="js/youtube-downloader.js"></script>
 </body>
 </html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Toolkit — Useful Tool Hub</title>
+    <meta name="description" content="Merge, split, reorder, rotate and delete PDF pages, or turn images into a PDF. Runs entirely in your browser — nothing is uploaded.">
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css">
+    <!-- Classic, deliberately not a module: this page's script is a module, and
+         a module is CORS-blocked over file://, so it would never run to report
+         the problem. This flags it before anything else loads. -->
+    <script>if (location.protocol === 'file:') document.documentElement.classList.add('needs-http');</script>
+</head>
+<body>
+
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/pdf-toolkit/</code>.
+        </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <div class="nav-logo">U</div>
+                <span class="nav-title">Useful Tool Hub</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="../index.html" class="nav-link">Tools</a></li>
+                <li><a href="../feedback.html" class="nav-link">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank" class="nav-link">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Tool Page -->
+    <main class="tool-page">
+        <div class="container tool-page-container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb">
+                <a href="../index.html">Home</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-current">PDF Toolkit</span>
+            </div>
+
+            <!-- Tool Header -->
+            <div class="tool-header">
+                <div class="tool-header-icon" style="background: rgba(248, 113, 113, 0.12); color: #f87171;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h2"/></svg>
+                </div>
+                <div class="tool-header-text">
+                    <h1>PDF Toolkit</h1>
+                    <p>Merge, split, reorder, rotate — without uploading your documents anywhere</p>
+                </div>
+            </div>
+
+            <!-- Tool Panel -->
+            <div class="tool-panel">
+
+                <div class="tool-panel-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Everything happens inside this tab. Your files are never sent to a server — which matters, because PDFs tend to be contracts, bank statements and scanned ID.</span>
+                </div>
+
+                <div class="converter-dropzone" id="dropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <div class="dropzone-text">
+                        <strong>Drop PDFs or images here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
+                    </div>
+                    <div class="dropzone-hint">Add several at once to merge them — PDF, JPEG or PNG, up to 200 MB each</div>
+                    <input type="file" id="fileInput" accept="application/pdf,image/jpeg,image/png" multiple hidden>
+                </div>
+
+                <div class="notice" id="errorMsg" hidden></div>
+
+                <div class="loading-state" id="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text" id="loadingText">Reading...</div>
+                </div>
+
+                <!-- Workspace -->
+                <div class="results-container" id="workspace">
+
+                    <div class="download-panel">
+                        <div class="results-header">
+                            <span class="results-count" id="pageCount"></span>
+                            <div class="help-panel-actions" style="margin-top: 0;">
+                                <button class="btn btn-ghost btn-sm" id="selectAllBtn">Select all</button>
+                                <button class="btn btn-ghost btn-sm" id="clearBtn">Start over</button>
+                            </div>
+                        </div>
+
+                        <p class="help-note" id="selectionNote"></p>
+
+                        <!-- Numbered cards, not thumbnails: rendering a page needs
+                             pdf.js, a second and much larger dependency. -->
+                        <div class="pdf-page-grid" id="pageGrid"></div>
+                    </div>
+
+                    <div class="download-panel">
+                        <h3>Selected pages</h3>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="input-label" for="rangeInput">Or type a range</label>
+                                <input type="text" class="input-field" id="rangeInput" placeholder="1-3, 5, 8-end" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="help-panel-actions" style="margin-top: 14px;">
+                            <button class="btn btn-secondary btn-sm" id="rotateLeftBtn">Rotate left</button>
+                            <button class="btn btn-secondary btn-sm" id="rotateRightBtn">Rotate right</button>
+                            <button class="btn btn-secondary btn-sm" id="deleteBtn">Delete</button>
+                            <button class="btn btn-secondary btn-sm" id="extractBtn">Save selected as a new PDF</button>
+                        </div>
+                    </div>
+
+                    <div class="download-panel">
+                        <h3>Save</h3>
+                        <div class="settings-row">
+                            <div class="setting-group">
+                                <label class="input-label" for="splitEvery">Split into files of</label>
+                                <input type="number" class="input-field" id="splitEvery" min="1" value="1" style="max-width: 120px;">
+                            </div>
+                        </div>
+                        <div class="help-panel-actions" style="margin-top: 14px;">
+                            <button class="btn btn-primary btn-sm" id="saveBtn">Save as one PDF</button>
+                            <button class="btn btn-secondary btn-sm" id="splitBtn">Split into separate files</button>
+                        </div>
+                        <p class="help-note">
+                            Splitting downloads one file per chunk. Your browser may ask permission to
+                            download several files at once — that prompt is expected.
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-left">&copy; 2026 Useful Tool Hub</div>
+            <ul class="footer-links">
+                <li><a href="../feedback.html">Feedback</a></li>
+                <li><a href="https://github.com/martinw500/UTH" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </footer>
+
+    <script type="module" src="js/pdf-toolkit.js"></script>
+</body>
+</html>

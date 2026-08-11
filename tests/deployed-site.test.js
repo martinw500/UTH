@@ -55,6 +55,9 @@ const PAGES = [
     { path: '/instagram-downloader/', name: 'Instagram Downloader' },
     { path: '/qr-generator/', name: 'QR Code Generator' },
     { path: '/audio-converter/', name: 'Audio Converter' },
+    { path: '/youtube-transcript/', name: 'YouTube Transcript' },
+    { path: '/exif-viewer/', name: 'EXIF Viewer' },
+    { path: '/pdf-toolkit/', name: 'PDF Toolkit' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -138,6 +141,21 @@ describe('Homepage — all tools accessible', () => {
     test('has link to Audio Converter', () => {
         expect(page.body).toContain('href="audio-converter/index.html"');
         expect(page.body).toContain('Audio Converter');
+    });
+
+    test('has link to YouTube Transcript', () => {
+        expect(page.body).toContain('href="youtube-transcript/index.html"');
+        expect(page.body).toContain('YouTube Transcript');
+    });
+
+    test('has link to EXIF Viewer', () => {
+        expect(page.body).toContain('href="exif-viewer/index.html"');
+        expect(page.body).toContain('EXIF Viewer');
+    });
+
+    test('has link to PDF Toolkit', () => {
+        expect(page.body).toContain('href="pdf-toolkit/index.html"');
+        expect(page.body).toContain('PDF Toolkit');
     });
 
     test('has navigation with Tools, Feedback, GitHub links', () => {
@@ -233,6 +251,17 @@ describe('Static assets are accessible on deployed site', () => {
         'js/shared/image.js',
         'js/vendor/qrcode-generator.js',
         'js/vendor/qrcode-generator-utf8.js',
+        'js/shared/config.js',
+        'js/shared/subtitles.js',
+        'js/shared/exif.js',
+        'js/shared/handoff.js',
+        'js/shared/dropzone.js',
+        'js/shared/storage.js',
+        'youtube-downloader/js/yt-messages.js',
+        'youtube-transcript/js/youtube-transcript.js',
+        'exif-viewer/js/exif-viewer.js',
+        'pdf-toolkit/js/pdf-toolkit.js',
+        'pdf-toolkit/js/pdf-ops.js',
     ])('%s loads', async (file) => {
         const res = await checkResource(`${SITE}/${file}`);
         expect(res.ok).toBe(true);
@@ -609,7 +638,6 @@ describe('YouTube Downloader — features present', () => {
 
     test('has error display', () => {
         expect(page.body).toContain('id="errorMsg"');
-        expect(page.body).toContain('id="errorText"');
     });
 
     test('has loading state', () => {
@@ -623,16 +651,131 @@ describe('YouTube Downloader — features present', () => {
         expect(page.body).toContain('id="qualityOptions"');
     });
 
-    test('loads config.js for API URL', () => {
-        expect(page.body).toContain('src="../js/config.js"');
+    // The escape hatch. When YouTube bot-checks the hosted server there is
+    // nothing else the page can offer, so its absence in production is a
+    // regression worth failing on.
+    test('ships the blocked-server help panel and a copyable command', () => {
+        expect(page.body).toContain('id="helpPanel"');
+        expect(page.body).toContain('id="ytdlpCmd"');
+        expect(page.body).toContain('id="copyCmdBtn"');
     });
 
-    test('loads youtube-downloader.js script', () => {
-        expect(page.body).toContain('src="js/youtube-downloader.js"');
+    test('separates the silent formats from the ones with sound', () => {
+        expect(page.body).toContain('id="advancedFormats"');
+        expect(page.body).toContain('id="silentOptions"');
+        expect(page.body).toContain('id="hostNotice"');
+    });
+
+    test('offers the audio and MP3 route', () => {
+        expect(page.body).toContain('id="audioOptions"');
+        expect(page.body).toContain('id="audioPanel"');
+    });
+
+    test('loads youtube-downloader.js as a module', () => {
+        expect(page.body).toContain('type="module" src="js/youtube-downloader.js"');
     });
 
     test('has terms of service notice', () => {
         expect(page.body).toContain('personal use only');
+    });
+});
+
+// ============================================
+// 8b. YOUTUBE TRANSCRIPT
+// ============================================
+
+describe('YouTube Transcript — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/youtube-transcript/');
+    });
+
+    test('page loads successfully', () => {
+        expect(page.status).toBe(200);
+    });
+
+    test('has the URL input and language/format pickers', () => {
+        expect(page.body).toContain('id="videoUrl"');
+        expect(page.body).toContain('id="langSelect"');
+        expect(page.body).toContain('id="formatSelect"');
+    });
+
+    test('has the output area and its actions', () => {
+        expect(page.body).toContain('id="output"');
+        expect(page.body).toContain('id="getBtn"');
+        expect(page.body).toContain('id="copyBtn"');
+        expect(page.body).toContain('id="downloadBtn"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(page.body).toContain('type="module" src="js/youtube-transcript.js"');
+    });
+});
+
+// ============================================
+// 8c. EXIF VIEWER
+// ============================================
+
+describe('EXIF Viewer — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/exif-viewer/');
+    });
+
+    test('page loads successfully', () => {
+        expect(page.status).toBe(200);
+    });
+
+    test('has the dropzone and the strip action', () => {
+        expect(page.body).toContain('id="dropzone"');
+        expect(page.body).toContain('id="fileInput"');
+        expect(page.body).toContain('id="stripBtn"');
+    });
+
+    test('has the summary, tag table and GPS panel', () => {
+        expect(page.body).toContain('id="summary"');
+        expect(page.body).toContain('id="tagTable"');
+        expect(page.body).toContain('id="gpsPanel"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(page.body).toContain('type="module" src="js/exif-viewer.js"');
+    });
+});
+
+// ============================================
+// 8d. PDF TOOLKIT
+// ============================================
+
+describe('PDF Toolkit — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/pdf-toolkit/');
+    });
+
+    test('page loads successfully', () => {
+        expect(page.status).toBe(200);
+    });
+
+    test('has the page grid and the save actions', () => {
+        expect(page.body).toContain('id="pageGrid"');
+        expect(page.body).toContain('id="saveBtn"');
+        expect(page.body).toContain('id="splitBtn"');
+        expect(page.body).toContain('id="extractBtn"');
+    });
+
+    test('loads its script as a module', () => {
+        expect(page.body).toContain('type="module" src="js/pdf-toolkit.js"');
+    });
+
+    // ~510 KB, the largest asset in the repo. A 404 here breaks the whole tool
+    // with a bare module-resolution error and no message on the page.
+    test('the vendored pdf-lib is served', async () => {
+        const res = await checkResource(`${SITE}/js/vendor/pdf-lib.js`);
+        expect(res.status).toBe(200);
     });
 });
 

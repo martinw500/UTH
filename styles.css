@@ -2525,3 +2525,414 @@ body::before {
     font-size: 0.9em;
     color: var(--accent);
 }
+
+/* ============================================
+   The escape hatch (YouTube downloader)
+
+   Shown when the hosted backend cannot do the job. It is deliberately not
+   styled as an error: nothing is broken from the user's side, and the panel's
+   whole purpose is to offer a route that works, so it reads as guidance.
+   ============================================ */
+.help-panel {
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.32);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.help-panel[hidden] {
+    display: none;
+}
+
+.help-panel-head {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.help-panel-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: #fbbf24;
+}
+
+.help-panel-head h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 6px;
+}
+
+.help-panel-head p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.help-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.help-panel-actions:empty {
+    display: none;
+}
+
+.help-details,
+.advanced-formats {
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+}
+
+.advanced-formats[hidden] {
+    display: none;
+}
+
+.help-details > summary,
+.advanced-formats > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    list-style: none;
+    padding: 4px 0;
+}
+
+.help-details > summary::-webkit-details-marker,
+.advanced-formats > summary::-webkit-details-marker {
+    display: none;
+}
+
+.help-details > summary::before,
+.advanced-formats > summary::before,
+.help-technical > summary::before {
+    content: '\25B8';
+    display: inline-block;
+    width: 1em;
+    color: var(--text-muted);
+    transition: transform var(--transition);
+}
+
+.help-details[open] > summary::before,
+.advanced-formats[open] > summary::before,
+.help-technical[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.help-step {
+    margin-top: 18px;
+}
+
+.help-step h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+}
+
+.help-step p {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0 0 10px;
+}
+
+.help-step a {
+    color: var(--primary-light);
+}
+
+/* The command and its Copy button. The code element scrolls on its own so a
+   long URL cannot push the button off a phone screen. */
+.code-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.code-row code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 9px 12px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    color: var(--accent);
+}
+
+.code-row .btn {
+    flex-shrink: 0;
+}
+
+.help-note {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin: 8px 0 0;
+}
+
+.help-note code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--accent);
+}
+
+.help-technical {
+    margin-top: 18px;
+}
+
+.help-technical[hidden] {
+    display: none;
+}
+
+.help-technical > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    list-style: none;
+}
+
+.help-technical > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Raw upstream text, written with textContent. It wraps rather than scrolling
+   because a yt-dlp error is one very long line. */
+.help-technical pre {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* A quality row with two buttons (Save / Convert), rather than one. */
+.quality-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+/* ============================================
+   Transcript output
+   ============================================ */
+.transcript-output {
+    margin: 16px 0 0;
+    padding: 16px;
+    max-height: 460px;
+    overflow-y: auto;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    /* pre-wrap, not pre: SRT is pre-formatted but prose must reflow, and one
+       element serves both formats. */
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.transcript-output[hidden] {
+    display: none;
+}
+
+/* ============================================
+   EXIF viewer
+   ============================================ */
+.exif-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.exif-card {
+    padding: 16px 18px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+/* The one card that answers the question people came with. Amber, not red:
+   metadata is not damage, it is something to decide about. */
+.exif-card-alarm {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.exif-card-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.exif-card-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.exif-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.exif-table th,
+.exif-table td {
+    padding: 9px 12px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+}
+
+.exif-table th {
+    width: 40%;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.exif-table td {
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.exif-table tr:last-child th,
+.exif-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Tags that identify a person or a specific physical camera. */
+.exif-row-sensitive th,
+.exif-row-sensitive td {
+    color: #fbbf24;
+}
+
+.exif-gps-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin: 0 0 4px;
+}
+
+/* ============================================
+   PDF toolkit
+   ============================================ */
+.pdf-page-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+/* A card, not a thumbnail: pdf-lib cannot rasterise a page, and vendoring
+   pdf.js as well would more than double the page weight for a preview. The
+   aspect ratio at least keeps it page-shaped. */
+.pdf-page-card {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px;
+    text-align: center;
+    background: var(--bg-base);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    user-select: none;
+    transition: all var(--transition);
+}
+
+.pdf-page-card:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+}
+
+.pdf-page-card:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.pdf-page-card.selected {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.pdf-page-card.dragging {
+    opacity: 0.4;
+}
+
+.pdf-page-card.drop-target {
+    border-color: var(--accent);
+    border-style: dashed;
+}
+
+.pdf-page-number {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.pdf-page-origin {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-page-detail {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* Once files are loaded the dropzone becomes a thin "add more" strip rather
+   than the main event. */
+.dropzone-compact {
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.dropzone-compact svg {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+}
+
+.dropzone-compact .dropzone-hint {
+    display: none;
+}

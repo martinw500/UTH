@@ -12,8 +12,18 @@ import requests
 import base64
 import re
 import yt_dlp
+import os
+import shutil
 import sys
+import tempfile
 import traceback
+
+# The error classifier is shared with the deployed functions rather than copied.
+# This is a plain local import of a sibling package directory -- safe here, and
+# not the same thing as the unverified cross-directory import inside Vercel's
+# Python runtime that STATE.md warns about.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api', 'youtube'))
+from _errors import error_payload  # noqa: E402
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type"]}})
@@ -263,46 +273,116 @@ def proxy_media():
 
 # =============================================================================
 # YOUTUBE DOWNLOADER
+#
+# Mirrors api/youtube/{index,download,subtitles}.py, which are the deployed
+# functions. The important difference is not the code but the machine: this one
+# has ffmpeg and a residential IP, so it can merge streams and is rarely
+# bot-checked. `server_can_merge` is what tells the frontend which it is talking
+# to, so it can stop advertising qualities the host cannot actually deliver.
 # =============================================================================
+
+CHUNK = 64 * 1024
+
+_BITRATE_BY_HEIGHT = {144: 200, 240: 400, 360: 800, 480: 1500, 720: 2500, 1080: 4500}
+
+_AUDIO_MIME = {
+    'm4a': 'audio/mp4',
+    'mp4': 'audio/mp4',
+    'webm': 'audio/webm',
+    'opus': 'audio/ogg',
+    'ogg': 'audio/ogg',
+    'mp3': 'audio/mpeg',
+}
+
+# Browsers yt-dlp can lift cookies from. Anything else is rejected outright
+# rather than passed through, so this can never become a way to hand yt-dlp an
+# arbitrary string.
+_COOKIE_BROWSERS = {'chrome', 'firefox', 'edge', 'brave', 'chromium', 'safari', 'opera', 'vivaldi'}
+
+
+def _is_local_request():
+    """True only for a request that came from this machine."""
+    return request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+
+
+def _apply_cookies(opts):
+    """Optionally read YouTube cookies from a locally installed browser.
+
+    This is how you get past an age gate or a bot check, and it is deliberately
+    available **only on this local dev server**, never on the deployed
+    functions, and only to a request originating from this machine.
+
+    The reason is not paranoia about the flag. A YouTube cookie is a live
+    Google session credential. A hosted service that accepted one -- pasted in a
+    form, or read on the user's behalf -- would be asking strangers to hand
+    their signed-in account to someone else's server. On your own machine
+    talking to your own browser profile, none of that is true, which is the
+    situation yt-dlp's own documentation assumes.
+    """
+    browser = (request.args.get('cookies_from_browser') or '').strip().lower()
+    if not browser:
+        return opts
+    if not _is_local_request():
+        return opts
+    if browser not in _COOKIE_BROWSERS:
+        return opts
+    opts['cookiesfrombrowser'] = (browser,)
+    return opts
+
+
+def _ydl_opts():
+    return {
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': False,
+        'socket_timeout': 30,
+        # Use alternative player clients to bypass bot detection
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['mediaconnect', 'android', 'web'],
+            }
+        },
+    }
+
+
+def _clean_youtube_url(url):
+    match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url or '')
+    if match:
+        return f'https://www.youtube.com/watch?v={match.group(1)}'
+    return url
+
+
+def _human_size(num_bytes):
+    return f"{num_bytes / (1024 * 1024):.1f} MB"
+
+
+def _pick_best_audio(formats):
+    candidates = [
+        f for f in formats
+        if f.get('acodec') and f.get('acodec') != 'none' and f.get('vcodec') == 'none'
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda f: (f.get('ext') == 'm4a', f.get('abr') or 0))
+
 
 @app.route('/api/youtube', methods=['GET', 'OPTIONS'])
 def get_youtube():
     # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
         return '', 204
-    
+
     url = request.args.get('url')
-    
     if not url:
-        return jsonify({'error': 'URL parameter required'}), 400
-    
-    # Clean the URL - remove playlist parameters to get just the video
-    # Extract video ID and reconstruct clean URL
-    video_id_match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
-    if video_id_match:
-        video_id = video_id_match.group(1)
-        url = f'https://www.youtube.com/watch?v={video_id}'
-        print(f"Cleaned URL to: {url}")
-    
+        return jsonify({'error': 'URL parameter required', 'error_code': 'unsupported'}), 400
+
+    url = _clean_youtube_url(url)
+    print(f"Cleaned URL to: {url}")
+
     try:
-        # yt-dlp options - use defaults for best format discovery
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'socket_timeout': 30,
-            # Use alternative player clients to bypass bot detection
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['mediaconnect', 'android', 'web'],
-                }
-            },
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(_apply_cookies(_ydl_opts())) as ydl:
             info = ydl.extract_info(url, download=False)
-            
-            # Get video information
+
             video_data = {
                 'success': True,
                 'title': info.get('title', 'Unknown'),
@@ -310,48 +390,36 @@ def get_youtube():
                 'duration': info.get('duration', 0),
                 'views': info.get('view_count', 0),
                 'thumbnail': info.get('thumbnail', ''),
-                'formats': []
+                'server_can_merge': shutil.which('ffmpeg') is not None,
+                'formats': [],
+                'audio': None,
             }
-            
-            # Filter and sort formats
+
             formats = info.get('formats', [])
-            
-            # Collect all video formats with different qualities
+            duration = info.get('duration', 0)
             quality_map = {}
-            
+
             for fmt in formats:
-                # Skip audio-only formats
                 if fmt.get('vcodec') == 'none':
                     continue
-                
+
                 height = fmt.get('height')
                 if not height:
                     continue
-                
+
                 quality_label = f"{height}p"
-                
-                # Prefer formats with audio, but include video-only if that's all we have
                 has_audio = fmt.get('acodec') != 'none'
-                
-                # Only replace if we don't have this quality yet, or if this one has audio and the stored one doesn't
+
                 if quality_label not in quality_map or (has_audio and not quality_map[quality_label].get('has_audio', False)):
                     filesize = fmt.get('filesize') or fmt.get('filesize_approx')
                     if filesize and filesize > 0:
-                        filesize_str = f"{filesize / (1024*1024):.1f} MB"
+                        filesize_str = _human_size(filesize)
+                    elif duration and height:
+                        kbps = _BITRATE_BY_HEIGHT.get(height, 1000)
+                        filesize_str = f"~{(kbps * duration / 8) / 1024:.1f} MB"
                     else:
-                        # Estimate based on duration and quality if available
-                        duration = info.get('duration', 0)
-                        if duration and height:
-                            # Rough estimate: bitrate varies by quality
-                            bitrate_kbps = {
-                                144: 200, 240: 400, 360: 800, 
-                                480: 1500, 720: 2500, 1080: 4500
-                            }.get(height, 1000)
-                            estimated_size = (bitrate_kbps * duration / 8) / 1024  # MB
-                            filesize_str = f"~{estimated_size:.1f} MB"
-                        else:
-                            filesize_str = "Size unknown"
-                    
+                        filesize_str = "Size unknown"
+
                     quality_map[quality_label] = {
                         'quality': quality_label,
                         'ext': fmt.get('ext', 'mp4'),
@@ -361,120 +429,244 @@ def get_youtube():
                         'has_audio': has_audio,
                         'height': height
                     }
-            
-            # Convert to list and sort by height
+
             video_data['formats'] = sorted(quality_map.values(), key=lambda x: x['height'], reverse=True)
-            
+
+            best_audio = _pick_best_audio(formats)
+            if best_audio:
+                audio_bytes = best_audio.get('filesize') or best_audio.get('filesize_approx')
+                if audio_bytes and audio_bytes > 0:
+                    audio_size = _human_size(audio_bytes)
+                else:
+                    abr = best_audio.get('abr') or 128
+                    audio_bytes = int((abr * (duration or 0) / 8) * 1024) or None
+                    audio_size = f"~{audio_bytes / (1024 * 1024):.1f} MB" if audio_bytes else "Size unknown"
+
+                video_data['audio'] = {
+                    'ext': best_audio.get('ext', 'm4a'),
+                    'abr': round(best_audio.get('abr') or 0),
+                    'filesize': audio_size,
+                    'filesize_bytes': audio_bytes,
+                }
+
             return jsonify(video_data)
-        
+
     except Exception as e:
-        error_msg = f'{type(e).__name__}: {str(e)}'
-        print(f'Error: {error_msg}')
+        print(f'Error: {type(e).__name__}: {str(e)}')
         print(f'Traceback: {traceback.format_exc()}')
-        return jsonify({
-            'error': f'Failed to fetch video: {str(e)}',
-            'error_type': type(e).__name__,
-            'traceback': traceback.format_exc()
-        }), 500
+        payload, status = error_payload(e)
+        return jsonify(payload), status
 
 
-@app.route('/api/youtube/download', methods=['GET'])
+def _stream_and_cleanup(path, temp_dir):
+    """Yield the file in chunks, then remove the temp directory.
+
+    The previous `send_file` left every `mkdtemp()` behind, so a local session
+    slowly filled the temp folder with videos.
+    """
+    try:
+        with open(path, 'rb') as handle:
+            while True:
+                block = handle.read(CHUNK)
+                if not block:
+                    break
+                yield block
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@app.route('/api/youtube/download', methods=['GET', 'OPTIONS'])
 def download_youtube():
-    """Download YouTube video using yt-dlp and stream to client"""
+    """Download a YouTube video (or just its audio) and stream it to the client"""
+    if request.method == 'OPTIONS':
+        return '', 204
+
     video_url = request.args.get('url')
     quality = request.args.get('quality', '360p')
     filename = request.args.get('filename', 'video.mp4')
-    
+    mode = 'audio' if request.args.get('mode') == 'audio' else 'video'
+
     if not video_url:
-        return jsonify({'error': 'URL parameter required'}), 400
-    
+        return jsonify({'error': 'URL parameter required', 'error_code': 'unsupported'}), 400
+
+    temp_dir = None
     try:
-        from flask import Response
-        import tempfile
-        import os
-        
-        # Clean URL to remove playlist params
-        video_id_match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', video_url)
-        if video_id_match:
-            video_id = video_id_match.group(1)
-            video_url = f'https://www.youtube.com/watch?v={video_id}'
-        
-        # Build format string based on quality
-        height = quality.replace('p', '')
-        # Prefer MP4 containers with audio; merge video+audio streams with ffmpeg
-        format_string = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
-        
-        # Create temp directory
+        video_url = _clean_youtube_url(video_url)
+        height = re.sub(r'\D', '', quality) or '360'
+        has_ffmpeg = shutil.which('ffmpeg') is not None
+
         temp_dir = tempfile.mkdtemp()
-        output_path = os.path.join(temp_dir, 'video.%(ext)s')
-        
-        ydl_opts = {
-            'format': format_string,
-            'outtmpl': output_path,
-            'quiet': False,
-            'no_warnings': False,
-            'merge_output_format': 'mp4',
-            'socket_timeout': 30,
-            # Use alternative player clients to bypass bot detection
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['mediaconnect', 'android', 'web'],
-                }
-            },
-            # Fix metadata so video files are playable
-            'postprocessor_args': {
-                'ffmpeg': ['-movflags', 'faststart'],
-            },
-            'prefer_ffmpeg': True,
-            'writethumbnail': False,
-            'embedthumbnail': False,
-            'postprocessors': [
-                {
-                    'key': 'FFmpegVideoRemuxer',
-                    'preferedformat': 'mp4',
-                },
-                {
-                    'key': 'FFmpegMetadata',
-                    'add_metadata': True,
-                },
-            ],
-        }
-        
+        output_path = os.path.join(temp_dir, 'media.%(ext)s')
+
+        ydl_opts = _apply_cookies(_ydl_opts())
+        ydl_opts['outtmpl'] = output_path
+
+        if mode == 'audio':
+            ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio'
+        elif has_ffmpeg:
+            ydl_opts['format'] = (
+                f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/'
+                f'bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
+            )
+            ydl_opts['merge_output_format'] = 'mp4'
+            # faststart moves the index to the front, so the file plays before
+            # it has finished copying rather than seeking badly.
+            ydl_opts['postprocessor_args'] = {'ffmpeg': ['-movflags', 'faststart']}
+        else:
+            ydl_opts['format'] = f'best[height<={height}][ext=mp4]/best[height<={height}]/best'
+
         print(f"\n{'='*60}")
-        print(f"Downloading video at {quality} quality...")
-        print(f"Format: {format_string}")
+        print(f"Downloading {mode} at {quality}...")
+        print(f"Format: {ydl_opts['format']}")
         print(f"{'='*60}\n")
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.download([video_url])
-        
-        # Find the downloaded file
-        downloaded_files = [f for f in os.listdir(temp_dir) if f.startswith('video.')]
+            ydl.download([video_url])
+
+        downloaded_files = [f for f in os.listdir(temp_dir) if f.startswith('media.')]
         if not downloaded_files:
             raise Exception('No file was downloaded')
-        
+
         downloaded_file = os.path.join(temp_dir, downloaded_files[0])
-        file_size = os.path.getsize(downloaded_file)
-        
-        print(f"\n✓ Downloaded: {downloaded_files[0]}")
-        print(f"✓ Size: {file_size:,} bytes ({file_size/(1024*1024):.2f} MB)\n")
-        
-        if file_size == 0:
+        size = os.path.getsize(downloaded_file)
+        print(f"\n[ok] {downloaded_files[0]} - {size:,} bytes ({size/(1024*1024):.2f} MB)\n")
+        if size == 0:
             raise Exception('Downloaded file is empty')
-        
-        # Use send_file for proper file delivery
-        from flask import send_file
-        return send_file(
-            downloaded_file,
-            mimetype='video/mp4',
-            as_attachment=True,
-            download_name=filename
+
+        ext = downloaded_files[0].rsplit('.', 1)[-1].lower()
+        mimetype = _AUDIO_MIME.get(ext, 'audio/mpeg') if mode == 'audio' else 'video/mp4'
+        safe_name = re.sub(r'[\r\n"\\]', '', filename) or f'download.{ext}'
+
+        response = Response(
+            _stream_and_cleanup(downloaded_file, temp_dir),
+            mimetype=mimetype,
+            direct_passthrough=True,
         )
-            
+        response.headers['Content-Disposition'] = f'attachment; filename="{safe_name}"'
+        response.headers['Content-Length'] = str(size)
+        response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Disposition'
+        temp_dir = None
+        return response
+
     except Exception as e:
         print(f'\nDownload error: {str(e)}')
         print(f'Traceback: {traceback.format_exc()}')
-        return jsonify({'error': f'Download failed: {str(e)}'}), 500
+        payload, status = error_payload(e)
+        return jsonify(payload), status
+    finally:
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+# =============================================================================
+# YOUTUBE SUBTITLES / TRANSCRIPT
+# =============================================================================
+
+def _subtitle_tracks(info):
+    """Flatten yt-dlp's two caption maps into one list the client can render.
+
+    `subtitles` are tracks a human uploaded; `automatic_captions` are machine
+    transcription. They are kept apart because the quality difference is large
+    and the user should be able to see which they are getting.
+    """
+    tracks = []
+    for source, key in (('manual', 'subtitles'), ('auto', 'automatic_captions')):
+        for lang, entries in (info.get(key) or {}).items():
+            if not entries:
+                continue
+            # Auto-captions exist in dozens of machine-translated variants that
+            # are all rendered from the same source; listing them all buries the
+            # real ones. Keep the originals.
+            if source == 'auto' and '-' in lang and not lang.startswith('zh'):
+                continue
+            best = _pick_subtitle_entry(entries)
+            if not best:
+                continue
+            tracks.append({
+                'lang': lang,
+                'name': (entries[0] or {}).get('name') or lang,
+                'source': source,
+                'url': best.get('url'),
+                'ext': best.get('ext'),
+            })
+    tracks.sort(key=lambda t: (t['source'] != 'manual', t['lang']))
+    return tracks
+
+
+def _pick_subtitle_entry(entries):
+    """Prefer a timed text format we can actually parse."""
+    by_ext = {e.get('ext'): e for e in entries if e.get('url')}
+    for ext in ('vtt', 'srv3', 'srv1', 'ttml'):
+        if ext in by_ext:
+            return by_ext[ext]
+    return next((e for e in entries if e.get('url')), None)
+
+
+@app.route('/api/youtube/subtitles', methods=['GET', 'OPTIONS'])
+def youtube_subtitles():
+    """List a video's caption tracks, or fetch one.
+
+    No ffmpeg, and the payload is kilobytes, so this is the one YouTube feature
+    that behaves the same on free hosting as it does here.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    url = request.args.get('url')
+    lang = request.args.get('lang')
+    source = request.args.get('source', 'manual')
+
+    if not url:
+        return jsonify({'error': 'URL parameter required', 'error_code': 'unsupported'}), 400
+
+    try:
+        url = _clean_youtube_url(url)
+        opts = _apply_cookies(_ydl_opts())
+        opts['writesubtitles'] = True
+        opts['writeautomaticsub'] = True
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        tracks = _subtitle_tracks(info)
+
+        if not lang:
+            return jsonify({
+                'success': True,
+                'title': info.get('title', 'Unknown'),
+                'channel': info.get('uploader', 'Unknown'),
+                'duration': info.get('duration', 0),
+                'tracks': [{k: v for k, v in t.items() if k != 'url'} for t in tracks],
+            })
+
+        chosen = next(
+            (t for t in tracks if t['lang'] == lang and t['source'] == source),
+            next((t for t in tracks if t['lang'] == lang), None),
+        )
+        if not chosen:
+            return jsonify({
+                'error': 'That language is not available for this video.',
+                'error_code': 'no_subtitles',
+            }), 404
+
+        fetched = requests.get(chosen['url'], timeout=20, headers=BROWSER_HEADERS)
+        fetched.raise_for_status()
+
+        return jsonify({
+            'success': True,
+            'title': info.get('title', 'Unknown'),
+            'lang': chosen['lang'],
+            'source': chosen['source'],
+            'ext': chosen['ext'],
+            'content': fetched.text,
+        })
+
+    except Exception as e:
+        print(f'Subtitles error: {str(e)}')
+        print(f'Traceback: {traceback.format_exc()}')
+        payload, status = error_payload(e)
+        return jsonify(payload), status
+
 
 
 # =============================================================================

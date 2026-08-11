@@ -22,7 +22,9 @@ Pages** (frontend only, served from `/UTH/`).
 npm test                    # unit suite, hermetic
 npm run dev                 # static server on :5500  — required for module pages
 npm run dev:api             # Flask backend on :5000
+npm run verify:pages        # real browser; every module page, fails on any 404
 npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
+npm run verify:yt-errors    # the Python yt-dlp error classifier
 npm run test:e2e            # hits the live site; SITE_URL to target a preview
 ```
 
@@ -63,6 +65,18 @@ Each of these shipped to production and was invisible to a green test suite.
   through any breakage of the real file.
 - **Latin-1 truncation in the QR encoder.** `charCodeAt(i) & 0xff` turns `☕`
   into one wrong byte; the code scans fine and decodes to mojibake, no error.
+- **Reading `.value` off an `IDBRequest`**, which has `.result`. Every hand-off
+  read returned the request object instead of the record, and because that is
+  truthy, every call site believed it had found a file. jsdom has no IndexedDB,
+  so nothing but a real browser could see it.
+- **A substring classifier matching in the wrong order.** YouTube phrases the age
+  gate and the bot check identically — "Sign in to confirm your age" versus
+  "...you're not a bot" — so the generic needle swallowed the specific case and
+  age-gated videos were reported as bot checks. Both codes were "handled"; only
+  one was right.
+
+The pattern in those two: the failure is a *plausible wrong answer*, not an
+exception. Assert the value, not that the code ran.
 
 The pattern: for canvas pixels, `SharedArrayBuffer`, service workers, workers and
 downloads, **jsdom proves almost nothing**. Drive a real browser and check the

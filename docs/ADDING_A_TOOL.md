@@ -121,6 +121,7 @@ suite into the deploy gate.
 ```bash
 npm test                    # must be green — it gates both deploys
 npm run dev                 # then click through the tool in a real browser
+npm run verify:pages        # add the new page to its PAGES list first
 ```
 
 Update **[STATE.md](../STATE.md) in the same commit**: the tool count near the top, and delete

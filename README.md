@@ -15,8 +15,11 @@ Will be updated with more tools as I build them out.
 
 | Tool | What it does | Runs |
 | --- | --- | --- |
-| **YouTube Downloader** | Download videos in multiple formats and qualities | server |
+| **YouTube Downloader** | Download videos, or pull the audio out as an MP3 | server |
+| **YouTube Transcript** | Subtitles or a full transcript as SRT, VTT or plain text | server |
 | **Instagram Downloader** | Save photos and videos from public posts and reels | server |
+| **PDF Toolkit** | Merge, split, reorder, rotate, delete pages; images to PDF | browser |
+| **EXIF Viewer &amp; Remover** | See a photo's GPS and camera details, save a clean copy | browser |
 | **Image Editor / Converter** | Edit, crop, compress and convert images | browser |
 | **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
 | **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |

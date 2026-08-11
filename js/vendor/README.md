@@ -15,6 +15,36 @@ which gates the Vercel deploy.
 
 ---
 
+## pdf-lib
+
+- **Upstream:** https://github.com/Hopding/pdf-lib
+- **Package:** `pdf-lib` on npm
+- **Version:** 1.17.1
+- **Licence:** MIT — see `pdf-lib.LICENSE.txt`
+
+| File here | From the npm tarball |
+| --- | --- |
+| `pdf-lib.js` | `dist/pdf-lib.esm.min.js` |
+
+**Modifications: the trailing `//# sourceMappingURL=` comment was deleted.** The
+map file is not vendored, so the comment only produced a 404 in devtools. The
+bundle is otherwise byte-for-byte upstream.
+
+The **ESM** build, not the UMD one: this project has no bundler, and the page
+imports it as a module like everything else. It is self-contained — the bundle
+has no `import` statements at all, so there is nothing for a browser to resolve
+and nothing for `tests/esm-conventions.test.js` to object to.
+
+It is the single largest file in the repo at ~510 KB. That buys merge, split,
+reorder, rotate and image-to-PDF entirely in the browser, with no upload of
+documents that are frequently contracts, passports or medical records.
+
+**No page rendering.** pdf-lib cannot rasterise, so the toolkit shows pages as
+numbered cards rather than thumbnails. Thumbnails would mean vendoring pdf.js
+and its worker as well — a much larger second dependency for a preview.
+
+---
+
 ## qrcode-generator
 
 - **Upstream:** https://github.com/kazuhikoarase/qrcode-generator

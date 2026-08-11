@@ -21,7 +21,16 @@ Browser ──> GitHub Pages  (frontend only)
 
 Two hosts serve the same static files. Only Vercel runs the API, so both
 frontends call `https://useful-tool-hub.vercel.app/api/...` in production.
-`js/config.js` picks the right base URL from the hostname.
+`js/shared/config.js` picks the right base URL from the hostname.
+
+**The hosted API is weak in ways the UI has to admit to.** Vercel has no
+`ffmpeg`, caps a function response at roughly 4.5 MB, and runs on datacenter IPs
+that YouTube bot-checks at random. None of that is fixable from this side, so
+the YouTube tools ship the limits as data — `/api/youtube` returns
+`server_can_merge`, errors carry a machine-readable `error_code` — and the page
+says what it cannot do *before* the click, with a copyable `yt-dlp` command and
+local-setup instructions for when the answer is "not from a shared server".
+`backend.py` is the same code on a machine with none of those limits.
 
 ## Layout
 
@@ -30,7 +39,8 @@ index.html            Homepage. Tool cards are static HTML — see "Why" below.
 script.js             Homepage search/filter.
 styles.css            All styling. Design tokens are CSS custom properties on :root.
 
-js/config.js          API base URL (classic script, loaded by the downloaders).
+js/config.js          API base URL as a classic script. Only the Instagram page
+                      still uses it; everything else imports js/shared/config.js.
 js/shared/*.js        ES modules shared between tools. Fully unit-tested.
 js/vendor/*.js        Third-party code, vendored deliberately. See js/vendor/README.md.
 
