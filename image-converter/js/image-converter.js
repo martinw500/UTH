@@ -14,6 +14,7 @@ import { attachDownload, saveAllAsZip } from '../../js/shared/download.js';
 import { readExifFromFile, summariseExif } from '../../js/shared/exif.js';
 import {
     EXT_BY_MIME,
+    MAX_CANVAS_DIMENSION,
     canEncode,
     compressToTarget,
     decodeImageFile,
@@ -530,6 +531,12 @@ function applyResize() {
         lastEdited: lastResizeEdited,
     });
     if (!resolved) return;
+    // Past this a canvas silently draws nothing, or the tab runs out of memory.
+    if (Math.max(resolved.width, resolved.height) > MAX_CANVAS_DIMENSION) {
+        showError(ui.editorNotice, `That is ${resolved.width} × ${resolved.height}. Browsers cannot `
+            + `draw an image wider or taller than ${MAX_CANVAS_DIMENSION} px.`);
+        return;
+    }
     commit((next) => { next.resize = { ...resolved, mode: ui.resizeMode.value }; });
     updateResizeHint();
 }

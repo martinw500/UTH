@@ -58,7 +58,7 @@ remaining tests, CI, docs.
 - [x] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)
 - [x] L-b Opus + 44.1/22.05 kHz fails (`audio-args.js:89`)
 - [x] L-c Page range `20-` on a 10-page PDF selects page 10 (`pdf-pages.js:53-60`)
-- [ ] L-d `MAX_CANVAS_DIMENSION` never enforced (`image.js:9`)
+- [x] L-d `MAX_CANVAS_DIMENSION` never enforced (`image.js:9`)
 - [x] L-e Files over the batch cap dropped silently (image 50, PDF 40, hub 30)
 - [x] L-f Video converter drops unsupported files silently
 - [x] L-g `input..mp4` double dot (`media.js:65`)
