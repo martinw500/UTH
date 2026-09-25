@@ -10,6 +10,8 @@ import { formatBytes as formatSize, stripExtension } from '../js/shared/format.j
 import { EXT_BY_MIME as FORMAT_EXT } from '../js/shared/image.js';
 import { COMPRESSION_PRESETS as COMPRESSION_QUALITY } from '../js/shared/compression.js';
 import { buildFilterString as buildFilter, IDENTITY_ADJUST } from '../js/shared/pipeline.js';
+import { heightForWidth, widthForHeight } from '../js/shared/geometry.js';
+import { previewScaleFor } from '../image-converter/js/render.js';
 
 // The clone this file used to carry emitted decimal multipliers --
 // `brightness(1.5)` -- while the shipped editor emitted percentages,
@@ -136,94 +138,45 @@ describe('Image Editor — COMPRESSION_QUALITY presets', () => {
 });
 
 describe('Image Editor — Preview scaling logic', () => {
-    function calculatePreviewScale(editWidth, editHeight, containerWidth, maxH = 500) {
-        const maxW = containerWidth || 800;
-        return Math.min(1, maxW / editWidth, maxH / editHeight);
-    }
-
+    // This block used to test a function declared inside this file, so it
+    // stayed green whatever happened to the one the page imports.
     test('does not upscale small images', () => {
-        const scale = calculatePreviewScale(400, 300, 800);
-        expect(scale).toBe(1);
+        expect(previewScaleFor(400, 300, 800)).toBe(1);
     });
 
     test('scales down wide images', () => {
-        const scale = calculatePreviewScale(1600, 300, 800);
-        expect(scale).toBe(0.5);
+        expect(previewScaleFor(1600, 300, 800)).toBe(0.5);
     });
 
     test('scales down tall images', () => {
-        const scale = calculatePreviewScale(400, 1000, 800);
-        expect(scale).toBe(0.5);
+        expect(previewScaleFor(400, 1000, 800)).toBe(0.5);
     });
 
     test('scales proportionally for large images', () => {
-        const scale = calculatePreviewScale(4000, 3000, 800);
         // maxW/W = 0.2, maxH/H = 500/3000 = 0.167
-        expect(scale).toBeCloseTo(500 / 3000, 5);
+        expect(previewScaleFor(4000, 3000, 800)).toBeCloseTo(500 / 3000, 5);
     });
 
     test('uses fallback width of 800 when container is 0', () => {
-        const scale = calculatePreviewScale(1600, 300, 0);
-        expect(scale).toBe(0.5);
-    });
-});
-
-describe('Image Editor — Crop coordinate conversion', () => {
-    function previewToEditCoords(cropRect, editWidth, editHeight, previewWidth, previewHeight) {
-        const scaleX = editWidth / previewWidth;
-        const scaleY = editHeight / previewHeight;
-        return {
-            sx: Math.round(cropRect.x * scaleX),
-            sy: Math.round(cropRect.y * scaleY),
-            sw: Math.round(cropRect.w * scaleX),
-            sh: Math.round(cropRect.h * scaleY),
-        };
-    }
-
-    test('maps preview to full-resolution coords at 1:1 scale', () => {
-        const result = previewToEditCoords({ x: 10, y: 20, w: 100, h: 50 }, 800, 600, 800, 600);
-        expect(result).toEqual({ sx: 10, sy: 20, sw: 100, sh: 50 });
-    });
-
-    test('maps preview to full-resolution coords at 2x scale', () => {
-        const result = previewToEditCoords({ x: 10, y: 20, w: 100, h: 50 }, 1600, 1200, 800, 600);
-        expect(result).toEqual({ sx: 20, sy: 40, sw: 200, sh: 100 });
-    });
-
-    test('maps zero crop rect', () => {
-        const result = previewToEditCoords({ x: 0, y: 0, w: 0, h: 0 }, 1000, 1000, 500, 500);
-        expect(result).toEqual({ sx: 0, sy: 0, sw: 0, sh: 0 });
+        expect(previewScaleFor(1600, 300, 0)).toBe(0.5);
     });
 });
 
 describe('Image Editor — Aspect ratio lock', () => {
-    function calculateAspectHeight(width, editWidth, editHeight) {
-        const ratio = editHeight / editWidth;
-        return Math.round(width * ratio);
-    }
-
-    function calculateAspectWidth(height, editWidth, editHeight) {
-        const ratio = editWidth / editHeight;
-        return Math.round(height * ratio);
-    }
-
     test('maintains 16:9 aspect ratio from width', () => {
-        const h = calculateAspectHeight(1920, 1920, 1080);
-        expect(h).toBe(1080);
+        expect(heightForWidth(1920, 1920, 1080)).toBe(1080);
     });
 
     test('maintains 16:9 aspect ratio from height', () => {
-        const w = calculateAspectWidth(1080, 1920, 1080);
-        expect(w).toBe(1920);
+        expect(widthForHeight(1080, 1920, 1080)).toBe(1920);
     });
 
     test('maintains 1:1 aspect ratio', () => {
-        expect(calculateAspectHeight(500, 1000, 1000)).toBe(500);
-        expect(calculateAspectWidth(500, 1000, 1000)).toBe(500);
+        expect(heightForWidth(500, 1000, 1000)).toBe(500);
+        expect(widthForHeight(500, 1000, 1000)).toBe(500);
     });
 
     test('maintains 4:3 aspect ratio', () => {
-        const h = calculateAspectHeight(800, 800, 600);
-        expect(h).toBe(600);
+        expect(heightForWidth(800, 800, 600)).toBe(600);
     });
 });

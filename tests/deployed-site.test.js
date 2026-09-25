@@ -926,28 +926,11 @@ describe('Navigation is consistent across all pages', () => {
 // ============================================
 
 describe('API endpoints are reachable', () => {
-    test('YouTube API endpoint exists', async () => {
-        // Just checking the endpoint responds (even if it returns 400/422 without a URL param)
-        try {
-            const res = await fetch(`${SITE}/api/youtube/`, { method: 'GET' });
-            // Any response means the serverless function is deployed
-            expect(res.status).toBeDefined();
-            // Should not be 404 — that would mean the route doesn't exist
-            expect(res.status).not.toBe(404);
-        } catch (e) {
-            // Network error is also acceptable if CORS blocks it
-            expect(e).toBeDefined();
-        }
-    });
-
-    test('Instagram API endpoint exists', async () => {
-        try {
-            const res = await fetch(`${SITE}/api/instagram/`, { method: 'GET' });
-            expect(res.status).toBeDefined();
-            expect(res.status).not.toBe(404);
-        } catch (e) {
-            expect(e).toBeDefined();
-        }
+    // These used to wrap the assertion in try/catch, so a 404 threw, was
+    // caught, and passed. Node's fetch has no CORS to excuse a failure.
+    test.each(['youtube', 'instagram'])('%s API endpoint exists', async (name) => {
+        const res = await fetch(`${SITE}/api/${name}/`, { method: 'GET' });
+        expect(res.status).not.toBe(404);
     });
 });
 

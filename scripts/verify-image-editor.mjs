@@ -227,7 +227,7 @@ async function main() {
             return Array.from(new Uint8Array(buffer));
         });
         const zipBytes = Buffer.from(zip);
-        check(zipBytes.slice(0, 4).toString('latin1') === 'PK',
+        check(zipBytes.slice(0, 4).toString('latin1') === 'PK\x03\x04',
             'download-all produces a real zip', `${zipBytes.length} bytes`);
         // End of central directory, with the entry count in it.
         const eocd = zipBytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
