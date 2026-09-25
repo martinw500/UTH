@@ -124,6 +124,8 @@ async function addFiles(files) {
         };
         queue.push(item);
     }
+    // Files past the cap used to vanish without a word.
+    const leftOut = Math.max(0, queue.length - MAX_FILES);
     queue = queue.slice(0, MAX_FILES);
 
     ui.dropzone.hidden = true;
@@ -143,6 +145,10 @@ async function addFiles(files) {
     }
     updateRangePreview();
     validate();
+    if (leftOut) {
+        showError(ui.notice, `Up to ${MAX_FILES} files at a time, so ${leftOut} `
+            + `${leftOut === 1 ? 'was' : 'were'} left out.`);
+    }
 }
 
 function renderQueue() {
@@ -332,7 +338,6 @@ createDropzone({
     browseBtn: ui.browseBtn,
     accept: ['application/pdf', '.pdf', 'image/*'],
     multiple: true,
-    maxFiles: MAX_FILES,
     maxBytes: MAX_BYTES,
     paste: true,
     onFiles: addFiles,

@@ -70,17 +70,20 @@ function addFiles(files) {
     const matching = usable.filter((item) => item.kind === kind);
     const mismatched = usable.length - matching.length;
 
+    // Files past the cap used to vanish without a word.
+    const overflow = Math.max(0, queue.length + matching.length - MAX_FILES);
     queue = [...queue, ...matching].slice(0, MAX_FILES);
 
     if (!queue.length) {
         showError(ui.notice, 'Those files are not images, video or audio.');
         return;
     }
-    if (unknown || mismatched) {
+    if (unknown || mismatched || overflow) {
         showError(ui.notice, [
             unknown ? `${unknown} file${unknown === 1 ? '' : 's'} of an unrecognised type` : null,
             mismatched ? `${mismatched} file${mismatched === 1 ? '' : 's'} of a different kind — `
                 + `this batch is converting ${describeKind(kind, 2).replace(/^\d+ /, '')}` : null,
+            overflow ? `${overflow} file${overflow === 1 ? '' : 's'} over the ${MAX_FILES}-file limit` : null,
         ].filter(Boolean).join('; ') + ' were skipped.');
     }
 
@@ -319,7 +322,6 @@ createDropzone({
     browseBtn: ui.browseBtn,
     accept: ['image/*', 'video/*', 'audio/*', '.mkv', '.avi', '.mov', '.flac', '.opus', '.m4a'],
     multiple: true,
-    maxFiles: MAX_FILES,
     maxBytes: MAX_BYTES,
     paste: true,
     onFiles: addFiles,

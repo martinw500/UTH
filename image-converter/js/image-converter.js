@@ -181,7 +181,10 @@ function updateMeta() {
 
 async function loadFiles(files) {
     clearNotice(ui.editorNotice);
-    const added = batch.add(files.slice(0, MAX_FILES - batch.size));
+    const room = Math.max(0, MAX_FILES - batch.size);
+    const added = batch.add(files.slice(0, room));
+    // Files past the cap used to vanish without a word.
+    const leftOut = Math.max(0, files.length - room);
 
     for (const item of added) {
         try {
@@ -197,12 +200,18 @@ async function loadFiles(files) {
     }
 
     const failed = added.filter((item) => item.status === 'error');
+    const problems = [];
     if (failed.length) {
-        showError(ui.editorNotice, failed.length === added.length
+        problems.push(failed.length === added.length
             ? 'None of those files could be opened as images.'
             : `${failed.length} of ${added.length} files could not be opened.`);
         for (const item of failed) batch.remove(item.id);
     }
+    if (leftOut) {
+        problems.push(`A batch holds ${MAX_FILES} images, so ${leftOut} `
+            + `${leftOut === 1 ? 'was' : 'were'} left out.`);
+    }
+    if (problems.length) showError(ui.editorNotice, problems.join(' '));
 
     if (!batch.size) {
         showWorkspace(false);
@@ -813,7 +822,6 @@ createDropzone({
     browseBtn: ui.browseBtn,
     accept: ['image/*'],
     multiple: true,
-    maxFiles: MAX_FILES,
     maxBytes: MAX_BYTES,
     paste: true,
     onFiles: (files) => loadFiles(Array.from(files)),
