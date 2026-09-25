@@ -386,7 +386,24 @@ describe('COI service worker', () => {
     // disabled everywhere the headers are not set server-side: GitHub Pages and
     // local dev. new Function() parses in classic (sloppy) mode, same as a
     // classic worker would.
-    const files = ['video-converter/coi-serviceworker.js'];
+    // Every copy, found rather than listed: only the video converter's used to
+    // be checked, and service-worker scope is path-based, so each tool that
+    // needs isolation carries its own.
+    const root = path.join(__dirname, '..');
+    const files = fs.readdirSync(root, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory()
+            && fs.existsSync(path.join(root, entry.name, 'coi-serviceworker.js')))
+        .map((entry) => `${entry.name}/coi-serviceworker.js`);
+
+    test('every ffmpeg tool has a copy, and the copies are identical', () => {
+        expect(files).toEqual(expect.arrayContaining([
+            'video-converter/coi-serviceworker.js',
+            'audio-converter/coi-serviceworker.js',
+            'convert/coi-serviceworker.js',
+        ]));
+        const sources = new Set(files.map((file) => fs.readFileSync(path.join(root, file), 'utf-8')));
+        expect(sources.size).toBe(1);
+    });
 
     files.forEach((file) => {
         const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf-8');
@@ -415,6 +432,18 @@ describe('version pinning', () => {
     test('the UMD base is built from the pinned version', () => {
         expect(FFMPEG_UMD_BASE).toContain(`@ffmpeg/ffmpeg@${FFMPEG_VERSION}`);
     });
+
+    // The pages load the UMD script from their own <script> tag, with the
+    // version written into the HTML. A bump to FFMPEG_VERSION alone would load
+    // one version's bundle and discover another version's worker chunk.
+    test.each(['video-converter', 'audio-converter', 'convert'])(
+        '%s/index.html loads the same @ffmpeg/ffmpeg version', (tool) => {
+            const html = fs.readFileSync(path.join(__dirname, '..', tool, 'index.html'), 'utf-8');
+            const versions = [...html.matchAll(/@ffmpeg\/ffmpeg@([\d.]+)/g)].map((m) => m[1]);
+            expect(versions.length).toBeGreaterThan(0);
+            expect(new Set(versions)).toEqual(new Set([FFMPEG_VERSION]));
+        },
+    );
 
     // This pairing broke the converter in production and looks like a typo.
     //

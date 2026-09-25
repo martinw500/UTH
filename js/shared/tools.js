@@ -152,27 +152,3 @@ export function toolsInCategory(categoryId) {
 export function findTool(id) {
     return TOOLS.find((tool) => tool.id === id) ?? null;
 }
-
-/**
- * Everything a tool can be searched by, lowercased.
- *
- * Kept here rather than read back off the DOM so the search and the parity test
- * agree on what "searchable" means.
- */
-export function searchTextFor(tool) {
-    return `${tool.title} ${tool.desc} ${tool.keywords}`.toLowerCase();
-}
-
-/**
- * Does a tool match a query?
- *
- * Every whitespace-separated term must appear somewhere in the tool's text —
- * so "image convert" matches the image editor, which a whole-string substring
- * match could never do because those two words are never adjacent.
- */
-export function matchesQuery(tool, query) {
-    const terms = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
-    if (!terms.length) return true;
-    const haystack = searchTextFor(tool);
-    return terms.every((term) => haystack.includes(term));
-}

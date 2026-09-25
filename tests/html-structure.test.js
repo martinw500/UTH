@@ -582,16 +582,20 @@ describe('Internal links are valid', () => {
         }
     });
 
-    PAGES.filter(p => p !== 'index.html').forEach(page => {
-        test(`${page} nav links are valid`, () => {
+    // Every relative href and src on every page, resolved against that page's
+    // own directory. This used to check only that index.html and feedback.html
+    // existed, and only if a page linked to them, so it could not fail.
+    PAGES.forEach(page => {
+        test(`${page} links and scripts resolve`, () => {
             const html = readHtml(page);
-            // Check ../index.html links (relative from subdir)
-            if (html.includes('href="../index.html"')) {
-                expect(fileExists('index.html')).toBe(true);
-            }
-            if (html.includes('href="../feedback.html"')) {
-                expect(fileExists('feedback.html')).toBe(true);
-            }
+            const dir = path.posix.dirname(page);
+            const missing = [...html.matchAll(/\b(?:href|src)="([^"]+)"/g)]
+                .map((m) => m[1].split(/[?#]/)[0])
+                .filter((ref) => ref && !/^([a-z]+:|\/\/|#)/i.test(ref))
+                .map((ref) => path.posix.normalize(path.posix.join(dir, ref)))
+                .map((ref) => (ref.endsWith('/') || ref === '.' ? path.posix.join(ref, 'index.html') : ref))
+                .filter((ref) => !fileExists(ref));
+            expect(missing).toEqual([]);
         });
     });
 });
@@ -616,8 +620,9 @@ describe('Vercel configuration', () => {
         expect(headerKeys).toContain('Access-Control-Allow-Methods');
     });
 
-    // Both ffmpeg.wasm tools need cross-origin isolation for SharedArrayBuffer.
-    test.each(['video-converter', 'audio-converter'])('%s has COOP/COEP headers', (tool) => {
+    // Every ffmpeg.wasm tool needs cross-origin isolation for SharedArrayBuffer.
+    // convert/ was missing from this list, so its block could be deleted green.
+    test.each(['video-converter', 'audio-converter', 'convert'])('%s has COOP/COEP headers', (tool) => {
         const entry = config.headers.find(h => h.source.includes(tool));
         expect(entry).toBeDefined();
         const headerKeys = entry.headers.map(h => h.key);

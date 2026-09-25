@@ -7,9 +7,8 @@ import {
     CATEGORIES,
     toolsInCategory,
     findTool,
-    searchTextFor,
-    matchesQuery,
 } from '../js/shared/tools.js';
+import { searchTools } from '../js/shared/search.js';
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf-8');
@@ -131,33 +130,8 @@ describe('the homepage matches the registry', () => {
 // ============================================
 
 describe('search', () => {
-    test('an empty query matches everything', () => {
-        for (const tool of TOOLS) {
-            expect(matchesQuery(tool, '')).toBe(true);
-            expect(matchesQuery(tool, '   ')).toBe(true);
-        }
-    });
-
-    // The old search compared the whole query against title, description and
-    // keywords SEPARATELY, so a two-word query only matched if both words sat
-    // adjacent in one field. "image convert" found nothing at all.
-    test('every term is matched independently', () => {
-        expect(matchesQuery(findTool('image-converter'), 'image convert')).toBe(true);
-        expect(matchesQuery(findTool('convert'), 'convert audio')).toBe(true);
-    });
-
-    test('word order does not matter', () => {
-        expect(matchesQuery(findTool('image-converter'), 'convert image')).toBe(true);
-    });
-
-    test('a term that appears nowhere rules the tool out', () => {
-        expect(matchesQuery(findTool('image-converter'), 'image spreadsheet')).toBe(false);
-    });
-
-    test('case is ignored', () => {
-        expect(matchesQuery(findTool('pdf-tools'), 'PDF MERGE')).toBe(true);
-    });
-
+    // Against the ranked search the homepage really uses. This file used to
+    // test matchesQuery, an old substring filter nothing called any more.
     test.each([
         ['webp', 'convert'],
         ['mp3', 'audio-converter'],
@@ -167,27 +141,15 @@ describe('search', () => {
         ['crop', 'image-converter'],
         ['merge', 'pdf-tools'],
     ])('searching %p finds %s', (query, id) => {
-        const hits = TOOLS.filter((tool) => matchesQuery(tool, query)).map((t) => t.id);
-        expect(hits).toContain(id);
+        expect(searchTools(query).direct.map((entry) => entry.tool.id)).toContain(id);
     });
 
-    test('searchTextFor covers title, description and keywords', () => {
-        const tool = findTool('pdf-tools');
-        const text = searchTextFor(tool);
-        expect(text).toContain(tool.title.toLowerCase());
-        expect(text).toContain('merge');
-    });
-
-    // The homepage computes its haystack from the DOM rather than importing
-    // this module, so the two have to be checked against each other.
-    test('the DOM a card exposes matches what the registry thinks is searchable', () => {
+    test('each homepage card carries its registry keywords', () => {
         for (const tool of TOOLS) {
             const card = home.slice(
                 home.indexOf(`href="${tool.href}"`),
                 home.indexOf(`href="${tool.href}"`) + 1200,
             );
-            const domText = `${tool.title} ${tool.desc} ${tool.keywords}`.toLowerCase();
-            expect(searchTextFor(tool)).toBe(domText);
             expect(card).toContain(tool.keywords);
         }
     });

@@ -10,7 +10,7 @@ remaining tests, CI, docs.
 - [x] T1 `tests/image-editor.test.js:138-229` tests re-declared copies of `previewScaleFor` and the aspect helpers
 - [x] T2 `tests/color-converter.test.js` tests `js/shared/color.js`, which the page never loads (→ #25)
 - [x] T3 `tests/shared-modules.test.js:107-126` tests `js/shared/config.js`, which ships nowhere (→ #30)
-- [x] T4 ~~compares 4 bytes to `'PK'`~~ — false alarm: the literal held raw `` bytes. Rewritten as visible escapes
+- [x] T4 ~~compares 4 bytes to `'PK'`~~ — false alarm: the literal held raw `0x03 0x04` bytes. Rewritten as visible escapes
 - [x] T5 `tests/deployed-site.test.js:929-951` try/catch swallows the 404 assertion
 
 ## High
@@ -75,14 +75,14 @@ remaining tests, CI, docs.
 ## Remaining test gaps
 - [ ] T6 Narrow-viewport crop check never drags
 - [ ] T7 `verify-pdf-tools` reads back with pdf-lib; root-absolute import; no pre-rotated fixture
-- [ ] T8 Only one of three `coi-serviceworker.js` parse-checked
-- [ ] T9 `/convert/` COOP/COEP headers untested
-- [ ] T10 ffmpeg version literals in HTML not tied to `FFMPEG_VERSION`
-- [ ] T11 Dead `matchesQuery` and its tests
-- [ ] T12 "nav links are valid" cannot fail
+- [x] T8 Only one of three `coi-serviceworker.js` parse-checked
+- [x] T9 `/convert/` COOP/COEP headers untested
+- [x] T10 ffmpeg version literals in HTML not tied to `FFMPEG_VERSION`
+- [x] T11 Dead `matchesQuery` and its tests
+- [x] T12 "nav links are valid" cannot fail
 - [x] T13 QR page test waits on real timers
 - [ ] T14 `deployed-site.test.js` lacks convert / favicon / pdf-tools coverage; misnamed tests
-- [ ] T15 Unit tests for `setBusy`, `pdf-ops.js`, `favicon.js`, `sanitiseFilename`
+- [x] T15 Unit tests for `setBusy`, `pdf-ops.js`, `favicon.js`, `sanitiseFilename`
 
 ## CI
 - [ ] C1 `sleep 30` before production E2E can test the previous deploy
