@@ -201,11 +201,26 @@ async function main() {
         await page.click('#cropBtn');
         await page.waitForSelector('#cropOverlay:not([style*="display: none"])');
         await page.selectOption('#cropAspect', '1:1');
+        // Drag the selection hard right. The canvas is drawn at ~a quarter of
+        // its pixel width here, so a drag measured in the wrong units moves the
+        // selection a quarter as far and keeps part of the transparent half.
+        const selection = await page.locator('#cropSelection').boundingBox();
+        const overlay = await page.locator('#cropOverlay').boundingBox();
+        await page.mouse.move(selection.x + selection.width / 2, selection.y + selection.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(selection.x + selection.width / 2 + overlay.width, selection.y + selection.height / 2,
+            { steps: 5 });
+        await page.mouse.up();
         await page.click('#applyCropBtn');
         bytes = await exportBytes(page);
         size = await dimensions(page, bytes);
         check(Math.abs(size.width - size.height) <= 2,
             'a 1:1 crop is square in output pixels', `${size.width}x${size.height}`);
+        const edges = await Promise.all([[2, 2], [size.width - 3, size.height - 3]]
+            .map(([x, y]) => pixelAt(page, bytes, x, y)));
+        check(edges.every((p) => p.r > 240 && p.a === 255),
+            'a drag to the right edge crops the red half, where it was drawn',
+            edges.map((p) => `rgba(${p.r},${p.g},${p.b},${p.a})`).join(' '));
 
         // The overlay sits over the rotated preview, but the crop is applied to
         // the source before the rotation. Storing the drawn rect as-is used to

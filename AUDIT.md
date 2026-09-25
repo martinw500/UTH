@@ -73,7 +73,7 @@ remaining tests, CI, docs.
 - [x] L-p `requirements.txt` unpinned
 
 ## Remaining test gaps
-- [ ] T6 Narrow-viewport crop check never drags
+- [x] T6 Narrow-viewport crop check never drags
 - [ ] T7 `verify-pdf-tools` reads back with pdf-lib; root-absolute import; no pre-rotated fixture
 - [x] T8 Only one of three `coi-serviceworker.js` parse-checked
 - [x] T9 `/convert/` COOP/COEP headers untested
