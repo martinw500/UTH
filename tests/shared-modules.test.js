@@ -4,7 +4,7 @@ import {
     formatBytes, stripExtension, getExtension, formatDuration,
     formatTime, parseTime, formatViews, sanitiseFilename, clamp,
 } from '../js/shared/format.js';
-import { resolveBackendUrl, apiUrl, API_CONFIG } from '../js/shared/config.js';
+import { resolveBackendUrl, apiUrl, API_CONFIG, errorFromResponse } from '../js/shared/config.js';
 import * as storage from '../js/shared/storage.js';
 import { createDropzone, matchesAccept } from '../js/shared/dropzone.js';
 import { setBusy } from '../js/shared/dom.js';
@@ -146,6 +146,29 @@ describe('config.resolveBackendUrl', () => {
 
     test('an unrecognised host falls back to production rather than localhost', () => {
         expect(resolveBackendUrl('example.com')).toBe('https://useful-tool-hub.vercel.app');
+    });
+});
+
+describe('config.errorFromResponse', () => {
+    const response = (status, body, json = true) => ({
+        status,
+        json: async () => (json ? body : JSON.parse(body)),
+    });
+
+    test('uses the error our API sent', async () => {
+        expect(await errorFromResponse(response(400, { error: 'Not a video link.' }))).toBe('Not a video link.');
+    });
+
+    // A Vercel timeout is plain text. response.json() threw, and the page
+    // showed "Unexpected token 'A', "An error o"... is not valid JSON".
+    test('a plain-text platform timeout becomes a sentence', async () => {
+        const message = await errorFromResponse(response(504, 'An error occurred with your deployment', false));
+        expect(message).toMatch(/took too long/);
+        expect(message).not.toMatch(/JSON|token/);
+    });
+
+    test('anything else falls back to the caller\'s message', async () => {
+        expect(await errorFromResponse(response(500, '<html>', false), 'Try later.')).toBe('Try later.');
     });
 });
 

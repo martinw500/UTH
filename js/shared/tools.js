@@ -129,7 +129,7 @@ export const TOOLS = Object.freeze([
         tone: 'tone-red',
         runs: 'server',
         desc: 'Download videos from YouTube in several formats and qualities',
-        keywords: 'youtube video download mp4 mp3 save clip',
+        keywords: 'youtube video download mp4 save clip',
     }),
     Object.freeze({
         id: 'instagram-downloader',

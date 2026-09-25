@@ -3,9 +3,63 @@ from flask_cors import CORS
 import yt_dlp
 import re
 import traceback
+from urllib.parse import urlsplit, parse_qs
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type"]}})
+
+YOUTUBE_HOSTS = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'}
+YOUTUBE_ID = re.compile(r'[A-Za-z0-9_-]{11}')
+YOUTUBE_PATH_ID = re.compile(r'/(?:shorts|embed|live|v)/([^/?#]+)')
+
+
+def youtube_watch_url(raw):
+    """The canonical watch URL for one YouTube video, or None for anything else.
+
+    Only this rebuilt URL ever reaches yt-dlp. When no id was found the user's
+    URL used to be passed through as-is, and yt-dlp's generic extractor fetches
+    whatever address it is given: an open relay, and an SSRF into anything this
+    function can reach. Playlists and channels are refused too, since
+    extract_info walks every video in them until the function is killed.
+
+    Identical copies live in api/youtube/index.py, api/youtube/download.py and
+    backend.py; scripts/verify-api.py checks that they agree.
+    """
+    if not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    try:
+        parts = urlsplit(raw if '://' in raw else f'https://{raw}')
+        host = (parts.hostname or '').lower().rstrip('.')
+    except ValueError:
+        return None
+    if parts.scheme not in ('http', 'https') or host not in YOUTUBE_HOSTS:
+        return None
+    if host == 'youtu.be':
+        candidate = parts.path.strip('/').split('/')[0]
+    else:
+        in_path = YOUTUBE_PATH_ID.match(parts.path)
+        candidate = in_path.group(1) if in_path else parse_qs(parts.query).get('v', [''])[0]
+    if not YOUTUBE_ID.fullmatch(candidate):
+        return None
+    return f'https://www.youtube.com/watch?v={candidate}'
+
+
+def describe_youtube_error(error):
+    """A message and status for the user, never yt-dlp's own text.
+
+    That text is command-line advice ("use --cookies-from-browser"), and
+    echoing it reflected the submitted URL back into the page.
+    """
+    text = str(error)
+    if 'confirm you' in text and 'bot' in text:
+        return 'YouTube is blocking requests from this server right now. Try again later.', 503
+    if '429' in text or 'Too Many Requests' in text:
+        return 'YouTube is rate-limiting this server. Wait a few minutes and try again.', 503
+    if 'Private video' in text or 'unavailable' in text.lower():
+        return 'That video is private, removed or unavailable.', 404
+    return 'Could not fetch that video. It may be age-restricted, region-locked or removed.', 502
+
 
 def get_ydl_opts():
     """Get yt-dlp options optimized for serverless environments"""
@@ -30,16 +84,12 @@ def get_youtube():
     if request.method == 'OPTIONS':
         return '', 204
     
-    url = request.args.get('url')
-    if not url:
+    if not request.args.get('url'):
         return jsonify({'error': 'URL parameter required'}), 400
-    
-    # Clean URL - extract video ID
-    video_id_match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
-    if video_id_match:
-        video_id = video_id_match.group(1)
-        url = f'https://www.youtube.com/watch?v={video_id}'
-    
+    url = youtube_watch_url(request.args.get('url'))
+    if not url:
+        return jsonify({'error': 'That is not a link to a single YouTube video.'}), 400
+
     try:
         ydl_opts = get_ydl_opts()
         
@@ -104,7 +154,5 @@ def get_youtube():
     except Exception as e:
         print(f'Error: {type(e).__name__}: {str(e)}')
         print(f'Traceback: {traceback.format_exc()}')
-        return jsonify({
-            'error': f'Failed to fetch video: {str(e)}',
-            'error_type': type(e).__name__
-        }), 500
+        message, status = describe_youtube_error(e)
+        return jsonify({'error': message, 'error_type': type(e).__name__}), status

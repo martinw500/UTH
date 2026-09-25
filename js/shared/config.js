@@ -31,6 +31,22 @@ export const API_CONFIG = {
         : PRODUCTION_BACKEND,
 };
 
+/**
+ * The message to show for a failed API response.
+ *
+ * Our functions answer errors with JSON, but the platform does not: a Vercel
+ * timeout (504) or an oversized response (413) arrives as plain text, and
+ * calling response.json() on it threw a SyntaxError that was shown verbatim.
+ */
+export async function errorFromResponse(response, fallback = 'Something went wrong. Please try again.') {
+    let body = null;
+    try { body = await response.json(); } catch { /* not JSON */ }
+    if (typeof body?.error === 'string' && body.error) return body.error;
+    if (response.status === 504) return 'The server took too long to answer. Please try again in a minute.';
+    if (response.status === 413) return 'That is too large for the server to send back.';
+    return fallback;
+}
+
 /** Build an API URL with encoded query parameters. */
 export function apiUrl(path, params) {
     const base = `${API_CONFIG.BACKEND_URL}${path.startsWith('/') ? path : `/${path}`}`;

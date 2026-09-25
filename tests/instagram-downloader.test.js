@@ -1,37 +1,46 @@
 /**
- * Instagram downloader — media URL selection.
+ * Instagram downloader — media URL selection and URL validation.
  *
- * These load the REAL source file into jsdom rather than re-declaring copies of
- * its helpers, so the tests fail if instagram-downloader.js drifts. The script
- * is a classic (non-module) script, so its top-level function declarations land
- * on `window`.
+ * Imports the real module. It looks its controls up at load time, so the
+ * page's markup goes into the document before the import.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { API_CONFIG } from '../js/shared/config.js';
 
 const ROOT = path.join(__dirname, '..');
-const BACKEND = 'https://backend.test';
+const BACKEND = API_CONFIG.BACKEND_URL;
 
 const HTML = fs.readFileSync(
     path.join(ROOT, 'instagram-downloader', 'index.html'), 'utf8');
 
-function loadTool() {
-    const script = fs.readFileSync(
-        path.join(ROOT, 'instagram-downloader', 'js', 'instagram-downloader.js'), 'utf8');
-
+let win;
+beforeAll(async () => {
     const body = HTML.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     document.body.innerHTML = body ? body[1] : HTML;
-    global.API_CONFIG = { BACKEND_URL: BACKEND };
+    win = await import('../instagram-downloader/js/instagram-downloader.js');
+});
 
-    // Indirect eval runs in global scope, so the script's top-level function
-    // declarations become globals — the same way the browser loads it.
-    (0, eval)(script);
-    return global;
-}
+describe('isValidInstagramUrl', () => {
+    // The old check was stricter than the server, so links the backend
+    // accepts were refused before they were sent.
+    test.each([
+        'https://www.instagram.com/p/ABC123/',
+        'https://instagram.com/reel/ABC123',
+        'instagram.com/p/ABC123/',
+        'https://www.instagram.com/someone/p/ABC123/',
+        'https://www.instagram.com/some.one/reel/ABC123/',
+    ])('accepts %s', (url) => {
+        expect(win.isValidInstagramUrl(url)).toBe(true);
+    });
 
-let win;
-beforeAll(() => { win = loadTool(); });
+    test.each(['https://www.instagram.com/someone/', 'https://example.com/p/ABC123/'])(
+        'rejects %s', (url) => {
+            expect(win.isValidInstagramUrl(url)).toBe(false);
+        },
+    );
+});
 
 describe('pickDownloadUrl', () => {
     test('routes the full-res URL through the proxy', () => {

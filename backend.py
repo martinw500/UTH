@@ -6,13 +6,17 @@ Run with: python backend.py
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urljoin, parse_qs
 import instaloader
 import requests
 import base64
 import re
 import yt_dlp
 import sys
+import os
+import io
+import shutil
+import tempfile
 import traceback
 
 app = Flask(__name__)
@@ -199,6 +203,26 @@ def is_allowed_media_url(media_url):
     )
 
 
+def fetch_allowed(media_url):
+    """GET a media URL, following redirects only while they stay on allowed hosts.
+
+    requests follows redirects on its own, and the allowlist used to be checked
+    on the first URL only, so an open redirect on any instagram.com host would
+    have let this fetch anything. Returns None when a hop leaves the allowlist.
+    """
+    url = media_url
+    for _ in range(4):
+        upstream = requests.get(url, headers=BROWSER_HEADERS, stream=True, timeout=30,
+                                allow_redirects=False)
+        if not upstream.is_redirect:
+            return upstream
+        url = urljoin(url, upstream.headers.get('Location', ''))
+        upstream.close()
+        if not is_allowed_media_url(url):
+            return None
+    return None
+
+
 def safe_filename(name, fallback):
     if not name:
         return fallback
@@ -224,7 +248,9 @@ def proxy_media():
         return jsonify({'error': 'Only Instagram media URLs are allowed'}), 403
 
     try:
-        upstream = requests.get(media_url, headers=BROWSER_HEADERS, stream=True, timeout=30)
+        upstream = fetch_allowed(media_url)
+        if upstream is None:
+            return jsonify({'error': 'Only Instagram media URLs are allowed'}), 403
         if upstream.status_code != 200:
             return jsonify({'error': f'Instagram returned status {upstream.status_code}'}), 502
 
@@ -258,12 +284,65 @@ def proxy_media():
         return jsonify({'error': 'Request to Instagram timed out'}), 504
     except Exception as e:
         print(f'Proxy error: {e}')
-        return jsonify({'error': f'Failed to proxy media: {str(e)}'}), 500
+        return jsonify({'error': 'Could not fetch that file from Instagram.'}), 502
 
 
 # =============================================================================
 # YOUTUBE DOWNLOADER
 # =============================================================================
+
+YOUTUBE_HOSTS = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'}
+YOUTUBE_ID = re.compile(r'[A-Za-z0-9_-]{11}')
+YOUTUBE_PATH_ID = re.compile(r'/(?:shorts|embed|live|v)/([^/?#]+)')
+
+
+def youtube_watch_url(raw):
+    """The canonical watch URL for one YouTube video, or None for anything else.
+
+    Only this rebuilt URL ever reaches yt-dlp. When no id was found the user's
+    URL used to be passed through as-is, and yt-dlp's generic extractor fetches
+    whatever address it is given: an open relay, and an SSRF into anything this
+    function can reach. Playlists and channels are refused too, since
+    extract_info walks every video in them until the function is killed.
+
+    Identical copies live in api/youtube/index.py, api/youtube/download.py and
+    backend.py; scripts/verify-api.py checks that they agree.
+    """
+    if not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    try:
+        parts = urlsplit(raw if '://' in raw else f'https://{raw}')
+        host = (parts.hostname or '').lower().rstrip('.')
+    except ValueError:
+        return None
+    if parts.scheme not in ('http', 'https') or host not in YOUTUBE_HOSTS:
+        return None
+    if host == 'youtu.be':
+        candidate = parts.path.strip('/').split('/')[0]
+    else:
+        in_path = YOUTUBE_PATH_ID.match(parts.path)
+        candidate = in_path.group(1) if in_path else parse_qs(parts.query).get('v', [''])[0]
+    if not YOUTUBE_ID.fullmatch(candidate):
+        return None
+    return f'https://www.youtube.com/watch?v={candidate}'
+
+
+def describe_youtube_error(error):
+    """A message and status for the user, never yt-dlp's own text.
+
+    That text is command-line advice ("use --cookies-from-browser"), and
+    echoing it reflected the submitted URL back into the page.
+    """
+    text = str(error)
+    if 'confirm you' in text and 'bot' in text:
+        return 'YouTube is blocking requests from this server right now. Try again later.', 503
+    if '429' in text or 'Too Many Requests' in text:
+        return 'YouTube is rate-limiting this server. Wait a few minutes and try again.', 503
+    if 'Private video' in text or 'unavailable' in text.lower():
+        return 'That video is private, removed or unavailable.', 404
+    return 'Could not fetch that video. It may be age-restricted, region-locked or removed.', 502
+
 
 @app.route('/api/youtube', methods=['GET', 'OPTIONS'])
 def get_youtube():
@@ -271,18 +350,11 @@ def get_youtube():
     if request.method == 'OPTIONS':
         return '', 204
     
-    url = request.args.get('url')
-    
-    if not url:
+    if not request.args.get('url'):
         return jsonify({'error': 'URL parameter required'}), 400
-    
-    # Clean the URL - remove playlist parameters to get just the video
-    # Extract video ID and reconstruct clean URL
-    video_id_match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
-    if video_id_match:
-        video_id = video_id_match.group(1)
-        url = f'https://www.youtube.com/watch?v={video_id}'
-        print(f"Cleaned URL to: {url}")
+    url = youtube_watch_url(request.args.get('url'))
+    if not url:
+        return jsonify({'error': 'That is not a link to a single YouTube video.'}), 400
     
     try:
         # yt-dlp options - use defaults for best format discovery
@@ -371,41 +443,27 @@ def get_youtube():
         error_msg = f'{type(e).__name__}: {str(e)}'
         print(f'Error: {error_msg}')
         print(f'Traceback: {traceback.format_exc()}')
-        return jsonify({
-            'error': f'Failed to fetch video: {str(e)}',
-            'error_type': type(e).__name__,
-            'traceback': traceback.format_exc()
-        }), 500
+        # The traceback stays in this console; it used to be sent to the page.
+        message, status = describe_youtube_error(e)
+        return jsonify({'error': message, 'error_type': type(e).__name__}), status
 
 
 @app.route('/api/youtube/download', methods=['GET'])
 def download_youtube():
     """Download YouTube video using yt-dlp and stream to client"""
-    video_url = request.args.get('url')
-    quality = request.args.get('quality', '360p')
-    filename = request.args.get('filename', 'video.mp4')
-    
-    if not video_url:
+    if not request.args.get('url'):
         return jsonify({'error': 'URL parameter required'}), 400
-    
+    video_url = youtube_watch_url(request.args.get('url'))
+    if not video_url:
+        return jsonify({'error': 'That is not a link to a single YouTube video.'}), 400
+    height = re.sub(r'\D', '', request.args.get('quality', '360p')) or '360'
+    stem = os.path.splitext(request.args.get('filename', 'video'))[0] or 'video'
+
+    temp_dir = tempfile.mkdtemp()
     try:
-        from flask import Response
-        import tempfile
-        import os
-        
-        # Clean URL to remove playlist params
-        video_id_match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', video_url)
-        if video_id_match:
-            video_id = video_id_match.group(1)
-            video_url = f'https://www.youtube.com/watch?v={video_id}'
-        
-        # Build format string based on quality
-        height = quality.replace('p', '')
         # Prefer MP4 containers with audio; merge video+audio streams with ffmpeg
         format_string = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best'
         
-        # Create temp directory
-        temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, 'video.%(ext)s')
         
         ydl_opts = {
@@ -441,7 +499,7 @@ def download_youtube():
         }
         
         print(f"\n{'='*60}")
-        print(f"Downloading video at {quality} quality...")
+        print(f"Downloading video at up to {height}p...")
         print(f"Format: {format_string}")
         print(f"{'='*60}\n")
         
@@ -461,20 +519,24 @@ def download_youtube():
         
         if file_size == 0:
             raise Exception('Downloaded file is empty')
-        
-        # Use send_file for proper file delivery
-        from flask import send_file
-        return send_file(
-            downloaded_file,
-            mimetype='video/mp4',
-            as_attachment=True,
-            download_name=filename
-        )
-            
+        ext = os.path.splitext(downloaded_file)[1].lstrip('.') or 'mp4'
+        with open(downloaded_file, 'rb') as handle:
+            data = handle.read()
     except Exception as e:
         print(f'\nDownload error: {str(e)}')
         print(f'Traceback: {traceback.format_exc()}')
-        return jsonify({'error': f'Download failed: {str(e)}'}), 500
+        message, status = describe_youtube_error(e)
+        return jsonify({'error': message}), status
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    from flask import send_file
+    return send_file(
+        io.BytesIO(data),
+        mimetype='video/webm' if ext == 'webm' else 'video/mp4',
+        as_attachment=True,
+        download_name=f'{stem}.{ext}',
+    )
 
 
 # =============================================================================
@@ -538,4 +600,10 @@ if __name__ == '__main__':
     print('\n💡 Make sure your frontend is using localhost:5000')
     print('='*60 + '\n')
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Loopback, and no Werkzeug debugger: 0.0.0.0 with debug=True exposed an
+    # interactive console to anyone on the same network. Opt in explicitly.
+    app.run(
+        host=os.environ.get('BACKEND_HOST', '127.0.0.1'),
+        port=5000,
+        debug=os.environ.get('FLASK_DEBUG') == '1',
+    )

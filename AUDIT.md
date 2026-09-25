@@ -9,7 +9,7 @@ remaining tests, CI, docs.
 ## Tests that cannot catch what they claim
 - [x] T1 `tests/image-editor.test.js:138-229` tests re-declared copies of `previewScaleFor` and the aspect helpers
 - [ ] T2 `tests/color-converter.test.js` tests `js/shared/color.js`, which the page never loads (→ #25)
-- [ ] T3 `tests/shared-modules.test.js:107-126` tests `js/shared/config.js`, which ships nowhere (→ #30)
+- [x] T3 `tests/shared-modules.test.js:107-126` tests `js/shared/config.js`, which ships nowhere (→ #30)
 - [x] T4 ~~compares 4 bytes to `'PK'`~~ — false alarm: the literal held raw `` bytes. Rewritten as visible escapes
 - [x] T5 `tests/deployed-site.test.js:929-951` try/catch swallows the 404 assertion
 
@@ -23,16 +23,16 @@ remaining tests, CI, docs.
 - [x] 7 Cancel shows the previous run's results (`image-converter.js:628-666`, `convert/js/main.js:177-238`)
 
 ## Downloaders / backend (safety only; P3/P4 stay on the roadmap)
-- [ ] 27 SSRF: YouTube API passes any URL to yt-dlp's generic extractor
-- [ ] 28 `mkdtemp()` never removed (`api/youtube/download.py:41`, `backend.py:408`)
-- [ ] 29 Self-XSS via `innerHTML` in `youtube-downloader.js:32` and `displayVideoInfo`
-- [ ] 26 Non-JSON error bodies parsed as JSON on both downloaders
-- [ ] 30 Downloaders load legacy `js/config.js` → previews call localhost (P2b)
-- [ ] 35 Instagram proxy follows redirects past the allowlist (`proxy.py:71`, `backend.py:227`)
-- [ ] 34 `backend.py` runs `debug=True` on `0.0.0.0`
-- [ ] 31 Client URL validation rejects real YouTube/Instagram URLs
-- [ ] 32 Raw yt-dlp bot-check text shown to users
-- [ ] 33 YouTube download errors invisible; extension can mismatch container
+- [x] 27 SSRF: YouTube API passes any URL to yt-dlp's generic extractor
+- [x] 28 `mkdtemp()` never removed (`api/youtube/download.py:41`, `backend.py:408`)
+- [x] 29 Self-XSS via `innerHTML` in `youtube-downloader.js:32` and `displayVideoInfo`
+- [x] 26 Non-JSON error bodies parsed as JSON on both downloaders
+- [x] 30 Downloaders load legacy `js/config.js` → previews call localhost (P2b)
+- [x] 35 Instagram proxy follows redirects past the allowlist (`proxy.py:71`, `backend.py:227`)
+- [x] 34 `backend.py` runs `debug=True` on `0.0.0.0`
+- [x] 31 Client URL validation rejects real YouTube/Instagram URLs
+- [x] 32 Raw yt-dlp bot-check text shown to users
+- [x] 33 YouTube download errors invisible; extension can mismatch container
 
 ## Medium
 - [x] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
@@ -67,8 +67,8 @@ remaining tests, CI, docs.
 - [ ] L-j Image preview width only shrinks (verify in a browser first)
 - [ ] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)
 - [ ] L-l Search spelling hints fire on correct words; accented words split
-- [ ] L-m YouTube keyword `mp3` promises audio the tool cannot produce
-- [ ] L-n Instagram duplicate "Need help?" link, unreachable rate-limit branch
+- [x] L-m YouTube keyword `mp3` promises audio the tool cannot produce
+- [x] L-n Instagram duplicate "Need help?" link, unreachable rate-limit branch
 - [ ] L-o QR textarea has no `maxlength`
 - [ ] L-p `requirements.txt` unpinned
 

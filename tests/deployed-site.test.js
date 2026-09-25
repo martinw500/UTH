@@ -178,8 +178,8 @@ describe('Static assets are accessible on deployed site', () => {
         expect(res.ok).toBe(true);
     });
 
-    test('js/config.js loads', async () => {
-        const res = await checkResource(`${SITE}/js/config.js`);
+    test('js/shared/config.js loads', async () => {
+        const res = await checkResource(`${SITE}/js/shared/config.js`);
         expect(res.ok).toBe(true);
     });
 
@@ -628,12 +628,8 @@ describe('YouTube Downloader — features present', () => {
         expect(page.body).toContain('id="qualityOptions"');
     });
 
-    test('loads config.js for API URL', () => {
-        expect(page.body).toContain('src="../js/config.js"');
-    });
-
-    test('loads youtube-downloader.js script', () => {
-        expect(page.body).toContain('src="js/youtube-downloader.js"');
+    test('loads youtube-downloader.js as a module', () => {
+        expect(page.body).toContain('type="module" src="js/youtube-downloader.js"');
     });
 
     test('has terms of service notice', () => {
@@ -708,12 +704,8 @@ describe('Instagram Downloader — features present', () => {
         expect(page.body).toContain('Need help?');
     });
 
-    test('loads config.js for API URL', () => {
-        expect(page.body).toContain('src="../js/config.js"');
-    });
-
-    test('loads instagram-downloader.js script', () => {
-        expect(page.body).toContain('src="js/instagram-downloader.js"');
+    test('loads instagram-downloader.js as a module', () => {
+        expect(page.body).toContain('type="module" src="js/instagram-downloader.js"');
     });
 
     test('has public posts notice', () => {
@@ -942,7 +934,7 @@ describe('Config file has correct production URL', () => {
     let configContent;
 
     beforeAll(async () => {
-        const res = await fetch(`${SITE}/js/config.js`);
+        const res = await fetch(`${SITE}/js/shared/config.js`);
         configContent = await res.text();
     });
 

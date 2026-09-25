@@ -543,7 +543,7 @@ describe('Required static assets exist', () => {
     const requiredFiles = [
         'styles.css',
         'script.js',
-        'js/config.js',
+        'js/shared/config.js',
         'image-converter/js/image-converter.js',
         'video-converter/js/video-converter.js',
         'color-converter/js/color-converter.js',
@@ -626,26 +626,3 @@ describe('Vercel configuration', () => {
     });
 });
 
-describe('Config file', () => {
-    let configContent;
-
-    beforeAll(() => {
-        configContent = fs.readFileSync(path.join(ROOT, 'js/config.js'), 'utf-8');
-    });
-
-    test('defines API_CONFIG', () => {
-        expect(configContent).toContain('API_CONFIG');
-    });
-
-    test('has BACKEND_URL', () => {
-        expect(configContent).toContain('BACKEND_URL');
-    });
-
-    test('has production URL', () => {
-        expect(configContent).toContain('useful-tool-hub.vercel.app');
-    });
-
-    test('has development fallback', () => {
-        expect(configContent).toContain('localhost');
-    });
-});

@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import re
 import requests
 
@@ -44,6 +44,26 @@ def is_allowed_media_url(media_url):
     )
 
 
+def fetch_allowed(media_url):
+    """GET a media URL, following redirects only while they stay on allowed hosts.
+
+    requests follows redirects on its own, and the allowlist used to be checked
+    on the first URL only, so an open redirect on any instagram.com host would
+    have let this fetch anything. Returns None when a hop leaves the allowlist.
+    """
+    url = media_url
+    for _ in range(4):
+        upstream = requests.get(url, headers=BROWSER_HEADERS, stream=True, timeout=30,
+                                allow_redirects=False)
+        if not upstream.is_redirect:
+            return upstream
+        url = urljoin(url, upstream.headers.get('Location', ''))
+        upstream.close()
+        if not is_allowed_media_url(url):
+            return None
+    return None
+
+
 def safe_filename(name, fallback):
     if not name:
         return fallback
@@ -67,8 +87,9 @@ def proxy_media():
         return jsonify({'error': 'Only Instagram media URLs are allowed'}), 403
 
     try:
-        # Stream the response from Instagram
-        upstream = requests.get(media_url, headers=BROWSER_HEADERS, stream=True, timeout=30)
+        upstream = fetch_allowed(media_url)
+        if upstream is None:
+            return jsonify({'error': 'Only Instagram media URLs are allowed'}), 403
 
         if upstream.status_code != 200:
             return jsonify({'error': f'Instagram returned status {upstream.status_code}'}), 502
@@ -108,4 +129,4 @@ def proxy_media():
         return jsonify({'error': 'Request to Instagram timed out'}), 504
     except Exception as e:
         print(f'Proxy error: {e}')
-        return jsonify({'error': f'Failed to proxy media: {str(e)}'}), 500
+        return jsonify({'error': 'Could not fetch that file from Instagram.'}), 502

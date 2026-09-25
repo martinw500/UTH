@@ -1,6 +1,10 @@
 // ============================================
 // Instagram Downloader
 // ============================================
+
+import { apiUrl, errorFromResponse } from '../../js/shared/config.js';
+import { saveBlob } from '../../js/shared/download.js';
+
 const fetchBtn = document.getElementById('fetchBtn');
 const instagramUrlInput = document.getElementById('instagramUrl');
 const loading = document.getElementById('loading');
@@ -19,8 +23,13 @@ const videoFormatGroup = document.getElementById('videoFormatGroup');
 let currentMedia = [];
 let selectedIndices = new Set();
 
-function isValidInstagramUrl(url) {
-    return /^https?:\/\/(www\.)?instagram\.com\/(p|reel)\/[A-Za-z0-9_-]+\/?/.test(url);
+/**
+ * Matches what the server accepts: /p/ and /reel/ links, with or without the
+ * scheme, including the profile-scoped form (instagram.com/<user>/p/<code>)
+ * that the old check rejected.
+ */
+export function isValidInstagramUrl(url) {
+    return /^(https?:\/\/)?(www\.)?instagram\.com\/([A-Za-z0-9._]+\/)?(p|reel)\/[A-Za-z0-9_-]+/.test(url);
 }
 
 // ── Media URL selection ───────────────────────────────────────────
@@ -28,15 +37,13 @@ function isValidInstagramUrl(url) {
 // CORS, so previews can point straight at the Instagram CDN. A fetch() -> Blob
 // download does need CORS, so it must go through our proxy.
 
-function proxyUrl(url, filename) {
-    const params = new URLSearchParams({ url });
-    if (filename) params.set('filename', filename);
-    return `${API_CONFIG.BACKEND_URL}/api/instagram/proxy?${params}`;
+export function proxyUrl(url, filename) {
+    return apiUrl('/api/instagram/proxy', { url, filename });
 }
 
 // The full-resolution source. Never the base64 thumbnail: that is a downscaled
 // preview, and downloading it was the cause of blurry saved files.
-function pickDownloadUrl(media, filename) {
+export function pickDownloadUrl(media, filename) {
     const src = media.url_high || media.url_low;
     if (!src) return media.thumbnail || null;
     // Already-inlined data: URLs cannot be proxied; use them verbatim.
@@ -46,12 +53,19 @@ function pickDownloadUrl(media, filename) {
 
 // Prefer the direct CDN URL so previews cost us no proxy bandwidth. Callers
 // fall back to the proxy via onerror if Instagram blocks the hotlink.
-function pickPreviewUrl(media) {
+export function pickPreviewUrl(media) {
     return media.url_high || media.url_low || media.thumbnail || null;
 }
 
+// Text, never HTML: messages can carry server text. The help link is added
+// here once; callers used to append their own, so it appeared twice.
 function showError(message) {
-    errorText.innerHTML = `${message} <a href="troubleshooting.html" target="_blank" style="color: var(--primary-light); text-decoration: underline;">Need help?</a>`;
+    const help = document.createElement('a');
+    help.href = 'troubleshooting.html';
+    help.target = '_blank';
+    help.textContent = 'Need help?';
+    help.style.cssText = 'color: var(--primary-light); text-decoration: underline;';
+    errorText.replaceChildren(`${message} `, help);
     errorMsg.classList.add('active');
 }
 
@@ -74,11 +88,11 @@ async function fetchInstagramMedia(url) {
     fetchBtn.disabled = true;
 
     try {
-        const response = await fetch(`${API_CONFIG.BACKEND_URL}/api/instagram?url=${encodeURIComponent(url)}`);
+        const response = await fetch(apiUrl('/api/instagram', { url }));
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to fetch Instagram media');
+            throw new Error(await errorFromResponse(response,
+                'Failed to fetch Instagram media. Please try again in a few minutes.'));
         }
 
         const data = await response.json();
@@ -88,13 +102,9 @@ async function fetchInstagramMedia(url) {
 
         displayMedia(data.media, data);
     } catch (error) {
-        if (error instanceof TypeError) {
-            showError('Cannot connect to backend server. Please wait a moment and try again. The server may be starting up (cold start takes ~10s). <a href="troubleshooting.html" target="_blank" style="color: var(--primary-light); text-decoration: underline;">Need help?</a>');
-        } else if (error.message.includes('rate') || error.message.includes('wait') || error.message.includes('429') || error.message.includes('401')) {
-            showError('Instagram is temporarily blocking requests from our server. Please try again in a few minutes. <a href="troubleshooting.html" target="_blank" style="color: var(--primary-light); text-decoration: underline;">Need help?</a>');
-        } else {
-            showError(error.message || 'Failed to fetch Instagram media. Please try again in a few minutes.');
-        }
+        showError(error instanceof TypeError
+            ? 'Cannot reach the server. It may be starting up (about 10 seconds); try again.'
+            : error.message);
         loading.classList.remove('active');
         fetchBtn.disabled = false;
     }
@@ -225,7 +235,7 @@ function updateFormatDropdown() {
 
 const IMAGE_MIME = { png: 'image/png', webp: 'image/webp', jpg: 'image/jpeg' };
 
-function extensionForBlob(blob, mediaType) {
+export function extensionForBlob(blob, mediaType) {
     const type = (blob.type || '').toLowerCase();
     if (type.includes('png')) return 'png';
     if (type.includes('webp')) return 'webp';
@@ -274,20 +284,6 @@ async function reencodeImage(blob, format) {
     } finally {
         URL.revokeObjectURL(objectUrl);
     }
-}
-
-function saveBlob(blob, filename) {
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(objectUrl);
-    }, 100);
 }
 
 async function fetchBlob(url) {
@@ -362,7 +358,7 @@ async function downloadAll() {
 
     if (successCount < indicesToDownload.length) {
         const failed = indicesToDownload.length - successCount;
-        showError(`${failed} of ${indicesToDownload.length} download${failed > 1 ? 's' : ''} could not be saved automatically. Instagram may be rate-limiting our server &mdash; try again in a minute.`);
+        showError(`${failed} of ${indicesToDownload.length} download${failed > 1 ? 's' : ''} could not be saved automatically. Instagram may be rate-limiting our server — try again in a minute.`);
     }
 }
 

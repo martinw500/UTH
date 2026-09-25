@@ -343,12 +343,12 @@ details are load-bearing and are now settled in one place:
 `attachDownload(anchor, blob, name, slot, key)` is the form for a **persistent** button: the slot
 or pool from `objecturl.js` keeps owning the URL, so nothing revokes a URL still wired to a visible
 preview. `saveRemote` is separate from `saveBlob` on purpose — the `download` attribute is
-**ignored cross-origin**, which is why the YouTube download passes its filename to the backend as a
-query parameter instead.
+**ignored cross-origin**. The YouTube download fetches the file and calls `saveBlob` instead, so a
+server error is shown rather than navigating away or failing silently.
 
 The two ffmpeg converter pages still hand-manage `currentOutputUrl`. That is correct as written and
-they are on the redirect path anyway; `color-converter` and the two downloaders are classic scripts
-and cannot import this until P2b/P2c.
+they are on the redirect path anyway; `color-converter` is a classic script and cannot import this
+until it is converted.
 
 ### The result row — `js/shared/result-card.js`
 `renderResult`/`renderFailure`/`renderResultList`, plus the pure `resultSummary`. The convert hub
@@ -486,12 +486,11 @@ own project if ever.
 
 ### P2b–g — finish the ESM migration (foundational, risky)
 One PR per step; each independently green and deployable.
-- **P2b** — `js/config.js` becomes a re-export shim of `js/shared/config.js`; convert the two pages
-  that load it (`youtube-downloader`, `instagram-downloader`) to `<script type="module">`.
 - **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
-  favour of `js/shared/*`, and rewrite its test to import real source. The video converter and
-  image editor are done; **colour picker and the two downloaders remain** — and until they are
-  modules they cannot use `js/shared/download.js`, so they still carry their own save helpers.
+  favour of `js/shared/*`, and rewrite its test to import real source. The video converter, image
+  editor and both downloaders are done (`js/config.js` is gone; the downloaders use
+  `js/shared/config.js`, so Vercel previews reach their own API instead of `localhost:5000`).
+  **The colour picker remains.**
 
 ### Fold the old converter pages into the hub
 While doing it, move the video converter to **VP9** (`libvpx-vp9 -row-mt 1`) instead of VP8, and give
@@ -512,6 +511,21 @@ most expensive *and* the most blocked on cloud IPs, yet runs first today). Expon
 jitter. Drop base64 from the response. Edge-cache 200s only (`s-maxage=600`); `no-store` on errors
 or a transient Instagram block gets cached for everyone. HMAC-sign proxy URLs, failing **open** to
 allowlist-only when `PROXY_SECRET` is unset.
+
+### The API only takes what it can serve
+Done, and not to be undone by P3/P4. `youtube_watch_url` rebuilds a canonical watch URL from an id
+on an allowlisted host, and only that reaches yt-dlp: the old code passed any URL with no
+11-character id straight through, and yt-dlp's generic extractor fetches whatever it is given (an
+SSRF and open relay). Playlists and channels are refused. Errors reach users as
+`describe_youtube_error`'s sentences, never yt-dlp's text, which echoed the input. The download
+removes its temp directory and names the file by the extension actually downloaded. The Instagram
+proxy re-checks the allowlist on every redirect hop. `backend.py` binds 127.0.0.1 with the
+debugger off (`BACKEND_HOST`, `FLASK_DEBUG=1` to opt in).
+
+The URL check has three copies (`api/youtube/index.py`, `download.py`, `backend.py`) until
+`api/_lib/` imports are verified on Vercel; **`npm run verify:api` asserts they agree** and drives
+every endpoint through Flask's test client with yt-dlp and requests faked out. `npm run
+verify:downloaders` drives both pages against the local backend.
 
 ### P4 — YouTube tells the truth *(independent of P2/P3, can be done any time)*
 Production silently serves 360p when the UI says 1080p: Vercel has no ffmpeg, so
