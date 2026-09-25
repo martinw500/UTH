@@ -20,8 +20,10 @@ import {
     needsConvolution,
     normaliseRotation,
     outputSize,
+    previewRectToCrop,
     describeState,
 } from '../js/shared/pipeline.js';
+import { largestInscribedRect, rotatedBounds } from '../js/shared/geometry.js';
 
 import { formatBytes } from '../js/shared/format.js';
 
@@ -318,9 +320,112 @@ describe('outputSize', () => {
         expect(size.height).toBeGreaterThanOrEqual(1);
     });
 
+    // The renderer straightens before it rotates, so the size readout, the
+    // resize maths and the crop fields all need the straightened frame. This
+    // used to ignore straighten entirely.
+    test('an auto-cropped straighten shrinks to the inscribed rect', () => {
+        const state = base();
+        state.straighten = 10;
+        state.autoCropStraighten = true;
+        expect(outputSize(1000, 600, state)).toEqual(largestInscribedRect(1000, 600, 10));
+    });
+
+    test('a straighten without auto-crop grows to the rotated bounds', () => {
+        const state = base();
+        state.straighten = 10;
+        state.autoCropStraighten = false;
+        expect(outputSize(1000, 600, state)).toEqual(rotatedBounds(1000, 600, 10));
+    });
+
+    test('straighten happens before the quarter turn swaps the axes', () => {
+        const state = base();
+        state.straighten = 10;
+        state.autoCropStraighten = true;
+        state.rotate = 90;
+        const inner = largestInscribedRect(1000, 600, 10);
+        expect(outputSize(1000, 600, state)).toEqual({ width: inner.height, height: inner.width });
+    });
+
     test('a missing crop is treated as the full image', () => {
         expect(outputSize(800, 600, { rotate: 0, adjust: IDENTITY_ADJUST }))
             .toEqual({ width: 800, height: 600 });
+    });
+});
+
+// The crop overlay is drawn over the preview, which is already rotated and
+// flipped, but state.crop is applied to the source before either. Storing the
+// drawn rect as-is kept the wrong part of the image after any rotate or flip.
+describe('previewRectToCrop', () => {
+    const base = () => createState();
+    const LEFT_HALF = { x: 0, y: 0, w: 0.5, h: 1 };
+    const close = (actual, expected) => {
+        for (const key of ['x', 'y', 'w', 'h']) expect(actual[key]).toBeCloseTo(expected[key], 6);
+    };
+
+    test('with nothing applied the drawn rect is the crop', () => {
+        close(previewRectToCrop({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 }, base(), 800, 600),
+            { x: 0.1, y: 0.2, w: 0.3, h: 0.4 });
+    });
+
+    test('a quarter turn clockwise: the left of the preview is the bottom of the source', () => {
+        const state = base();
+        state.rotate = 90;
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0, y: 0.5, w: 1, h: 0.5 });
+    });
+
+    test('a quarter turn anticlockwise: the left of the preview is the top of the source', () => {
+        const state = base();
+        state.rotate = 270;
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0, y: 0, w: 1, h: 0.5 });
+    });
+
+    test('a half turn maps a corner to the opposite corner', () => {
+        const state = base();
+        state.rotate = 180;
+        close(previewRectToCrop({ x: 0, y: 0, w: 0.25, h: 0.25 }, state, 800, 600),
+            { x: 0.75, y: 0.75, w: 0.25, h: 0.25 });
+    });
+
+    test('a horizontal flip mirrors the rect', () => {
+        const state = base();
+        state.flipH = true;
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0.5, y: 0, w: 0.5, h: 1 });
+    });
+
+    test('flip is undone after the rotation, matching the renderer', () => {
+        const state = base();
+        state.rotate = 90;
+        state.flipH = true;
+        // Forward: flip the source, then turn it. The left of the preview came
+        // from the bottom of the flipped source, which is the bottom of the source.
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0, y: 0.5, w: 1, h: 0.5 });
+        state.flipH = false;
+        state.flipV = true;
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0, y: 0, w: 1, h: 0.5 });
+    });
+
+    test('composes with an existing crop instead of replacing it', () => {
+        const state = base();
+        state.crop = { x: 0.5, y: 0, w: 0.5, h: 1 };
+        close(previewRectToCrop(LEFT_HALF, state, 800, 600), { x: 0.5, y: 0, w: 0.25, h: 1 });
+    });
+
+    test('a straighten keeps the drawn centre and stays inside the image', () => {
+        const state = base();
+        state.straighten = 5;
+        const crop = previewRectToCrop({ x: 0.4, y: 0.4, w: 0.2, h: 0.2 }, state, 1000, 1000);
+        expect(crop.x + crop.w / 2).toBeCloseTo(0.5, 6);
+        expect(crop.y + crop.h / 2).toBeCloseTo(0.5, 6);
+        // The auto-cropped frame is smaller than the source and the tilted
+        // selection's bounding box a little bigger than drawn; the two
+        // roughly cancel at small angles.
+        expect(crop.w).toBeGreaterThan(0.18);
+        expect(crop.w).toBeLessThan(0.22);
+        // The inscribed rect is floored to whole pixels, hence 3 places.
+        const whole = previewRectToCrop({ x: 0, y: 0, w: 1, h: 1 }, state, 1000, 1000);
+        for (const [key, value] of Object.entries({ x: 0, y: 0, w: 1, h: 1 })) {
+            expect(whole[key]).toBeCloseTo(value, 3);
+        }
     });
 });
 

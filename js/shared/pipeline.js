@@ -11,7 +11,7 @@
 // canvas snapshots; and every derived number is a pure function, testable
 // without a canvas.
 
-import { clampRect } from './geometry.js';
+import { clampRect, rotatedBounds, largestInscribedRect } from './geometry.js';
 
 /** Adjustments at their no-op values. */
 export const IDENTITY_ADJUST = Object.freeze({
@@ -107,8 +107,12 @@ export function normaliseRotation(degrees) {
  */
 export function outputSize(srcW, srcH, state) {
     const crop = clampRect(state.crop ?? FULL_RECT, { minW: 0, minH: 0 });
-    let width = Math.max(1, Math.round(srcW * crop.w));
-    let height = Math.max(1, Math.round(srcH * crop.h));
+    let { width, height } = straightenedSize(
+        Math.max(1, Math.round(srcW * crop.w)),
+        Math.max(1, Math.round(srcH * crop.h)),
+        state.straighten,
+        state.autoCropStraighten,
+    );
 
     if (normaliseRotation(state.rotate ?? 0) % 180 === 90) {
         [width, height] = [height, width];
@@ -120,6 +124,70 @@ export function outputSize(srcW, srcH, state) {
     }
 
     return { width, height };
+}
+
+/** Size after a straighten, exactly as render.js's applyStraighten produces it. */
+function straightenedSize(width, height, angleDeg, autoCrop) {
+    if (!angleDeg) return { width, height };
+    if (autoCrop) {
+        const inner = largestInscribedRect(width, height, angleDeg);
+        if (inner.width >= 1 && inner.height >= 1) return inner;
+    }
+    return rotatedBounds(width, height, angleDeg);
+}
+
+/**
+ * Turn a rect drawn over the preview into the state's new source-space crop.
+ *
+ * The preview shows crop -> straighten -> rotate/flip, but `state.crop` is
+ * applied to the source before either, so the drawn rect is walked back
+ * through the orientation and the straighten, then composed with the existing
+ * crop. Storing it as drawn kept the wrong region after any rotate or flip.
+ *
+ * Rotate and flip invert exactly. A straighten does not: the drawn rect maps
+ * back to a tilted quad, so this keeps its bounding box, and the auto-crop
+ * then trims slightly inside it.
+ */
+export function previewRectToCrop(rect, state, srcW, srcH) {
+    const crop = state.crop ?? FULL_RECT;
+    const angle = normaliseRotation(state.rotate ?? 0);
+    const cropW = Math.max(1, srcW * crop.w);
+    const cropH = Math.max(1, srcH * crop.h);
+    const frame = straightenedSize(cropW, cropH, state.straighten, state.autoCropStraighten);
+    const rad = ((state.straighten || 0) * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+
+    const points = [
+        [rect.x, rect.y], [rect.x + rect.w, rect.y],
+        [rect.x, rect.y + rect.h], [rect.x + rect.w, rect.y + rect.h],
+    ].map(([u, v]) => {
+        // Centred, normalised to the frame being undone at each step.
+        let a = u - 0.5;
+        let b = v - 0.5;
+        if (angle === 90) [a, b] = [b, -a];
+        else if (angle === 180) [a, b] = [-a, -b];
+        else if (angle === 270) [a, b] = [-b, a];
+        if (state.flipH) a = -a;
+        if (state.flipV) b = -b;
+        if (!rad) return [a, b];
+        const px = a * frame.width;
+        const py = b * frame.height;
+        return [(px * cos + py * sin) / cropW, (-px * sin + py * cos) / cropH];
+    });
+
+    const xs = points.map(([a]) => Math.min(1, Math.max(0, a + 0.5)));
+    const ys = points.map(([, b]) => Math.min(1, Math.max(0, b + 0.5)));
+    const local = {
+        x: Math.min(...xs), y: Math.min(...ys),
+        w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys),
+    };
+    return {
+        x: crop.x + local.x * crop.w,
+        y: crop.y + local.y * crop.h,
+        w: crop.w * local.w,
+        h: crop.h * local.h,
+    };
 }
 
 /** Short human summary of what is currently applied, for the UI and for tests. */

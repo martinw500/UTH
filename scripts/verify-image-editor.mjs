@@ -197,6 +197,48 @@ async function main() {
         check(Math.abs(size.width - size.height) <= 2,
             'a 1:1 crop is square in output pixels', `${size.width}x${size.height}`);
 
+        // The overlay sits over the rotated preview, but the crop is applied to
+        // the source before the rotation. Storing the drawn rect as-is used to
+        // keep a different part of the image.
+        console.log('\nCrop after a rotation keeps what was drawn');
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.reload({ waitUntil: 'networkidle' });
+        await loadFixture(page, { width: 400, height: 200 });
+        await page.selectOption('#outputFormat', 'image/png');
+        await page.click('#rotateRightBtn');
+        // Turned clockwise, the transparent left half is on top and red below.
+        await page.click('#cropBtn');
+        await page.waitForSelector('#cropOverlay:not([style*="display: none"])');
+        for (const [id, value] of [['#cropX', '0'], ['#cropY', '200'], ['#cropW', '200'], ['#cropH', '200']]) {
+            await page.fill(id, value);
+            await page.dispatchEvent(id, 'change');
+        }
+        await page.click('#applyCropBtn');
+        bytes = await exportBytes(page);
+        const corners = await Promise.all([[2, 2], [197, 197]].map(([x, y]) => pixelAt(page, bytes, x, y)));
+        check(corners[0].w === 200 && corners[0].h === 200,
+            'the crop is the size drawn', `${corners[0].w}x${corners[0].h}`);
+        check(corners.every((p) => p.r > 240 && p.a === 255),
+            'the crop is the red half that was drawn over',
+            corners.map((p) => `rgba(${p.r},${p.g},${p.b},${p.a})`).join(' '));
+
+        // Undo used to be a no-op after a slider drag: every input event
+        // overwrote the history's present, so the step pushed on change held
+        // the new value rather than the old one.
+        console.log('\nUndo reverts one slider gesture at a time');
+        for (const [id, value] of [['#brightnessSlider', '50'], ['#contrastSlider', '30']]) {
+            await page.fill(id, value);
+            await page.dispatchEvent(id, 'input');
+            await page.dispatchEvent(id, 'change');
+        }
+        await page.click('#undoBtn');
+        const sliders = {
+            brightness: await page.inputValue('#brightnessSlider'),
+            contrast: await page.inputValue('#contrastSlider'),
+        };
+        check(sliders.contrast === '0' && sliders.brightness === '50',
+            'one undo reverts only the last slider', JSON.stringify(sliders));
+
         console.log('\nBatch');
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.reload({ waitUntil: 'networkidle' });

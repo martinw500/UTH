@@ -202,12 +202,23 @@ are never resampled by a later scale, sharpen last so it works on the pixels tha
 the sharpen pass only — it is a full `getImageData`/`putImageData` round trip and stutters at slider
 speed. Export never skips it.
 
+**The crop is stored in source space, but drawn over the rotated, flipped, straightened preview.**
+`previewRectToCrop` (`js/shared/pipeline.js`) walks the drawn rect back through orientation and
+straighten before composing it with the existing crop; storing it as drawn kept the wrong region
+after any rotate or flip. Rotate/flip invert exactly; a straighten keeps the tilted selection's
+bounding box. `outputSize` includes the straighten for the same reason, and the crop overlay's frame
+is `outputSize` with the resize dropped — the preview drops it too while cropping.
+
+Slider undo: `input` must not touch the history. `change` pushes the history's *present*, which has
+to still hold the pre-drag value; replacing it on each `input` made every slider undo a no-op.
+
 A 1:1 crop on a 2000×1000 image is **0.5 × 1.0 in normalised space, not a normalised square**;
 `applyAspect` divides the image's own aspect out. Getting that wrong is what makes "square" crops
 rectangular.
 
 `npm run verify:image-editor` drives a real browser and checks the actual bytes — magic numbers per
-format, JPEG matte colour, resize dimensions, and a 1:1 crop at a 420px viewport. **Run it after
+format, JPEG matte colour, resize dimensions, a 1:1 crop at a 420px viewport, a crop after a
+rotation, slider undo, and that busy buttons get their label back. **Run it after
 touching the editor or `js/shared/{geometry,pipeline,image}.js`.** jsdom has no canvas, so this is
 the only thing that can catch the whole failure class. Needs `npm run dev` running.
 

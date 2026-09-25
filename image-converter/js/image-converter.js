@@ -33,6 +33,7 @@ import {
     createState,
     cloneState,
     outputSize,
+    previewRectToCrop,
     normaliseRotation,
     FULL_RECT,
 } from '../../js/shared/pipeline.js';
@@ -136,12 +137,16 @@ function renderPreview() {
     const item = currentItem();
     if (!item?.source) return;
 
-    const size = outputSize(item.width, item.height, state);
+    // While cropping, show the frame the overlay is measured against: a
+    // resize letterboxes or stretches it, and applying a crop drops the resize
+    // anyway.
+    const shown = cropping ? { ...state, resize: null } : state;
+    const size = outputSize(item.width, item.height, shown);
     const scale = previewScaleFor(
         size.width, size.height, ui.canvasWrapper.clientWidth || 800,
     );
 
-    const canvas = renderState(item.source, state, {
+    const canvas = renderState(item.source, shown, {
         background: needsMatte() ? ui.matteColor.value : null,
         previewScale: scale,
         // Sharpening every preview frame is a full getImageData/putImageData
@@ -312,6 +317,17 @@ function commit(mutate) {
     scheduleEstimate();
 }
 
+/**
+ * Close a slider gesture as one undo step. Skipped when nothing changed, since
+ * a `change` can arrive without a new value and would add an undo step that
+ * does nothing.
+ */
+function commitGesture() {
+    if (JSON.stringify(history.current()) === JSON.stringify(state)) return;
+    history.push(state);
+    updateUndoButton();
+}
+
 function updateUndoButton() {
     ui.undoBtn.disabled = !history.canUndo;
 }
@@ -331,14 +347,11 @@ function currentRatio() {
     return parseRatio(ui.cropAspect.value, size?.width ?? 1, size?.height ?? 1);
 }
 
+/** Pixel size of the frame the crop overlay sits over: the preview, unresized. */
 function croppableSize() {
     const item = currentItem();
     if (!item) return { width: 1, height: 1 };
-    // The crop rect is relative to the source, before any resize.
-    const rotated = normaliseRotation(state.rotate) % 180 === 90;
-    return rotated
-        ? { width: item.height, height: item.width }
-        : { width: item.width, height: item.height };
+    return outputSize(item.width, item.height, { ...state, resize: null });
 }
 
 function enterCropMode() {
@@ -349,7 +362,7 @@ function enterCropMode() {
     ui.cropConfirmBar.style.display = '';
     const { width, height } = croppableSize();
     cropRect = centredRect(currentRatio(), width, height, 0.8);
-    positionCropOverlay();
+    renderPreview();
     syncCropInputs();
 }
 
@@ -358,6 +371,7 @@ function cancelCrop() {
     ui.cropBtn.classList.remove('active');
     ui.cropOverlay.style.display = 'none';
     ui.cropConfirmBar.style.display = 'none';
+    renderPreview();
 }
 
 function positionCropOverlay() {
@@ -822,21 +836,25 @@ for (const [key, slider, display, unit] of ADJUST_CONTROLS) {
     slider.addEventListener('input', () => {
         state.adjust[key] = Number(slider.value);
         display.textContent = `${slider.value}${unit}`;
-        history.replace(state);
         renderPreviewSoon();
         scheduleEstimate();
     });
-    // One undo step per gesture, not per pixel of slider travel.
-    slider.addEventListener('change', () => history.push(state));
+    // One undo step per gesture, not per pixel of slider travel. The history's
+    // present must still hold the pre-drag value when `change` pushes it, so
+    // `input` leaves the history alone. It used to replace() on every input,
+    // which made the pushed step hold the new value and undo a no-op.
+    slider.addEventListener('change', commitGesture);
 }
 
 ui.straightenSlider.addEventListener('input', () => {
     state.straighten = Number(ui.straightenSlider.value);
     ui.straightenValue.textContent = `${ui.straightenSlider.value}°`;
-    history.replace(state);
     renderPreviewSoon();
 });
-ui.straightenSlider.addEventListener('change', () => { history.push(state); scheduleEstimate(); });
+ui.straightenSlider.addEventListener('change', () => {
+    commitGesture();
+    scheduleEstimate();
+});
 ui.autoCropStraighten.addEventListener('change', () => {
     commit((next) => { next.autoCropStraighten = ui.autoCropStraighten.checked; });
 });
@@ -852,15 +870,10 @@ ui.resetAdjustBtn.addEventListener('click', () => {
 ui.cropBtn.addEventListener('click', () => (cropping ? cancelCrop() : enterCropMode()));
 ui.cancelCropBtn.addEventListener('click', cancelCrop);
 ui.applyCropBtn.addEventListener('click', () => {
-    // Compose with any existing crop rather than replacing it, so two
-    // successive crops behave the way the preview implied.
+    const item = currentItem();
+    if (!item) return;
     commit((next) => {
-        next.crop = {
-            x: state.crop.x + cropRect.x * state.crop.w,
-            y: state.crop.y + cropRect.y * state.crop.h,
-            w: state.crop.w * cropRect.w,
-            h: state.crop.h * cropRect.h,
-        };
+        next.crop = previewRectToCrop(cropRect, state, item.width, item.height);
         next.resize = null;
     });
     cancelCrop();

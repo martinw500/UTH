@@ -15,8 +15,8 @@ remaining tests, CI, docs.
 
 ## High
 - [x] 1 `setBusy` never restores the idle label (`js/shared/dom.js:56`)
-- [ ] 2 Image editor crop lands in the wrong place after rotate/flip/straighten
-- [ ] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
+- [x] 2 Image editor crop lands in the wrong place after rotate/flip/straighten
+- [x] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
 - [ ] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)
 - [ ] 5 Long filenames lose their extension (`format.js:91` via `download.js:126`)
 - [ ] 6 Audio converter rejects files the browser cannot preview (`audio-converter.js:215-219`)
@@ -36,7 +36,7 @@ remaining tests, CI, docs.
 
 ## Medium
 - [ ] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
-- [ ] 9 Crop label / numeric fields / aspect wrong after a first crop (`croppableSize`)
+- [x] 9 Crop label / numeric fields / aspect wrong after a first crop (`croppableSize`)
 - [ ] 10 PDF Run button re-enabled mid-run (`pdf-tools.js:94`)
 - [ ] 11 Images→PDF ignores EXIF orientation; MIME-mismatched file throws raw error
 - [ ] 12 Hub progress shows item 1's name, sits at 100% on later runs (`ffmpeg.js:154-164`)
@@ -51,7 +51,7 @@ remaining tests, CI, docs.
 - [ ] 21 Target size overshoots (audio + container not budgeted)
 - [ ] 22 Hub options drop target size / trim on format change
 - [ ] 23 Hub Cancel cannot stop the current file
-- [ ] 24 Straighten ignored by `outputSize` (`pipeline.js:108-123`)
+- [x] 24 Straighten ignored by `outputSize` (`pipeline.js:108-123`)
 - [ ] 25 Colour page runs its own copy of the maths (P2c) + P7 bug trio
 
 ## Low
