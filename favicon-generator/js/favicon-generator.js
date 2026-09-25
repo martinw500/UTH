@@ -14,6 +14,7 @@ import {
     renderIcon,
     buildHtmlSnippet,
     generateFaviconSet,
+    sizedSvg,
 } from './favicon.js';
 
 const ui = requireIds(
@@ -35,7 +36,9 @@ const PREVIEW_SIZES = [16, 32, 48, 180, 512];
 async function loadFile(file) {
     clearNotice(ui.notice);
     try {
-        source = await decodeImageFile(file);
+        const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+        const svg = isSvg ? sizedSvg(await file.text()) : null;
+        source = await decodeImageFile(svg ? new Blob([svg], { type: 'image/svg+xml' }) : file);
     } catch {
         showError(ui.notice, 'That image could not be opened.');
         return;

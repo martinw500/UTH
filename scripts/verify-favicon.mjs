@@ -179,6 +179,22 @@ async function main() {
                 `favicon-${size}x${size}.png decodes at ${size}x${size}`, `${dims.w}x${dims.h}`);
         }
 
+        // A viewBox-only SVG has no intrinsic size; it used to be drawn at
+        // 300x150 and every icon upscaled from that, with the "upscaled" warning.
+        console.log('\nAn SVG logo with only a viewBox');
+        await page.goto(PAGE, { waitUntil: 'networkidle' });
+        await page.setInputFiles('#fileInput', {
+            name: 'logo.svg',
+            mimeType: 'image/svg+xml',
+            buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+                + '<circle cx="12" cy="12" r="10" fill="#6366f1"/></svg>'),
+        });
+        await page.waitForSelector('#workspace:not([hidden])', { timeout: 10000 });
+        const sourceName = (await page.textContent('#sourceName')).trim();
+        check(/1024 × 1024/.test(sourceName), 'it is rasterised large, not at its tiny default', sourceName);
+        const svgNotice = (await page.textContent('#notice'))?.trim() ?? '';
+        check(!/upscaled/.test(svgNotice), 'and no upscaling warning appears', svgNotice || 'no notice');
+
         check(errors.length === 0, 'no console errors overall', errors.join(' | '));
     } finally {
         await browser.close();

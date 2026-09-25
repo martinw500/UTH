@@ -25,6 +25,33 @@ export function describeSize(size) {
 }
 
 /**
+ * An SVG's text with width and height set so it rasterises at `size` px on its
+ * long side, or null when the text is not an SVG.
+ *
+ * A logo with only a viewBox has no intrinsic size -- browsers draw it at
+ * 300x150, or 0x0 -- and a 24px icon SVG draws at 24px, so every icon was
+ * upscaled from almost nothing. A viewBox is added when missing, since without
+ * one a larger width only enlarges the canvas, not the drawing.
+ */
+export function sizedSvg(text, size = 1024) {
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    const svg = doc.documentElement;
+    if (svg?.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
+
+    const box = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
+    const hasBox = box.length === 4 && box[2] > 0 && box[3] > 0;
+    let width = hasBox ? box[2] : parseFloat(svg.getAttribute('width'));
+    let height = hasBox ? box[3] : parseFloat(svg.getAttribute('height'));
+    if (!(width > 0 && height > 0)) { width = 1; height = 1; }
+    if (!hasBox) svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+    const scale = size / Math.max(width, height);
+    svg.setAttribute('width', String(Math.round(width * scale)));
+    svg.setAttribute('height', String(Math.round(height * scale)));
+    return new XMLSerializer().serializeToString(svg);
+}
+
+/**
  * Render a square icon of `size` from a source image.
  *
  * Squares the source by centre-cropping rather than stretching -- a squashed

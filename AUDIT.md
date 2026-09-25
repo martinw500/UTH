@@ -45,7 +45,7 @@ remaining tests, CI, docs.
 - [x] 15 Trim end floored → end of file cut, `-to` added unasked
 - [x] 16 loudnorm + WAV/FLAC + keep-original rate → 192 kHz
 - [x] 17 Video converter keeps the previous file's trim start / metadata
-- [ ] 18 Favicon from viewBox-only SVG rasterised tiny then upscaled
+- [x] 18 Favicon from viewBox-only SVG rasterised tiny then upscaled
 - [x] 19 ffmpeg non-zero exit reported as success; `input.mp4 → mp4` returns the original
 - [x] 20 ffmpeg crash leaves the engine dead until reload
 - [x] 21 Target size overshoots (audio + container not budgeted)
