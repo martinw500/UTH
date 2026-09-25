@@ -55,7 +55,7 @@ remaining tests, CI, docs.
 - [x] 25 Colour page runs its own copy of the maths (P2c) + P7 bug trio
 
 ## Low
-- [ ] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)
+- [x] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)
 - [x] L-b Opus + 44.1/22.05 kHz fails (`audio-args.js:89`)
 - [x] L-c Page range `20-` on a 10-page PDF selects page 10 (`pdf-pages.js:53-60`)
 - [ ] L-d `MAX_CANVAS_DIMENSION` never enforced (`image.js:9`)

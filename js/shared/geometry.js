@@ -103,15 +103,16 @@ export function parseRatio(spec, srcW, srcH) {
  * 2000x1000 image is 0.5 x 1.0 in normalised space, not a normalised square.
  * Forgetting that is the classic way square crops come out rectangular.
  */
-export function applyAspect(rect, ratio, anchor = 'nw', srcW = 1, srcH = 1) {
+export function applyAspect(rect, ratio, anchor = 'nw', srcW = 1, srcH = 1, driveHeight = false) {
     if (!ratio || ratio <= 0) return rect;
 
     const imageAspect = srcW > 0 && srcH > 0 ? srcW / srcH : 1;
     const normalisedRatio = ratio / imageAspect;
 
-    // Width-driven, then clamped: deterministic, and never larger than the
-    // image in either axis.
-    let w = rect.w;
+    // Width-driven unless told otherwise, then clamped: deterministic, and
+    // never larger than the image in either axis. Height drives for a top or
+    // bottom edge drag, which changes nothing else.
+    let w = driveHeight ? rect.h * normalisedRatio : rect.w;
     let h = w / normalisedRatio;
     if (h > 1) { h = 1; w = h * normalisedRatio; }
     if (w > 1) { w = 1; h = w / normalisedRatio; }
@@ -176,7 +177,9 @@ export function resizeRectByHandle(orig, handle, dx, dy, {
 
     // Hold the opposite corner still, so the handle under the cursor is the one
     // that appears to move.
-    if (ratio) next = applyAspect(next, ratio, OPPOSITE[handle], srcW, srcH);
+    if (ratio) {
+        next = applyAspect(next, ratio, OPPOSITE[handle], srcW, srcH, handle === 'n' || handle === 's');
+    }
 
     return clampRect(next, { minW, minH });
 }

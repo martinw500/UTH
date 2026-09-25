@@ -186,6 +186,25 @@ describe('applyAspect', () => {
     });
 });
 
+describe('resizeRectByHandle — edge handles under a ratio', () => {
+    // The aspect maths was always width-driven, so dragging the top or bottom
+    // edge changed the height, then recomputed it from the unchanged width:
+    // the edge snapped straight back.
+    test.each([['s', 0.2], ['n', -0.2]])('dragging %s changes the size', (handle, dy) => {
+        const rect = resizeRectByHandle({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }, handle, 0, dy,
+            { ratio: 1, srcW: 100, srcH: 100 });
+        expect(rect.h).toBeCloseTo(0.7, 6);
+        expect(rect.w).toBeCloseTo(0.7, 6);
+    });
+
+    test('dragging e still works from the width', () => {
+        const rect = resizeRectByHandle({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }, 'e', 0.1, 0,
+            { ratio: 1, srcW: 100, srcH: 100 });
+        expect(rect.w).toBeCloseTo(0.6, 6);
+        expect(rect.h).toBeCloseTo(0.6, 6);
+    });
+});
+
 describe('resizeRectByHandle', () => {
     const start = { x: 0.2, y: 0.2, w: 0.4, h: 0.4 };
 
