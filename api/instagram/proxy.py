@@ -3,6 +3,7 @@ from flask_cors import CORS
 from urllib.parse import urlparse, urljoin
 import re
 import requests
+from urllib3.util import parse_url
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "OPTIONS"], "allow_headers": ["Content-Type"]}})
@@ -28,9 +29,20 @@ def is_allowed_media_url(media_url):
     Checking the whole URL for a substring would let
     ``https://evil.com/?x=instagram.com`` through, turning this endpoint into an
     open relay.
+
+    The host must also be the one requests will actually connect to. urlparse
+    and urllib3 (which requests uses) split ``https://evil.com\\@cdninstagram.com/``
+    differently: urlparse saw cdninstagram.com and allowed it, and requests then
+    fetched evil.com. So CDN URLs never carry credentials, backslashes or
+    anything outside printable ASCII, and both parsers must agree on the host.
     """
+    if not isinstance(media_url, str) or not re.fullmatch(r'[\x21-\x7e]+', media_url):
+        return False
+    if '\\' in media_url or '@' in media_url:
+        return False
     try:
         parsed = urlparse(media_url)
+        connects_to = parse_url(media_url).host
     except ValueError:
         return False
 
@@ -38,6 +50,8 @@ def is_allowed_media_url(media_url):
         return False
 
     host = parsed.hostname.lower().rstrip('.')
+    if (connects_to or '').lower().rstrip('.') != host:
+        return False
     return any(
         host == suffix or host.endswith('.' + suffix)
         for suffix in ALLOWED_HOST_SUFFIXES

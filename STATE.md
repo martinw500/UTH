@@ -510,7 +510,9 @@ on an allowlisted host, and only that reaches yt-dlp: the old code passed any UR
 SSRF and open relay). Playlists and channels are refused. Errors reach users as
 `describe_youtube_error`'s sentences, never yt-dlp's text, which echoed the input. The download
 removes its temp directory and names the file by the extension actually downloaded. The Instagram
-proxy re-checks the allowlist on every redirect hop. `backend.py` binds 127.0.0.1 with the
+proxy re-checks the allowlist on every redirect hop, against the host urllib3 will actually connect
+to — `urlparse` read `https://evil.com\@cdninstagram.com/` as an Instagram host while `requests`
+fetched evil.com. `backend.py` binds 127.0.0.1 with the
 debugger off (`BACKEND_HOST`, `FLASK_DEBUG=1` to opt in).
 
 The URL check has two copies (`api/youtube/index.py`, `download.py`) until `api/_lib/` imports are

@@ -185,6 +185,22 @@ class FakeResponse:
         pass
 
 
+print('\nThe Instagram proxy checks the host requests will really connect to')
+# urlparse read cdninstagram.com as the host of the first two; requests
+# (urllib3) connects to evil.com. That was an open relay on the deployed API.
+for name, module in [('proxy.py', proxy), ('backend.py', backend)]:
+    for url, allowed in [
+        ('https://evil.com\\@cdninstagram.com/x', False),
+        ('https://evil.com%5C@cdninstagram.com/x', False),
+        ('https://user@scontent.cdninstagram.com/x', False),
+        ('https://scontent.cdninstagram.com/v/a b.jpg', False),
+        ('http://scontent.cdninstagram.com/v/a.jpg', False),
+        ('https://evil.com/?x=instagram.com', False),
+        ('https://scontent.cdninstagram.com/v/a.jpg?stp=1&_nc=2', True),
+        ('https://instagram.fhel1-1.fna.fbcdn.net/v/a.jpg', True),
+    ]:
+        check(module.is_allowed_media_url(url) is allowed, f'{name}: {url}', f'expected {allowed}')
+
 print('\nThe Instagram proxy re-checks every redirect')
 CDN = 'https://scontent.cdninstagram.com/v/a.jpg'
 for name, module in [('proxy.py', proxy), ('backend.py', backend)]:

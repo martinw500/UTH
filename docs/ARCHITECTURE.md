@@ -68,7 +68,8 @@ browser can fetch it despite CORS.
 The API only accepts what it can serve. `youtube_watch_url` rebuilds a watch URL
 from an id on a YouTube host and only that reaches yt-dlp, whose generic
 extractor would otherwise fetch any address it is given; the Instagram proxy
-re-checks its host allowlist on every redirect. Errors reach users as plain
+re-checks its host allowlist on every redirect, using the host `requests` will
+really connect to rather than `urlparse`'s reading of it. Errors reach users as plain
 sentences, never library output, which echoed the input back. The URL check is
 copied into both YouTube functions until `api/_lib/` imports are proven on
 Vercel (`backend.py`, which only runs locally, imports it), and
