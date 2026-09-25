@@ -600,7 +600,8 @@ export function parseColor(input) {
     const named = CSS_NAMED_COLORS[value];
     if (named) return { ...hexToRgb(named), a: 1 };
 
-    if (value.startsWith('#') || /^[0-9a-f]{3,8}$/.test(value)) {
+    // Without '#', only six or eight digits: a word like "beef" is not a colour.
+    if (value.startsWith('#') || /^([0-9a-f]{6}|[0-9a-f]{8})$/.test(value)) {
         const rgb = hexToRgb(value);
         return rgb ? { a: 1, ...rgb } : null;
     }
@@ -610,7 +611,9 @@ export function parseColor(input) {
 
     // Accept both legacy comma syntax and CSS Color 4 space syntax.
     const parts = fn[2].split(/[\s,/]+/).filter(Boolean);
-    if (parts.length < 3) return null;
+    if (parts.length < 3 || parts.length > 4) return null;
+    // A component that is not a number used to parse as NaN and come out 0.
+    if (!parts.every((p) => /^[+-]?(\d+\.?\d*|\.\d+)(%|deg|rad|grad|turn)?$/.test(p))) return null;
 
     const num = (s) => parseFloat(s);
     const alpha = parts[3] === undefined
@@ -624,7 +627,13 @@ export function parseColor(input) {
         return { r: channel(parts[0]), g: channel(parts[1]), b: channel(parts[2]), a: alpha };
     }
 
-    const rgb = hslToRgb(num(parts[0]), num(parts[1]), num(parts[2]));
+    const hue = parts[0];
+    const degrees = hue.endsWith('turn') ? num(hue) * 360
+        : hue.endsWith('grad') ? num(hue) * 0.9
+            : hue.endsWith('rad') ? (num(hue) * 180) / Math.PI
+                : num(hue);
+    const percent = (s) => Math.max(0, Math.min(100, num(s)));
+    const rgb = hslToRgb(degrees, percent(parts[1]), percent(parts[2]));
     return { ...rgb, a: alpha };
 }
 

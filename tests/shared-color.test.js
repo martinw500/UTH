@@ -59,6 +59,32 @@ describe('parseColor', () => {
         expect(parseColor('')).toBeNull();
         expect(parseColor(null)).toBeNull();
     });
+
+    // Each of these used to return a colour: garbage parsed as 0 (black), and
+    // saturation and lightness were never clamped, so channels ran past 255
+    // and below 0.
+    test('refuses non-numeric components instead of reading them as 0', () => {
+        expect(parseColor('rgb(abc, 0, 0)')).toBeNull();
+        expect(parseColor('hsl(abc, 50%, 50%)')).toBeNull();
+    });
+
+    test('clamps saturation and lightness into range', () => {
+        expect(parseColor('hsl(0, 0%, 150%)')).toEqual({ r: 255, g: 255, b: 255, a: 1 });
+        expect(parseColor('hsl(0, 150%, 50%)')).toEqual({ r: 255, g: 0, b: 0, a: 1 });
+    });
+
+    test('reads hue units rather than treating every number as degrees', () => {
+        expect(parseColor('hsl(0.5turn, 100%, 50%)')).toEqual({ r: 0, g: 255, b: 255, a: 1 });
+        expect(parseColor('hsl(200grad, 100%, 50%)')).toEqual({ r: 0, g: 255, b: 255, a: 1 });
+    });
+
+    // An English word made of hex letters is not a colour; "beef" used to
+    // come back as #bbeeee.
+    test('a bare hex string needs six or eight digits', () => {
+        expect(parseColor('beef')).toBeNull();
+        expect(parseColor('ff0000')).toEqual({ r: 255, g: 0, b: 0, a: 1 });
+        expect(parseColor('#fff')).toEqual({ r: 255, g: 255, b: 255, a: 1 });
+    });
 });
 
 describe('HSV', () => {

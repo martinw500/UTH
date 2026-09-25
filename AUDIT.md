@@ -65,7 +65,7 @@ remaining tests, CI, docs.
 - [x] L-h ffmpeg blob URLs never revoked
 - [x] L-i `reorderPdf` accepts duplicate pages
 - [ ] L-j Image preview width only shrinks (verify in a browser first)
-- [ ] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)
+- [x] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)
 - [ ] L-l Search spelling hints fire on correct words; accented words split
 - [x] L-m YouTube keyword `mp3` promises audio the tool cannot produce
 - [x] L-n Instagram duplicate "Need help?" link, unreachable rate-limit branch
