@@ -5,7 +5,8 @@ what is next, and which decisions are settled. This file is the short orientatio
 
 - [docs/SETUP.md](docs/SETUP.md) — getting running on a new machine
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how it fits together and why
-- [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) — the checklist for a new tool
+- [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) — the checklist for a new tool;
+  `/new-tool <what it does>` walks it end to end
 
 ## What this is
 
