@@ -87,9 +87,25 @@ export function sanitiseFilename(name, fallback = 'download') {
         .replace(/[/\\?%*:|"<>\x00-\x1f]/g, '-')
         .replace(/\s+/g, ' ')
         .trim()
-        .replace(/^[.\s]+|[.\s]+$/g, '')
-        .slice(0, 120);
-    return cleaned || fallback;
+        .replace(/^[.\s]+|[.\s]+$/g, '');
+    return shortenFilename(cleaned, 120) || fallback;
+}
+
+/**
+ * Cap a name at `max` UTF-16 units by shortening the stem, never the extension.
+ * Callers sanitise the full name *after* adding the extension, so cutting from
+ * the end used to save long titles as "…name.w". Cuts on code-point boundaries
+ * so an emoji is never split into a lone surrogate.
+ */
+function shortenFilename(name, max) {
+    if (name.length <= max) return name;
+    const ext = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0] ?? '';
+    let stem = '';
+    for (const char of name.slice(0, name.length - ext.length)) {
+        if (stem.length + char.length + ext.length > max) break;
+        stem += char;
+    }
+    return stem.replace(/[.\s]+$/, '') + ext;
 }
 
 /** Clamp a number into [min, max]. */

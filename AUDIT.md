@@ -18,7 +18,7 @@ remaining tests, CI, docs.
 - [x] 2 Image editor crop lands in the wrong place after rotate/flip/straighten
 - [x] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
 - [x] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)
-- [ ] 5 Long filenames lose their extension (`format.js:91` via `download.js:126`)
+- [x] 5 Long filenames lose their extension (`format.js:91` via `download.js:126`)
 - [ ] 6 Audio converter rejects files the browser cannot preview (`audio-converter.js:215-219`)
 - [ ] 7 Cancel shows the previous run's results (`image-converter.js:628-666`, `convert/js/main.js:177-238`)
 

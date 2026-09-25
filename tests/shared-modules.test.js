@@ -91,6 +91,28 @@ describe('format', () => {
         expect(sanitiseFilename('x'.repeat(500)).length).toBeLessThanOrEqual(120);
     });
 
+    // attachDownload sanitises the whole name after the extension is added,
+    // and the cap used to cut from the end: a long title saved as
+    // "…name.w" or with no extension at all.
+    test('sanitiseFilename keeps the extension when it has to shorten', () => {
+        const out = sanitiseFilename(`${'x'.repeat(200)}.webp`);
+        expect(out.length).toBeLessThanOrEqual(120);
+        expect(out.endsWith('x.webp')).toBe(true);
+        expect(sanitiseFilename(`${'x'.repeat(200)}.pdf.zip`).endsWith('.zip')).toBe(true);
+    });
+
+    test('sanitiseFilename never cuts an emoji in half', () => {
+        const out = sanitiseFilename(`${'\u{1F600}'.repeat(100)}.png`);
+        expect(out.endsWith('.png')).toBe(true);
+        expect(out).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+    });
+
+    test('sanitiseFilename does not leave a trailing dot after shortening', () => {
+        const out = sanitiseFilename(`${'x'.repeat(118)}. ${'y'.repeat(50)}`);
+        expect(out.endsWith('.')).toBe(false);
+        expect(out.endsWith(' ')).toBe(false);
+    });
+
     test('clamp', () => {
         expect(clamp(5, 0, 10)).toBe(5);
         expect(clamp(-1, 0, 10)).toBe(0);
