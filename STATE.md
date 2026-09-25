@@ -347,8 +347,7 @@ preview. `saveRemote` is separate from `saveBlob` on purpose — the `download` 
 server error is shown rather than navigating away or failing silently.
 
 The two ffmpeg converter pages still hand-manage `currentOutputUrl`. That is correct as written and
-they are on the redirect path anyway; `color-converter` is a classic script and cannot import this
-until it is converted.
+they are on the redirect path anyway.
 
 ### The result row — `js/shared/result-card.js`
 `renderResult`/`renderFailure`/`renderResultList`, plus the pure `resultSummary`. The convert hub
@@ -488,9 +487,9 @@ own project if ever.
 One PR per step; each independently green and deployable.
 - **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
   favour of `js/shared/*`, and rewrite its test to import real source. The video converter, image
-  editor and both downloaders are done (`js/config.js` is gone; the downloaders use
-  `js/shared/config.js`, so Vercel previews reach their own API instead of `localhost:5000`).
-  **The colour picker remains.**
+  editor, both downloaders and the colour picker are done (`js/config.js` is gone; the
+  downloaders use `js/shared/config.js`, so Vercel previews reach their own API instead of
+  `localhost:5000`). Every page now loads as a module.
 
 ### Fold the old converter pages into the hub
 While doing it, move the video converter to **VP9** (`libvpx-vp9 -row-mt 1`) instead of VP8, and give
@@ -544,8 +543,9 @@ an older note here telling you to delete it was wrong. `--radius` *is* defined (
 the same note claimed it was not. Both were checked before this entry was rewritten.
 
 ### P7 — colour toolkit
-Bugs first (history is polluted on page load; Clear doesn't stick because a pending debounce
-resurrects it; RGB fields snap to black when you backspace). Then wire up the maths already sitting
+The page is a module on `js/shared/color.js`, and its three known bugs are fixed and pinned by
+`tests/color-converter-page.test.js` (history written on load, Clear undone by a pending debounce,
+fields snapping to black when emptied). Next: wire up the maths already sitting
 in `js/shared/color.js`: harmonies, shades/tints/tones, WCAG checker, HSV/CMYK/LAB/LCH/OKLCH,
 palette extraction, native `EyeDropper` API. Then permalinks and export formats.
 

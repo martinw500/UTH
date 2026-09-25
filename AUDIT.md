@@ -8,7 +8,7 @@ remaining tests, CI, docs.
 
 ## Tests that cannot catch what they claim
 - [x] T1 `tests/image-editor.test.js:138-229` tests re-declared copies of `previewScaleFor` and the aspect helpers
-- [ ] T2 `tests/color-converter.test.js` tests `js/shared/color.js`, which the page never loads (→ #25)
+- [x] T2 `tests/color-converter.test.js` tests `js/shared/color.js`, which the page never loads (→ #25)
 - [x] T3 `tests/shared-modules.test.js:107-126` tests `js/shared/config.js`, which ships nowhere (→ #30)
 - [x] T4 ~~compares 4 bytes to `'PK'`~~ — false alarm: the literal held raw `` bytes. Rewritten as visible escapes
 - [x] T5 `tests/deployed-site.test.js:929-951` try/catch swallows the 404 assertion
@@ -52,7 +52,7 @@ remaining tests, CI, docs.
 - [x] 22 Hub options drop target size / trim on format change
 - [x] 23 Hub Cancel cannot stop the current file
 - [x] 24 Straighten ignored by `outputSize` (`pipeline.js:108-123`)
-- [ ] 25 Colour page runs its own copy of the maths (P2c) + P7 bug trio
+- [x] 25 Colour page runs its own copy of the maths (P2c) + P7 bug trio
 
 ## Low
 - [ ] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)

@@ -26,6 +26,18 @@
 </head>
 <body>
 
+    <div class="file-protocol-notice">
+        <h1>Open this page over HTTP</h1>
+        <p>
+            This tool loads ES modules, which browsers block when a page is opened straight from
+            disk over <code>file://</code>. Nothing below would run.
+        </p>
+        <p>
+            From the project folder, run <code>npm run dev</code> and open
+            <code>http://localhost:5500/color-converter/</code>.
+        </p>
+    </div>
+
     <!-- Navigation -->
     <nav class="nav">
         <div class="nav-inner">
@@ -229,6 +241,6 @@
         </div>
     </footer>
 
-    <script src="js/color-converter.js"></script>
+    <script type="module" src="js/color-converter.js"></script>
 </body>
 </html>

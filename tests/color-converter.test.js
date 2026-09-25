@@ -3,9 +3,9 @@
 // Tests for color math functions (HEX ↔ RGB ↔ HSL)
 // ============================================
 
-// Imports the real shared module. These assertions are unchanged from when
-// they tested copy-pasted clones, so a green run proves the extraction into
-// js/shared/color.js preserved behaviour.
+// Imports js/shared/color.js, which the colour page itself imports. (Until the
+// page became a module it ran its own copies, so this file tested code that
+// did not ship; tests/color-converter-page.test.js covers the page wiring.)
 import {
     hexToRgb,
     rgbToHex,
