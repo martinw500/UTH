@@ -68,10 +68,45 @@ describe('trimming', () => {
         expect(args).not.toContain('-t');
     });
 
+    // The trim fields show whole seconds, so a 200.7 s file's end reads and
+    // submits as 200. That used to count as a trim and cut the last 0.7 s.
+    test('a full-length end shown in whole seconds is not a trim', () => {
+        const args = build({ startSec: 0, endSec: 200, sourceDuration: 200.7 });
+        expect(args).not.toContain('-t');
+    });
+
+    // A file the browser cannot preview has no known duration. An end the
+    // user typed is still a real trim.
+    test('an end is honoured when the duration is unknown', () => {
+        expect(after(build({ startSec: 0, endSec: 30, sourceDuration: 0 }), '-t')).toBe('30');
+    });
+
     test('a negative or NaN start is ignored rather than emitted', () => {
         expect(build({ startSec: -5 })).not.toContain('-ss');
         expect(build({ startSec: NaN })).not.toContain('-ss');
     });
+});
+
+describe('sample rate', () => {
+    // loudnorm resamples to 192 kHz internally and outputs that unless told
+    // otherwise, and PCM/FLAC accept it: "keep original" wrote 4x-sized files.
+    test('normalising at the original rate pins 48 kHz', () => {
+        const args = build({ format: 'wav', output: 'o.wav', normalise: true });
+        expect(after(args, '-ar')).toBe('48000');
+    });
+
+    test('normalising at a chosen rate uses that rate, once', () => {
+        const args = build({ format: 'flac', output: 'o.flac', normalise: true, sampleRate: '44100' });
+        expect(args.filter((a) => a === '-ar')).toHaveLength(1);
+        expect(after(args, '-ar')).toBe('44100');
+    });
+
+    // libopus only accepts 48/24/16/12/8 kHz; 44.1 or 22.05 made ffmpeg fail.
+    test.each([['44100', '48000'], ['22050', '24000'], ['16000', '16000']])(
+        'Opus at %s Hz is encoded at %s Hz', (asked, used) => {
+            expect(after(build({ format: 'opus', output: 'o.opus', sampleRate: asked }), '-ar')).toBe(used);
+        },
+    );
 });
 
 describe('codecs and containers', () => {

@@ -237,15 +237,55 @@ describe('Video Converter — buildFFmpegArgs', () => {
         expect(args).toContain('-an');
     });
 
-    test('calculates target bitrate for MP4', () => {
+    // The whole budget used to go to video, with audio and the container
+    // added on top, so every "target size" export came out over it.
+    test('target bitrate leaves room for audio and the container', () => {
         const targetBytes = 8 * 1024 * 1024; // 8 MB
         const args = buildFFmpegArgs('input.mp4', 'output.mp4', 'mp4', 'medium', {
             targetBytes,
             videoDuration: 60
         });
-        const expectedBitrate = Math.floor((targetBytes * 8) / 60);
-        expect(args).toContain('-b:v');
-        expect(args).toContain(String(expectedBitrate));
+        const expected = Math.floor((targetBytes * 8 * 0.95) / 60 - 128000);
+        expect(args[args.indexOf('-b:v') + 1]).toBe(String(expected));
+        expect(args[args.indexOf('-b:a') + 1]).toBe('128k');
+    });
+
+    test('a muted target-size export gives audio no share', () => {
+        const targetBytes = 8 * 1024 * 1024;
+        const args = buildFFmpegArgs('input.mp4', 'output.webm', 'webm', 'medium', {
+            targetBytes, videoDuration: 60, audio: 'mute',
+        });
+        expect(args[args.indexOf('-b:v') + 1]).toBe(String(Math.floor((targetBytes * 8 * 0.95) / 60)));
+        expect(args).not.toContain('-b:a');
+    });
+
+    // The hub used to pass a made-up 60 s for videos the browser cannot
+    // preview, so a 10-minute file came out ten times the target.
+    test('refuses a target size when the duration is unknown', () => {
+        expect(() => buildFFmpegArgs('input.avi', 'output.mp4', 'mp4', 'medium', {
+            targetBytes: 1e6, videoDuration: 0,
+        })).toThrow(/length/);
+    });
+
+    test('a full-length end shown in whole seconds is not a trim', () => {
+        const args = buildFFmpegArgs('input.mp4', 'output.mp4', 'mp4', 'medium', {
+            startSec: 0, endSec: 10, videoDuration: 10.7,
+        });
+        expect(args).not.toContain('-to');
+    });
+
+    test('a start with no end still trims from the start', () => {
+        const args = buildFFmpegArgs('input.mp4', 'output.mp4', 'mp4', 'medium', {
+            startSec: 5, endSec: NaN, videoDuration: 0,
+        });
+        expect(args[args.indexOf('-ss') + 1]).toBe('5');
+    });
+
+    test('an end is honoured when the duration is unknown', () => {
+        const args = buildFFmpegArgs('input.avi', 'output.mp4', 'mp4', 'medium', {
+            startSec: 0, endSec: 90, videoDuration: 0,
+        });
+        expect(args[args.indexOf('-to') + 1]).toBe('90');
     });
 
     test('uses custom resolution for GIF', () => {

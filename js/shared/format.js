@@ -51,6 +51,20 @@ export function formatTime(seconds) {
     return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
 }
 
+/**
+ * Whether a trim end means "to the end of the source".
+ *
+ * Trim fields show formatTime's whole seconds, so a 200.7 s file's end reads
+ * and submits as 200 -- the full length, not a request to cut the last 0.7 s.
+ * Also true within 50 ms of the real duration, since a scrubbed position never
+ * lands exactly on it. False when the duration is unknown: then any end the
+ * user gave is a real trim.
+ */
+export function reachesEnd(endSec, durationSec) {
+    if (!(durationSec > 0) || !Number.isFinite(endSec)) return false;
+    return endSec >= Math.min(Math.floor(durationSec), durationSec - 0.05);
+}
+
 /** Parse "ss", "mm:ss" or "hh:mm:ss" into seconds. NaN if unparseable. */
 export function parseTime(value) {
     if (typeof value !== 'string' || !value.trim()) return NaN;

@@ -185,6 +185,12 @@ neither becomes an image — a frame grab is a different feature, not a format c
 Mixed input kinds are rejected with a message rather than silently dropped: one target list cannot
 serve both. Conversion is **strictly serial** — ffmpeg.wasm has one fixed heap.
 
+**Cancel terminates the ffmpeg instance** (the media engine's `cancel()`, via `terminateFFmpeg`):
+the abort signal is only checked between steps and `exec()` cannot be interrupted. The next run
+loads a fresh instance. Every item's status and result are reset at the start of a run, so a
+cancelled run never shows the previous run's files. An unknown duration stays 0 — never a made-up
+60 s — and a target size then refuses with a message rather than guessing a bitrate.
+
 `convert/` needs its own `coi-serviceworker.js` copy (worker scope is per-directory) and its own
 `vercel.json` header block, exactly like the two older converter pages.
 
@@ -257,8 +263,10 @@ until something actually converts a file.
    UMD-worker + ESM-core loads.
 
 `npm run verify:converters` drives a real browser and ffprobes the output of both converters,
-including a trimmed clip. **Run it after touching `js/shared/ffmpeg.js` or a converter page** — it
-is the only thing that catches this class of bug. Needs `npm run dev` running (or `SITE_URL` set to
+including a trimmed clip, a file named `input.mp4`, a trim that must not leak to the next file,
+an AIFF the browser cannot play, and the sample rate after normalising. The source is 6.6 s on
+purpose — a whole-second fixture hid the trim-end bug. **Run it after touching `js/shared/ffmpeg.js`
+or a converter page** — it is the only thing that catches this class of bug. Needs `npm run dev` running (or `SITE_URL` set to
 a deployment), plus ffmpeg and ffprobe on PATH.
 
 ### Audio converter
@@ -276,10 +284,25 @@ podcast). That rebases the output timeline to zero, so the end must be `-t <dura
 `-to <absolute end>`; `-to` there silently yields a clip of the wrong length. The video converter
 seeks on the output because it re-encodes everything anyway. Don't "fix" one to match the other.
 
+**Trim ends are whole seconds.** The fields show `formatTime`, so a 200.7 s file's end reads 200;
+`reachesEnd` (`js/shared/format.js`) treats that as "to the end" in both argument builders. A blank
+end means no trim — a file the browser cannot play never gets a duration, and used to be refused
+because both fields still read `00:00:00`. With normalise on and the rate left at "original", `-ar
+48000` is pinned: loudnorm otherwise outputs 192 kHz. Opus rates are rounded up to one libopus
+accepts.
+
 ### Shared ffmpeg loader
 `js/shared/ffmpeg.js` holds loading, worker-chunk discovery and the write/exec/read cycle. The
-video converter uses it; the audio converter will. It never touches the DOM — both pages have
-different markup, so all feedback goes out through `onProgress`/`onStatus`/`onLog` callbacks.
+video converter, the audio converter and the hub's media engine all use it. It never touches the
+DOM, so all feedback goes out through `onProgress`/`onStatus`/`onLog` callbacks — and those are
+**replaced on every `loadFFmpeg` call**, because the instance is shared and its events belong to
+whoever is converting now. They used to be bound to the first caller only.
+
+An `exec()` that throws (a wasm abort, out of memory) terminates and discards the instance, or every
+later conversion would fail the same way until a reload. The core, wasm and worker blob URLs are
+revoked once `load()` settles. Virtual input and output names must differ (`input.mp4` →
+`output.mp4`): a file called `input.mp4` converted to MP4 used to collide, and the untouched
+original came back as the result, since a non-zero exit code is deliberately not fatal.
 
 **The worker chunk is now discovered at runtime, which is what closed the old P8 item.**
 `@ffmpeg/ffmpeg` is webpack-built and spawns its worker from a code-split file named after a chunk

@@ -215,6 +215,46 @@ async function main() {
             // 'ftyp' is the MP4 box type; a renamed WebM would not have it.
             check(mp4.tag === 'ftyp' && mp4.len > 0, 'the output really is an MP4',
                 `${mp4.len} bytes, box=${mp4.tag}`);
+
+            // Cancel terminates the ffmpeg instance, since exec() cannot be
+            // interrupted any other way. The next conversion has to load a
+            // fresh one rather than reuse the dead worker.
+            console.log('\nCancel, then convert again');
+            await page.click('#convertBtn');
+            await page.waitForSelector('#cancelBtn:not([hidden])');
+            await page.click('#cancelBtn');
+            await page.waitForFunction(() => !document.getElementById('convertBtn').disabled, null, { timeout: 60000 });
+            const afterCancel = (await page.textContent('#notice'))?.trim() ?? '';
+            check(await page.isHidden('#results') ? /Cancelled/.test(afterCancel) : true,
+                'a cancelled run says so rather than showing old results', afterCancel || 'finished before the cancel');
+            await page.click('#convertBtn');
+            await page.waitForSelector('#outputList .output-item a[download]', { timeout: 240000 });
+            check(await page.locator('#outputList .output-item').count() === 1, 'the next run converts normally');
+
+            // loadFFmpeg bound its progress listeners to the FIRST caller, so
+            // every later file's progress was reported under file 1's name.
+            console.log('\nProgress belongs to the file being converted');
+            await page.click('#clearBtn');
+            await page.setInputFiles('#fileInput', ['first', 'second'].map((stem) => ({
+                name: `${stem}.webm`, mimeType: 'video/webm', buffer: Buffer.from(webm),
+            })));
+            await page.waitForSelector('#workspace:not([hidden])');
+            await page.selectOption('#targetFormat', 'mp4');
+            await page.evaluate(() => {
+                window.progressSeen = [];
+                new MutationObserver(() => window.progressSeen.push(
+                    document.getElementById('progressText').textContent,
+                )).observe(document.getElementById('progressText'), { childList: true, characterData: true, subtree: true });
+            });
+            await page.click('#convertBtn');
+            await page.waitForFunction(() => document.querySelectorAll('#outputList .output-item').length === 2,
+                null, { timeout: 240000 });
+            const seen = await page.evaluate(() => window.progressSeen);
+            // "Converting…" with a real ellipsis comes only from ffmpeg's own
+            // progress events, the path that used to be bound to file 1.
+            check(seen.some((text) => text.startsWith('second.webm — Converting…')),
+                'the second file reports its own progress',
+                [...new Set(seen)].filter((t) => t.includes('Converting…')).join(' | ') || 'no progress events');
         }
 
         check(errors.length === 0, 'no console errors overall', errors.join(' | '));

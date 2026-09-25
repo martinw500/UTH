@@ -40,6 +40,7 @@ let queue = [];
 let nextId = 1;
 let readOptions = () => ({});
 let controller = null;
+let activeEngine = null;
 
 // ============================================
 // Queue
@@ -96,6 +97,11 @@ function removeItem(id) {
 }
 
 function clearAll() {
+    // Clearing mid-run used to keep converting the old queue in the background.
+    if (controller) {
+        controller.abort();
+        activeEngine?.cancel?.();
+    }
     urls.revokeAll();
     queue = [];
     clearNotice(ui.notice);
@@ -189,14 +195,24 @@ async function convertAll() {
     ui.progress.hidden = false;
 
     const options = readOptions();
-    const { convert } = await getEngine(target.engine);
+    // Every item starts this run fresh. Leftover status and results from the
+    // previous run used to survive a Cancel, and items the loop never reached
+    // were shown and zipped as if this run had produced them.
+    const run = [...queue];
+    for (const item of run) Object.assign(item, { status: 'pending', result: null, error: null });
 
     let done = 0;
     try {
+        // Inside the try: a failed engine import used to leave the page stuck
+        // on "Converting…" with no message.
+        activeEngine = await getEngine(target.engine);
+        const { convert } = activeEngine;
+
         // Serial, always. ffmpeg.wasm has one fixed heap, and even for images
         // encoding a queue in parallel will exhaust the tab.
-        for (const item of queue) {
+        for (const item of run) {
             if (controller.signal.aborted) break;
+            if (!queue.includes(item)) continue;   // removed mid-run
 
             ui.progressText.textContent = `${item.name} — starting…`;
             try {
@@ -215,7 +231,7 @@ async function convertAll() {
                 item.result = result;
                 item.status = 'done';
             } catch (error) {
-                if (error?.name === 'AbortError') break;
+                if (error?.name === 'AbortError' || controller.signal.aborted) break;
                 item.status = 'error';
                 item.error = error?.message || 'Conversion failed.';
             }
@@ -223,8 +239,11 @@ async function convertAll() {
             ui.progressBar.style.width = `${Math.round((done / queue.length) * 100)}%`;
         }
 
-        showResults();
+        showResults(controller.signal.aborted);
+    } catch (error) {
+        showError(ui.notice, error?.message || 'The converter could not be loaded.');
     } finally {
+        activeEngine = null;
         setBusy(ui.convertBtn, false);
         ui.cancelBtn.hidden = true;
         ui.progress.hidden = true;
@@ -234,12 +253,14 @@ async function convertAll() {
     }
 }
 
-function showResults() {
+function showResults(cancelled = false) {
     const succeeded = queue.filter((item) => item.status === 'done' && item.result);
     const failed = queue.filter((item) => item.status === 'error');
 
     if (!succeeded.length) {
-        showError(ui.notice, failed[0]?.error ?? 'Nothing was converted.');
+        showError(ui.notice, cancelled
+            ? 'Cancelled before anything was converted.'
+            : failed[0]?.error ?? 'Nothing was converted.');
         return;
     }
 
@@ -310,7 +331,10 @@ ui.addMoreBtn.addEventListener('click', () => ui.fileInput.click());
 ui.clearBtn.addEventListener('click', clearAll);
 ui.targetFormat.addEventListener('change', refreshOptions);
 ui.convertBtn.addEventListener('click', convertAll);
-ui.cancelBtn.addEventListener('click', () => controller?.abort());
+ui.cancelBtn.addEventListener('click', () => {
+    controller?.abort();
+    activeEngine?.cancel?.();
+});
 ui.downloadAllBtn.addEventListener('click', downloadAll);
 
 showWorkspace(false);

@@ -26,7 +26,11 @@ export function getEngine(name) {
     if (!cache.has(name)) {
         // Cache the promise, not the resolved module, so two conversions
         // started at once import it once.
-        cache.set(name, import(`./engines/${name}.js`));
+        const loading = import(`./engines/${name}.js`);
+        // A failed import (offline, a 404 mid-deploy) must not be cached, or
+        // every retry fails the same way until the page is reloaded.
+        loading.catch(() => cache.delete(name));
+        cache.set(name, loading);
     }
     return cache.get(name);
 }

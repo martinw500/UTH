@@ -5,6 +5,21 @@
 // command was to rebuild the function inside the test and hope the copy stayed
 // in step with the original.
 
+import { reachesEnd } from '../../js/shared/format.js';
+
+/** Audio bitrate a target-size export reserves before sizing the video. */
+const TARGET_AUDIO_BITS = 128000;
+
+/**
+ * Video bitrate that keeps the whole file near `targetBytes`: 5% for the
+ * container, and the audio's fixed share first. Giving video the whole budget
+ * put every target-size export over the target.
+ */
+function targetVideoBitrate(targetBytes, duration, withAudio) {
+    const total = (targetBytes * 8 * 0.95) / duration;
+    return Math.max(50000, Math.floor(total - (withAudio ? TARGET_AUDIO_BITS : 0)));
+}
+
 export function getInputExt(filename) {
     const m = filename.match(/(\.[^.]+)$/);
     return m ? m[1].toLowerCase() : '.mp4';
@@ -34,7 +49,7 @@ export function buildFFmpegArgs(input, output, fmt, quality, options = {}) {
     const {
         startSec = NaN,
         endSec = NaN,
-        videoDuration = 60,
+        videoDuration = 0,
         resolution = 'original',
         fps = 'original',
         audio = 'keep',
@@ -43,17 +58,20 @@ export function buildFFmpegArgs(input, output, fmt, quality, options = {}) {
 
     const args = ['-i', input];
 
-    const isTrimmed = !isNaN(startSec) && !isNaN(endSec)
-        && (startSec > 0 || endSec < videoDuration - 0.5);
+    // videoDuration is 0 when the browser could not read it. Then a typed end
+    // is still honoured, but a target size cannot be computed.
+    const start = Number.isFinite(startSec) && startSec > 0 ? startSec : 0;
+    const end = Number.isFinite(endSec) && !reachesEnd(endSec, videoDuration) ? endSec : null;
 
-    if (isTrimmed && startSec > 0) {
-        args.push('-ss', String(startSec));
-    }
-    if (isTrimmed && endSec < videoDuration - 0.5) {
-        args.push('-to', String(endSec));
-    }
+    if (start > 0) args.push('-ss', String(start));
+    if (end !== null) args.push('-to', String(end));
 
-    const duration = isTrimmed ? (endSec - startSec) : videoDuration;
+    const duration = Math.max(0, (end ?? videoDuration) - start);
+    if (targetBytes && !(duration > 0) && (fmt === 'mp4' || fmt === 'webm')) {
+        throw new Error(`A target size needs the video's length, which this browser `
+            + 'cannot read for this file. Pick a quality instead, or set a trim end.');
+    }
+    const withAudio = audio !== 'mute';
 
     if (fmt === 'gif') {
         let vf = 'fps=10,scale=480:-1:flags=lanczos';
@@ -71,8 +89,8 @@ export function buildFFmpegArgs(input, output, fmt, quality, options = {}) {
         args.push('-vn');
     } else if (fmt === 'webm') {
         if (targetBytes && duration > 0) {
-            const targetBitrate = Math.floor((targetBytes * 8) / duration);
-            args.push('-c:v', 'libvpx', '-b:v', targetBitrate + '', '-c:a', 'libvorbis');
+            args.push('-c:v', 'libvpx', '-b:v', String(targetVideoBitrate(targetBytes, duration, withAudio)));
+            if (withAudio) args.push('-c:a', 'libvorbis', '-b:a', '128k');
         } else {
             const crfMap = { high: '20', medium: '30', low: '40', verylow: '50' };
             args.push('-c:v', 'libvpx', '-crf', crfMap[quality] || '30', '-b:v', '0', '-c:a', 'libvorbis');
@@ -86,8 +104,9 @@ export function buildFFmpegArgs(input, output, fmt, quality, options = {}) {
         if (audio === 'mute') args.push('-an');
     } else if (fmt === 'mp4') {
         if (targetBytes && duration > 0) {
-            const targetBitrate = Math.floor((targetBytes * 8) / duration);
-            args.push('-c:v', 'libx264', '-b:v', targetBitrate + '', '-preset', 'fast', '-c:a', 'aac');
+            args.push('-c:v', 'libx264', '-b:v', String(targetVideoBitrate(targetBytes, duration, withAudio)),
+                '-preset', 'fast');
+            if (withAudio) args.push('-c:a', 'aac', '-b:a', '128k');
         } else {
             const crfMap = { high: '20', medium: '28', low: '35', verylow: '42' };
             args.push('-c:v', 'libx264', '-crf', crfMap[quality] || '28', '-preset', 'fast', '-c:a', 'aac');

@@ -19,8 +19,8 @@ remaining tests, CI, docs.
 - [x] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
 - [x] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)
 - [x] 5 Long filenames lose their extension (`format.js:91` via `download.js:126`)
-- [ ] 6 Audio converter rejects files the browser cannot preview (`audio-converter.js:215-219`)
-- [ ] 7 Cancel shows the previous run's results (`image-converter.js:628-666`, `convert/js/main.js:177-238`)
+- [x] 6 Audio converter rejects files the browser cannot preview (`audio-converter.js:215-219`)
+- [x] 7 Cancel shows the previous run's results (`image-converter.js:628-666`, `convert/js/main.js:177-238`)
 
 ## Downloaders / backend (safety only; P3/P4 stay on the roadmap)
 - [ ] 27 SSRF: YouTube API passes any URL to yt-dlp's generic extractor
@@ -35,34 +35,34 @@ remaining tests, CI, docs.
 - [ ] 33 YouTube download errors invisible; extension can mismatch container
 
 ## Medium
-- [ ] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
+- [x] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
 - [x] 9 Crop label / numeric fields / aspect wrong after a first crop (`croppableSize`)
 - [x] 10 PDF Run button re-enabled mid-run (`pdf-tools.js:94`)
 - [ ] 11 Images→PDF ignores EXIF orientation; MIME-mismatched file throws raw error
-- [ ] 12 Hub progress shows item 1's name, sits at 100% on later runs (`ffmpeg.js:154-164`)
-- [ ] 13 Hub engine import failure leaves UI stuck (`convert/js/main.js:192`)
-- [ ] 14 Hub: unpreviewable video gets a fake 60 s duration (`media.js:46,82`)
-- [ ] 15 Trim end floored → end of file cut, `-to` added unasked
-- [ ] 16 loudnorm + WAV/FLAC + keep-original rate → 192 kHz
-- [ ] 17 Video converter keeps the previous file's trim start / metadata
+- [x] 12 Hub progress shows item 1's name, sits at 100% on later runs (`ffmpeg.js:154-164`)
+- [x] 13 Hub engine import failure leaves UI stuck (`convert/js/main.js:192`)
+- [x] 14 Hub: unpreviewable video gets a fake 60 s duration (`media.js:46,82`)
+- [x] 15 Trim end floored → end of file cut, `-to` added unasked
+- [x] 16 loudnorm + WAV/FLAC + keep-original rate → 192 kHz
+- [x] 17 Video converter keeps the previous file's trim start / metadata
 - [ ] 18 Favicon from viewBox-only SVG rasterised tiny then upscaled
-- [ ] 19 ffmpeg non-zero exit reported as success; `input.mp4 → mp4` returns the original
-- [ ] 20 ffmpeg crash leaves the engine dead until reload
-- [ ] 21 Target size overshoots (audio + container not budgeted)
-- [ ] 22 Hub options drop target size / trim on format change
-- [ ] 23 Hub Cancel cannot stop the current file
+- [x] 19 ffmpeg non-zero exit reported as success; `input.mp4 → mp4` returns the original
+- [x] 20 ffmpeg crash leaves the engine dead until reload
+- [x] 21 Target size overshoots (audio + container not budgeted)
+- [x] 22 Hub options drop target size / trim on format change
+- [x] 23 Hub Cancel cannot stop the current file
 - [x] 24 Straighten ignored by `outputSize` (`pipeline.js:108-123`)
 - [ ] 25 Colour page runs its own copy of the maths (P2c) + P7 bug trio
 
 ## Low
 - [ ] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)
-- [ ] L-b Opus + 44.1/22.05 kHz fails (`audio-args.js:89`)
+- [x] L-b Opus + 44.1/22.05 kHz fails (`audio-args.js:89`)
 - [ ] L-c Page range `20-` on a 10-page PDF selects page 10 (`pdf-pages.js:53-60`)
 - [ ] L-d `MAX_CANVAS_DIMENSION` never enforced (`image.js:9`)
 - [ ] L-e Files over the batch cap dropped silently (image 50, PDF 40, hub 30)
-- [ ] L-f Video converter drops unsupported files silently
-- [ ] L-g `input..mp4` double dot (`media.js:65`)
-- [ ] L-h ffmpeg blob URLs never revoked
+- [x] L-f Video converter drops unsupported files silently
+- [x] L-g `input..mp4` double dot (`media.js:65`)
+- [x] L-h ffmpeg blob URLs never revoked
 - [ ] L-i `reorderPdf` accepts duplicate pages
 - [ ] L-j Image preview width only shrinks (verify in a browser first)
 - [ ] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)

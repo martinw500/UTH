@@ -22,6 +22,8 @@ import {
     ffmpegUnavailableReason,
     runFFmpeg,
     resetFFmpeg,
+    loadFFmpeg,
+    terminateFFmpeg,
 } from '../js/shared/ffmpeg.js';
 
 // Lifted verbatim from @ffmpeg/ffmpeg@0.12.10 dist/umd/ffmpeg.js. Note that the
@@ -285,6 +287,93 @@ describe('runFFmpeg', () => {
         const phases = [];
         await run({ onStatus: (phase) => phases.push(phase) });
         expect(phases).toEqual(['read', 'run', 'output']);
+    });
+});
+
+describe('loadFFmpeg', () => {
+    class FakeFFmpeg {
+        constructor() {
+            this.listeners = {};
+            this.terminated = false;
+            FakeFFmpeg.instances.push(this);
+        }
+        on(event, fn) { this.listeners[event] = fn; }
+        async load() {}
+        terminate() { this.terminated = true; }
+        emit(event, data) { this.listeners[event]?.(data); }
+    }
+    const saved = {};
+
+    beforeEach(() => {
+        FakeFFmpeg.instances = [];
+        saved.SAB = global.SharedArrayBuffer;
+        saved.WASM = global.FFmpegWASM;
+        saved.Util = global.FFmpegUtil;
+        saved.fetch = global.fetch;
+        global.SharedArrayBuffer = ArrayBuffer;
+        global.FFmpegWASM = { FFmpeg: FakeFFmpeg };
+        global.FFmpegUtil = { fetchFile: async () => new Uint8Array([1]) };
+        global.fetch = jest.fn(async () => ok(REAL_BUNDLE));
+        global.URL.createObjectURL = jest.fn(() => 'blob:stub');
+        global.URL.revokeObjectURL = jest.fn();
+        resetFFmpeg();
+    });
+
+    afterEach(() => {
+        resetFFmpeg();
+        global.SharedArrayBuffer = saved.SAB;
+        global.FFmpegWASM = saved.WASM;
+        global.FFmpegUtil = saved.Util;
+        global.fetch = saved.fetch;
+    });
+
+    test('two callers share one instance', async () => {
+        const [a, b] = await Promise.all([loadFFmpeg(), loadFFmpeg()]);
+        expect(a).toBe(b);
+        expect(FakeFFmpeg.instances).toHaveLength(1);
+    });
+
+    // The listeners used to be bound to the FIRST caller's callbacks only, so
+    // the convert hub showed item 1's name for every item and a second run's
+    // bar was driven by the first run's stale callback.
+    test('progress goes to the latest caller, not the first', async () => {
+        const first = jest.fn();
+        const second = jest.fn();
+        await loadFFmpeg({ onProgress: first });
+        await loadFFmpeg({ onProgress: second });
+        FakeFFmpeg.instances[0].emit('progress', { progress: 0.5 });
+        expect(second).toHaveBeenCalledWith({ percent: 50, ratio: 0.5 });
+        expect(first).not.toHaveBeenCalled();
+    });
+
+    // The core JS, the ~30 MB wasm and the worker were each held as a blob URL
+    // for the life of the page.
+    test('frees its blob URLs once loaded', async () => {
+        await loadFFmpeg();
+        expect(URL.revokeObjectURL).toHaveBeenCalledTimes(URL.createObjectURL.mock.calls.length);
+    });
+
+    test('terminateFFmpeg stops the instance and the next load builds a new one', async () => {
+        const first = await loadFFmpeg();
+        terminateFFmpeg();
+        expect(first.terminated).toBe(true);
+        expect(await loadFFmpeg()).not.toBe(first);
+    });
+
+    // A wasm abort or out-of-memory leaves the instance unusable. It used to
+    // stay memoised, so every later conversion failed until a reload.
+    test('an instance that throws mid-run is discarded', async () => {
+        const instance = await loadFFmpeg();
+        Object.assign(instance, {
+            writeFile: async () => {},
+            exec: async () => { throw new Error('RuntimeError: memory access out of bounds'); },
+            deleteFile: async () => {},
+        });
+        await expect(runFFmpeg(instance, {
+            inputName: 'input.mp4', inputFile: new Blob(['x']), args: [], outputName: 'o.mp4',
+        })).rejects.toThrow(/memory/);
+        expect(instance.terminated).toBe(true);
+        expect(await loadFFmpeg()).not.toBe(instance);
     });
 });
 

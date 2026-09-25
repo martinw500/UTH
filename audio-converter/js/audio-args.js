@@ -4,6 +4,8 @@
 // is not guessed: `ffmpeg -encoders` was run inside ffmpeg.wasm and every codec
 // named here was present in @ffmpeg/core@0.12.6.
 
+import { reachesEnd } from '../../js/shared/format.js';
+
 export const AUDIO_FORMATS = {
     mp3: { label: 'MP3', mime: 'audio/mpeg', codec: 'libmp3lame', bitrate: true },
     m4a: { label: 'M4A (AAC)', mime: 'audio/mp4', codec: 'aac', bitrate: true },
@@ -49,10 +51,8 @@ export function buildAudioArgs({
     if (!spec) throw new Error(`Unsupported output format: ${format}`);
 
     const start = Number.isFinite(startSec) && startSec > 0 ? startSec : 0;
-    const end = Number.isFinite(endSec) ? endSec : null;
-    const trimmed = start > 0
-        || (end !== null && sourceDuration > 0 && end < sourceDuration - 0.05);
-    const outDuration = trimmed && end !== null
+    const end = Number.isFinite(endSec) && !reachesEnd(endSec, sourceDuration) ? endSec : null;
+    const outDuration = end !== null
         ? Math.max(0, end - start)
         : Math.max(0, sourceDuration - start);
 
@@ -69,7 +69,7 @@ export function buildAudioArgs({
     // match the other.
     if (start > 0) args.push('-ss', String(start));
     args.push('-i', input);
-    if (trimmed && end !== null) args.push('-t', String(outDuration));
+    if (end !== null) args.push('-t', String(outDuration));
 
     // Never carry a video stream through — cover art in an MP3 is a video
     // stream, and it turns an audio-only export into a broken file.
@@ -86,7 +86,8 @@ export function buildAudioArgs({
     }
     if (filters.length) args.push('-af', filters.join(','));
 
-    if (sampleRate !== 'original') args.push('-ar', String(sampleRate));
+    const rate = outputSampleRate(format, sampleRate, normalise);
+    if (rate) args.push('-ar', rate);
     if (channels === 'mono') args.push('-ac', '1');
     else if (channels === 'stereo') args.push('-ac', '2');
 
@@ -100,4 +101,18 @@ export function buildAudioArgs({
 
 function round3(n) {
     return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * The -ar to emit, or null to keep the source's rate.
+ *
+ * loudnorm resamples to 192 kHz internally and outputs that unless a rate is
+ * set, and PCM/FLAC accept it, so "original" plus normalise wrote files four
+ * times the size. libopus accepts only 48/24/16/12/8 kHz, so 44.1 and 22.05
+ * go to the next rate up rather than failing.
+ */
+function outputSampleRate(format, sampleRate, normalise) {
+    let rate = sampleRate === 'original' ? (normalise ? 48000 : null) : Number(sampleRate);
+    if (rate && format === 'opus') rate = [8000, 12000, 16000, 24000, 48000].find((r) => r >= rate) ?? 48000;
+    return rate ? String(rate) : null;
 }

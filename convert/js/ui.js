@@ -80,6 +80,10 @@ function buildControl(spec, initial) {
             });
             const unit = el('select', { class: 'format-select input-sm', id: `opt-${spec.id}-unit` },
                 el('option', { value: 'kb' }, 'KB'), el('option', { value: 'mb' }, 'MB'));
+            if (initial) {
+                value.value = initial.value;
+                unit.value = initial.unit;
+            }
 
             // Declared in the registry, so a target that wants different
             // shortcuts changes a row there rather than this switch. Clicking
@@ -108,6 +112,7 @@ function buildControl(spec, initial) {
                     chips.push(chip);
                 }
                 presets = el('div', { class: 'resize-presets' }, ...chips);
+                syncChips();
                 // Typing a size by hand must light the matching chip too, or the
                 // two controls disagree about the same number.
                 value.addEventListener('input', syncChips);
@@ -133,6 +138,8 @@ function buildControl(spec, initial) {
                 type: 'text', class: 'input-field input-sm', id: `opt-${spec.id}-end`,
                 placeholder: 'end',
             });
+            start.value = initial?.start ?? '';
+            end.value = initial?.end ?? '';
             return {
                 node: el('div', { class: 'setting-group' },
                     el('label', { for: `opt-${spec.id}-start`, class: 'input-label' }, spec.label),

@@ -126,18 +126,27 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
         // all this tool needs for scrubbing to a trim point.
         audioPreview.src = previewUrl;
 
+        // Reset before metadata arrives, which it never does for a file the
+        // browser cannot play (WMA, AIFF, AMR): those kept the previous file's
+        // name and trim, or were refused with "end must come after start"
+        // because both fields still read 00:00:00. A blank end means no trim.
+        sourceDuration = 0;
+        editorFilename.textContent = file.name;
+        editorMeta.textContent = formatBytes(file.size);
+        trimStart.value = formatTime(0);
+        trimEnd.value = '';
+        updateTrimDuration();
+
         audioPreview.onloadedmetadata = () => {
-            sourceDuration = audioPreview.duration;
-            editorFilename.textContent = file.name;
+            sourceDuration = Number.isFinite(audioPreview.duration) ? audioPreview.duration : 0;
             editorMeta.textContent = `${formatBytes(file.size)} · ${formatTime(sourceDuration)}`;
-            trimStart.value = formatTime(0);
             trimEnd.value = formatTime(sourceDuration);
             updateTrimDuration();
         };
 
         audioPreview.onerror = () => {
-            showError('This file could not be read as audio. It may be an unsupported '
-                + 'container, or the video may have no audio track.');
+            showError('Your browser cannot play this file, but it can probably still be '
+                + 'converted. Type a trim end if you want one.');
         };
 
         dropzone.style.display = 'none';
@@ -185,7 +194,7 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
 
     resetTrimBtn.addEventListener('click', () => {
         trimStart.value = formatTime(0);
-        trimEnd.value = formatTime(sourceDuration);
+        trimEnd.value = sourceDuration > 0 ? formatTime(sourceDuration) : '';
         updateTrimDuration();
     });
 
@@ -211,6 +220,8 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
             const fmt = outputFormat.value;
             const inputName = 'input' + inputExt(currentFile.name);
             const outName = `${stripExt(currentFile.name)}.${fmt}`;
+            // Distinct from inputName: "input.mp3" to MP3 used to collide.
+            const outputFile = `output.${fmt}`;
 
             const start = parseTime(trimStart.value);
             const end = parseTime(trimEnd.value);
@@ -220,7 +231,7 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
 
             const args = buildAudioArgs({
                 input: inputName,
-                output: outName,
+                output: outputFile,
                 format: fmt,
                 bitrate: bitrateSelect.value,
                 sampleRate: sampleRateSelect.value,
@@ -236,7 +247,7 @@ import { buildAudioArgs, getMimeType, supportsBitrate } from './audio-args.js';
                 inputName,
                 inputFile: currentFile,
                 args,
-                outputName: outName,
+                outputName: outputFile,
                 mimeType: getMimeType(fmt),
                 onStatus: (phase, message) => {
                     progressText.textContent = message;

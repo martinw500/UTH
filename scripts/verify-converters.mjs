@@ -29,7 +29,9 @@ const run = promisify(execFile);
 
 const BASE = (process.env.SITE_URL || 'http://localhost:5500').replace(/\/$/, '');
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'uth-verify-'));
-const SOURCE_SECONDS = 6;
+// Deliberately not a whole number: the trim fields show whole seconds, and an
+// end of "00:00:06" used to cut the last 0.6 s off every untrimmed export.
+const SOURCE_SECONDS = 6.6;
 
 // format -> what ffprobe must report back
 const VIDEO_CASES = [
@@ -51,15 +53,22 @@ const AUDIO_CASES = [
     { fmt: 'flac', codecs: ['flac'] },
 ];
 
-async function makeSample() {
-    const out = path.join(WORK, 'sample.mp4');
+async function makeSample(name = 'sample.mp4', codecArgs = ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac']) {
+    const out = path.join(WORK, name);
     await run('ffmpeg', [
         '-y',
         '-f', 'lavfi', '-i', `testsrc=duration=${SOURCE_SECONDS}:size=640x360:rate=25`,
         '-f', 'lavfi', '-i', `sine=frequency=440:duration=${SOURCE_SECONDS}`,
-        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
+        ...codecArgs, '-shortest',
         out,
     ]);
+    return out;
+}
+
+/** Audio only, in a container Chrome cannot play, so no duration ever loads. */
+async function makeAiff() {
+    const out = path.join(WORK, 'sample.aiff');
+    await run('ffmpeg', ['-y', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${SOURCE_SECONDS}`, out]);
     return out;
 }
 
@@ -67,7 +76,7 @@ async function probe(file) {
     const { stdout } = await run('ffprobe', [
         '-v', 'error',
         '-show_entries', 'format=duration',
-        '-show_entries', 'stream=codec_name,width,height',
+        '-show_entries', 'stream=codec_name,width,height,sample_rate',
         '-of', 'json', file,
     ]);
     const data = JSON.parse(stdout);
@@ -76,6 +85,7 @@ async function probe(file) {
         codecs: data.streams.map(s => s.codec_name),
         width: data.streams.find(s => s.width)?.width,
         height: data.streams.find(s => s.height)?.height,
+        sampleRate: Number(data.streams.find(s => s.sample_rate)?.sample_rate) || undefined,
     };
 }
 
@@ -86,22 +96,29 @@ function check(label, condition, detail) {
     return condition;
 }
 
-async function runTool(page, toolPath, cases, { expectSeconds = SOURCE_SECONDS, extra = null } = {}) {
+async function runTool(page, toolPath, cases, {
+    expectSeconds = SOURCE_SECONDS, extra = null, file = sample, sampleRate, notIdentical = false,
+    reload = true,
+} = {}) {
     console.log(`\n=== ${toolPath} ===`);
-    await page.goto(`${BASE}${toolPath}`);
-    // The COI service worker reloads the page once it controls it. Without this
-    // nothing can convert at all, which is exactly the bug that shipped.
-    try {
-        await page.waitForFunction(() => window.crossOriginIsolated === true, { timeout: 25000 });
-        console.log('cross-origin isolated: yes\n');
-    } catch {
-        failures.push(`${toolPath}: never became cross-origin isolated (SharedArrayBuffer unavailable)`);
-        return;
+    // reload: false keeps the page as the previous run left it, which is the
+    // only way to see state leaking from one file to the next.
+    if (reload) {
+        await page.goto(`${BASE}${toolPath}`);
+        // The COI service worker reloads the page once it controls it. Without
+        // this nothing can convert at all, which is exactly the bug that shipped.
+        try {
+            await page.waitForFunction(() => window.crossOriginIsolated === true, { timeout: 25000 });
+            console.log('cross-origin isolated: yes\n');
+        } catch {
+            failures.push(`${toolPath}: never became cross-origin isolated (SharedArrayBuffer unavailable)`);
+            return;
+        }
     }
 
     for (const { fmt, codecs, width, height } of cases) {
         process.stdout.write(`${fmt.padEnd(5)} `);
-        await page.setInputFiles('#fileInput', sample);
+        await page.setInputFiles('#fileInput', file);
         await page.waitForSelector('#editorWorkspace', { state: 'visible' });
         await page.selectOption('#outputFormat', fmt);
         if (extra) await extra(page);
@@ -130,12 +147,16 @@ async function runTool(page, toolPath, cases, { expectSeconds = SOURCE_SECONDS, 
         const info = await probe(outPath);
         const label = `${toolPath} ${fmt}`;
         const ok = [
-            check(label, Math.abs(info.duration - expectSeconds) < 0.5,
+            check(label, Math.abs(info.duration - expectSeconds) < 0.25,
                 `duration ${info.duration}s, expected ~${expectSeconds}s`),
             ...codecs.map(c => check(label, info.codecs.includes(c),
                 `missing codec ${c} (got ${info.codecs.join(', ')})`)),
             width === undefined || check(label, info.width === width, `width ${info.width}, expected ${width}`),
             height === undefined || check(label, info.height === height, `height ${info.height}, expected ${height}`),
+            sampleRate === undefined || check(label, info.sampleRate === sampleRate,
+                `sample rate ${info.sampleRate}, expected ${sampleRate}`),
+            !notIdentical || check(label, !fs.readFileSync(file).equals(Buffer.from(bytes)),
+                'the output is byte-for-byte the input'),
         ].every(Boolean);
 
         console.log(`${ok ? 'ok  ' : 'BAD '} ${(bytes.length / 1024).toFixed(0).padStart(5)} KB  `
@@ -168,6 +189,38 @@ await runTool(page, '/audio-converter/', [{ fmt: 'mp3', codecs: ['mp3'] }], {
     },
 });
 
+// ffmpeg's virtual input was "input.mp4", so a file called input.mp4 converted
+// to MP4 got an output name equal to the input: ffmpeg refused, and the
+// untouched original came back as the "converted" file.
+console.log('\n=== /video-converter/ a file named input.mp4 ===');
+await runTool(page, '/video-converter/', [{ fmt: 'mp4', codecs: ['h264'] }], {
+    file: await makeSample('input.mp4'), notIdentical: true,
+});
+
+// A new file used to inherit the last file's trim start. The AVI matters: Chrome
+// cannot preview it, so nothing else overwrites the stale value.
+console.log('\n=== /video-converter/ trim start does not leak to the next file ===');
+await runTool(page, '/video-converter/', [{ fmt: 'mp4', codecs: ['h264'] }], {
+    expectSeconds: SOURCE_SECONDS - 2,
+    extra: (p) => p.fill('#trimStart', '00:00:02'),
+});
+await runTool(page, '/video-converter/', [{ fmt: 'mp4', codecs: ['h264'] }], {
+    file: await makeSample('sample.avi', ['-c:v', 'mpeg4', '-c:a', 'mp3']),
+    reload: false,
+});
+
+// The browser cannot play AIFF, so both trim fields stayed at 00:00:00 and the
+// converter refused: "the trim end must come after the trim start".
+console.log('\n=== /audio-converter/ a file the browser cannot play ===');
+await runTool(page, '/audio-converter/', [{ fmt: 'mp3', codecs: ['mp3'] }], { file: await makeAiff() });
+
+// loudnorm outputs 192 kHz unless told otherwise, and WAV accepts it.
+console.log('\n=== /audio-converter/ normalise keeps a sane sample rate ===');
+await runTool(page, '/audio-converter/', [{ fmt: 'wav', codecs: ['pcm_s16le'] }], {
+    sampleRate: 48000,
+    extra: (p) => p.check('#normaliseCheck'),
+});
+
 await browser.close();
 
 console.log();
@@ -176,5 +229,5 @@ if (failures.length) {
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
 }
-console.log(`All ${VIDEO_CASES.length + AUDIO_CASES.length + 1} conversions produced correct media.`);
+console.log(`All ${VIDEO_CASES.length + AUDIO_CASES.length + 6} conversions produced correct media.`);
 fs.rmSync(WORK, { recursive: true, force: true });

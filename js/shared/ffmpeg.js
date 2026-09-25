@@ -39,6 +39,13 @@ const META_CHUNK_RE = /\/(\d{1,6}\.ffmpeg\.js)$/;
 
 let loadPromise = null;
 let workerChunkPromise = null;
+/** The loaded instance, so a cancel or a crash can terminate it. */
+let current = null;
+/**
+ * Where progress and log events go. Replaced on every loadFFmpeg call: the
+ * instance is shared, and its events belong to whoever is converting now.
+ */
+let handlers = {};
 
 /**
  * Recover the worker chunk filename from the bundle source.
@@ -132,14 +139,14 @@ export async function toBlobURL(url, mimeType, fetchImpl = fetch) {
     return URL.createObjectURL(new Blob([buffer], { type: mimeType }));
 }
 
-function attachListeners(instance, { onProgress, onLog } = {}) {
+function attachListeners(instance) {
     instance.on('progress', ({ progress }) => {
         const ratio = Number.isFinite(progress) ? progress : 0;
         const percent = Math.min(100, Math.max(0, Math.round(ratio * 100)));
-        if (onProgress) onProgress({ percent, ratio });
+        handlers.onProgress?.({ percent, ratio });
     });
     instance.on('log', ({ message }) => {
-        if (onLog) onLog(message);
+        handlers.onLog?.(message);
     });
     return instance;
 }
@@ -152,6 +159,7 @@ function attachListeners(instance, { onProgress, onLog } = {}) {
  * and download the core twice.
  */
 export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
+    handlers = { onProgress, onLog };
     if (loadPromise) return loadPromise;
 
     const status = (phase, message) => { if (onStatus) onStatus(phase, message); };
@@ -161,18 +169,24 @@ export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
         if (unavailable) throw new Error(unavailable);
 
         const { FFmpeg } = FFmpegWASM;
-        let instance = attachListeners(new FFmpeg(), { onProgress, onLog });
+        let instance = attachListeners(new FFmpeg());
+        const blobUrls = [];
+        const blob = async (url, mimeType) => {
+            const blobUrl = await toBlobURL(url, mimeType);
+            blobUrls.push(blobUrl);
+            return blobUrl;
+        };
 
         try {
             status('core', 'Loading FFmpeg (first time may take a moment)...');
-            const coreURL = await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript');
-            const wasmURL = await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm');
+            const coreURL = await blob(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript');
+            const wasmURL = await blob(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm');
 
             status('worker', 'Starting FFmpeg worker...');
             const chunk = await resolveWorkerChunk();
             // Same-origin blob, because a worker cannot be constructed from a
             // cross-origin URL — which is what breaks this on GitHub Pages.
-            const classWorkerURL = await toBlobURL(`${FFMPEG_UMD_BASE}/${chunk}`, 'text/javascript');
+            const classWorkerURL = await blob(`${FFMPEG_UMD_BASE}/${chunk}`, 'text/javascript');
 
             status('load', 'Preparing FFmpeg...');
             try {
@@ -180,15 +194,21 @@ export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
             } catch (primaryErr) {
                 // Some environments only work without an explicit worker URL.
                 console.warn('[FFmpeg] load with classWorkerURL failed, retrying without:', primaryErr);
-                instance = attachListeners(new FFmpeg(), { onProgress, onLog });
+                try { instance.terminate(); } catch { /* never started */ }
+                instance = attachListeners(new FFmpeg());
                 await instance.load({ coreURL, wasmURL });
             }
         } catch (err) {
             // Clear the memo so a later attempt can genuinely retry.
             loadPromise = null;
             throw new Error(`Failed to load the FFmpeg engine: ${err.message || err}`);
+        } finally {
+            // load() has fetched all three by the time it settles; holding the
+            // ~30 MB wasm as a blob for the life of the page bought nothing.
+            for (const url of blobUrls) URL.revokeObjectURL(url);
         }
 
+        current = instance;
         return instance;
     })();
 
@@ -218,7 +238,15 @@ export async function runFFmpeg(ffmpeg, {
         await ffmpeg.writeFile(inputName, await fetchFile(inputFile));
 
         status('run', 'Converting...');
-        const exitCode = await ffmpeg.exec(args);
+        let exitCode;
+        try {
+            exitCode = await ffmpeg.exec(args);
+        } catch (error) {
+            // A wasm abort or out-of-memory leaves the instance unusable. Drop
+            // it, or every later conversion fails the same way until a reload.
+            if (ffmpeg === current) terminateFFmpeg();
+            throw error;
+        }
         if (exitCode !== 0) console.warn('[FFmpeg] non-zero exit code:', exitCode);
 
         status('output', 'Reading output...');
@@ -247,8 +275,20 @@ export async function runFFmpeg(ffmpeg, {
     }
 }
 
-/** Drop the memoised instance. Tests use this; a cancel button would too. */
+/** Drop the memoised instance without stopping it. */
 export function resetFFmpeg() {
     loadPromise = null;
     workerChunkPromise = null;
+    current = null;
+}
+
+/**
+ * Stop whatever is running and discard the instance; the next loadFFmpeg
+ * builds a fresh one. This is the only way to cancel a conversion mid-file:
+ * the pending exec() rejects.
+ */
+export function terminateFFmpeg() {
+    const instance = current;
+    resetFFmpeg();
+    try { instance?.terminate(); } catch { /* already gone */ }
 }

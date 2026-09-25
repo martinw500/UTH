@@ -118,8 +118,11 @@ import { buildFFmpegArgs, getMimeType, getInputExt } from './video-args.js';
         e.preventDefault();
         dropzone.classList.remove('dragover');
         const f = e.dataTransfer.files[0];
-        if (f && (f.type.startsWith('video/') || /\.(mkv|avi|mov|webm|mp4|ogg)$/i.test(f.name))) {
+        if (!f) return;
+        if (f.type.startsWith('video/') || /\.(mkv|avi|mov|webm|mp4|ogg)$/i.test(f.name)) {
             setFile(f);
+        } else {
+            showError(`${f.name} is not a video file.`);
         }
     });
 
@@ -141,12 +144,26 @@ import { buildFFmpegArgs, getMimeType, getInputExt } from './video-args.js';
         previewUrl = URL.createObjectURL(file);
         videoPreview.src = previewUrl;
 
+        // Reset everything the previous file set. These used to be written only
+        // once metadata loaded, so a file the browser cannot preview inherited
+        // the last file's name, duration and trim start -- and was silently
+        // trimmed by it.
+        videoDuration = 0;
+        editorFilename.textContent = file.name;
+        editorMeta.textContent = formatBytes(file.size);
+        trimStart.value = formatTime(0);
+        trimEnd.value = '';
+        updateTrimDuration();
+
         videoPreview.onloadedmetadata = () => {
-            videoDuration = videoPreview.duration;
-            editorFilename.textContent = file.name;
+            videoDuration = Number.isFinite(videoPreview.duration) ? videoPreview.duration : 0;
             editorMeta.textContent = `${formatBytes(file.size)} · ${formatTime(videoDuration)}`;
             trimEnd.value = formatTime(videoDuration);
             updateTrimDuration();
+        };
+        videoPreview.onerror = () => {
+            showError('Your browser cannot preview this file, but it can still be converted. '
+                + 'Type a trim end if you want one; a target size needs the length, so pick a quality.');
         };
 
         dropzone.style.display = 'none';
@@ -223,8 +240,12 @@ import { buildFFmpegArgs, getMimeType, getInputExt } from './video-args.js';
             const quality = qualitySelect.value;
             const inputName = 'input' + getInputExt(currentFile.name);
             const outName = stripExt(currentFile.name) + '.' + fmt;
+            // ffmpeg's virtual file names must differ: "input.mp4" converted to
+            // MP4 used to name the output the same as the input, so ffmpeg
+            // refused and the untouched original came back as the result.
+            const outputFile = `output.${fmt}`;
 
-            const args = buildFFmpegArgs(inputName, outName, fmt, quality, {
+            const args = buildFFmpegArgs(inputName, outputFile, fmt, quality, {
                 startSec: parseTime(trimStart.value),
                 endSec: parseTime(trimEnd.value),
                 videoDuration,
@@ -239,7 +260,7 @@ import { buildFFmpegArgs, getMimeType, getInputExt } from './video-args.js';
                 inputName,
                 inputFile: currentFile,
                 args,
-                outputName: outName,
+                outputName: outputFile,
                 mimeType: getMimeType(fmt),
                 onStatus: (phase, message) => {
                     progressText.textContent = message;

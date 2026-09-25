@@ -8,7 +8,7 @@
 // cheap; the core is only fetched when a conversion actually runs. That is why
 // the engines are imported lazily: a PNG-to-WebP job downloads none of it.
 
-import { loadFFmpeg, runFFmpeg, ffmpegUnavailableReason } from '../../../js/shared/ffmpeg.js';
+import { loadFFmpeg, runFFmpeg, ffmpegUnavailableReason, terminateFFmpeg } from '../../../js/shared/ffmpeg.js';
 import { buildFFmpegArgs, getInputExt } from '../../../video-converter/js/video-args.js';
 import { buildAudioArgs } from '../../../audio-converter/js/audio-args.js';
 import { outputName } from '../../../js/shared/convert-registry.js';
@@ -17,6 +17,15 @@ import { parseTime } from '../../../js/shared/format.js';
 
 export const id = 'media';
 export const kinds = Object.freeze(['video', 'audio']);
+
+/**
+ * Stop the file that is converting now. The abort signal is only checked
+ * between steps, and ffmpeg's exec() cannot be interrupted, so terminating
+ * the instance is the only way; the next conversion loads a fresh one.
+ */
+export function cancel() {
+    terminateFFmpeg();
+}
 
 /**
  * Read a media file's duration without decoding it.
@@ -62,7 +71,7 @@ export async function convert(file, { target, options = {}, signal, onProgress =
 
     const duration = await probeDuration(file);
     const { startSec, endSec } = resolveTrim(options.trim, duration);
-    const inputName = `input.${getInputExt(file.name)}`;
+    const inputName = `input${getInputExt(file.name)}`;
     const outName = outputName(file.name, target);
     const outputFile = `output.${target.ext}`;
 
@@ -80,7 +89,7 @@ export async function convert(file, { target, options = {}, signal, onProgress =
         : buildFFmpegArgs(inputName, outputFile, target.id, options.videoQuality ?? 'medium', {
             startSec,
             endSec: endSec ?? NaN,
-            videoDuration: duration || 60,
+            videoDuration: duration,
             resolution: options.resolution ?? 'original',
             fps: options.fps ?? 'original',
             audio: options.audioTrack ?? 'keep',
