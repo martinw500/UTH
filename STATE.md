@@ -27,7 +27,8 @@ picking the work back up on a new machine or in a new session.
 - **Remote:** `origin` → https://github.com/martinw500/UTH
 - Work goes straight to `main` after `npm test` passes. It is a solo repo; PRs bought nothing that
   pushing does not, since CI and both deploy gates run on `main` too. The exception is anything
-  touching `api/` — see the note under P-social below.
+  touching `api/`: push it to a branch first, so Vercel builds a preview and the functions run
+  somewhere real before production. Nothing local runs them on Vercel's Python runtime.
 
 **Everything needed to pick the work up is in this repo.** *Next up* below is self-contained;
 `docs/SETUP.md` covers a new machine. Earlier planning documents lived under `~/.claude/plans/`
@@ -97,7 +98,8 @@ inline `color:`, and a pale tone that works on near-black is invisible on white.
 Theme selection is a **classic inline `<head>` snippet** in every page. It cannot be an external
 file: even a synchronous one can paint before it arrives, and the page flashes the wrong theme. The
 same snippet sets `needs-http` for the `file://` guard. `js/site.js` (classic, deferred) handles
-the toggle and the mobile nav; it is classic because half the pages are still classic scripts.
+the toggle and the mobile nav. It dates from when half the pages were classic scripts; every page is
+a module now, so it could become one, but nothing needs that.
 
 An explicit choice is stored in `localStorage` and wins over the OS; with nothing stored the page
 follows `prefers-color-scheme` and `data-theme` stays absent.
@@ -371,12 +373,10 @@ be confidently wrong until a send failed. Clicking the active chip clears it —
 is a one-way door with no route back to "no target size".
 
 ### P2a — shared modules
-`js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. The image, video
-and colour test files now import the real source **with their original assertions unchanged**, so
-green means the extraction preserved behaviour.
-
-Loaded by the QR generator and both converters. The other four pages are still classic scripts
-with their own helper copies — converting those is P2c–g.
+`js/shared/{format,config,dom,storage,notify,clipboard,dropzone,image,color}.js`. Every page now
+loads as a module on these, and their tests import the real source. That was not true of the image
+editor's helpers or the colour page until the September 2026 audit, whatever the tests' comments
+claimed — a test that says it proves something is not evidence that it does.
 
 ### ESM groundwork
 - **`file://` guard.** A classic inline `<head>` script sets `.needs-http`; CSS then hides the page
@@ -483,14 +483,6 @@ Deferred, deliberately: **sign/fill a PDF** (unblocked by step 9), **image joine
 **PWA/offline** — the last collides with the `coi-serviceworker.js` in three directories and is its
 own project if ever.
 
-### P2b–g — finish the ESM migration (foundational, risky)
-One PR per step; each independently green and deployable.
-- **P2c–g** — one tool at a time: convert the IIFE to a module, delete its local helper copies in
-  favour of `js/shared/*`, and rewrite its test to import real source. The video converter, image
-  editor, both downloaders and the colour picker are done (`js/config.js` is gone; the
-  downloaders use `js/shared/config.js`, so Vercel previews reach their own API instead of
-  `localhost:5000`). Every page now loads as a module.
-
 ### Fold the old converter pages into the hub
 While doing it, move the video converter to **VP9** (`libvpx-vp9 -row-mt 1`) instead of VP8, and give
 GIF a `palettegen`/`paletteuse` pass — the single-pass GIF visibly bands.
@@ -526,7 +518,7 @@ The URL check has three copies (`api/youtube/index.py`, `download.py`, `backend.
 every endpoint through Flask's test client with yt-dlp and requests faked out. `npm run
 verify:downloaders` drives both pages against the local backend.
 
-### P4 — YouTube tells the truth *(independent of P2/P3, can be done any time)*
+### P4 — YouTube tells the truth *(independent of P3, can be done any time)*
 Production silently serves 360p when the UI says 1080p: Vercel has no ffmpeg, so
 `api/youtube/download.py:33-39` falls back to progressive muxed MP4, which YouTube only serves at
 360p. `api/youtube/index.py:71` **already computes `has_audio`** and ships it — the client just
@@ -587,14 +579,21 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 - **`api/_lib/` cross-directory imports are unverified on Vercel's Python runtime.** Confirm on a
   preview deploy before relying on it. This is why `backend.py` currently carries a duplicated
   proxy route with a note rather than importing a shared one.
-- **`vercel.json` `functions.maxDuration: 60` is unverified** against the account plan. Try it on a
-  preview first; fall back to the 10s default with a 2-strategy cascade if rejected.
-- **PR-preview E2E needs `VERCEL_TOKEN` and `VERCEL_PROJECT_ID` repo secrets.** Without them the
-  job skips (deliberately — silently re-testing production would report a false pass).
+- **`vercel.json` has no `functions` block**, so the API runs at the plan's default duration. The
+  Instagram cascade can outlive it (P3); raising `maxDuration` is untested against the plan.
+- **E2E waits for this commit's deploy through the Vercel API**, which needs `VERCEL_TOKEN` and
+  `VERCEL_PROJECT_ID` repo secrets. Without them a PR's E2E skips (re-testing production would be a
+  false pass) and a push falls back to a fixed wait, which can test the previous deploy.
 - **jsdom cannot see the bugs that matter most here** — canvas pixels, `toBlob`,
-  `SharedArrayBuffer`, service workers, `EyeDropper`. Playwright is now a devDependency and
-  `npm run verify:converters` uses it; extend that approach for P6/P7 rather than trusting a green
-  unit suite.
+  `SharedArrayBuffer`, service workers, `EyeDropper`. Each `scripts/verify-*.mjs` drives a real
+  browser; extend one rather than trusting a green unit suite.
+- **Safari and iOS may never get cross-origin isolation** (suspected, unverified). `vercel.json` and
+  `coi-serviceworker.js` use COEP `credentialless`, which WebKit may not support, and nothing
+  falls back to `require-corp`. If so, every ffmpeg tool reports "SharedArrayBuffer disabled"
+  there. Check on a real iPhone before changing headers.
+- **Zipping a big batch roughly doubles its memory** (`js/shared/zip.js` holds every file as its
+  own `Uint8Array` before writing). A large hub batch can crash the tab; the fix is a streaming
+  writer.
 - `npm audit` reports 5 high-severity advisories. All are transitive **dev-only** deps of
   jest/jsdom (`ws`, `undici`, `js-yaml`, `picomatch`, `brace-expansion`). Nothing ships to users.
 
@@ -603,13 +602,15 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 ## Verifying
 
 ```bash
-npm test              # unit suite (currently 1518 passing)
+npm test              # unit suite (currently 1641 passing)
 npm run test:build    # what Vercel runs on deploy — must stay green or deploys freeze
 npm run dev           # static server on :5500
 npm run dev:api       # Flask backend on :5000
 SITE_URL=https://<preview>.vercel.app npm run test:e2e
 
-npm run verify:converters   # real browser + ffprobe; needs `npm run dev` running
+# Real browser, need `npm run dev` running: verify:converters (also ffprobe), verify:image-editor,
+# verify:convert-hub, verify:favicon, verify:pdf-tools (pdfinfo), verify:chrome,
+# verify:downloaders (also `npm run dev:api`). No browser: verify:api.
 ```
 
 **No automated test checks that a downloaded file is actually correct.** For any Instagram or

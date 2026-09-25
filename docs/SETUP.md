@@ -8,11 +8,12 @@ Everything below assumes a clone of https://github.com/martinw500/UTH.
 
 | Tool | Version | Needed for |
 | --- | --- | --- |
-| **Node.js** | 20 or newer (CI pins 20; 22 works) | tests, dev server |
-| **Python** | 3.12 (see `.python-version`) | the local API backend |
+| **Node.js** | 22 (CI pins 22; jsdom needs at least 20.19) | tests, dev server |
+| **Python** | 3.12 (see `.python-version`) | the local API backend, `npm run verify:api` |
 | **Git** | any | — |
 | **ffmpeg** + **ffprobe** | any recent | **only** `npm run verify:converters` |
 | **unzip** or bsdtar | any | **only** `npm run verify:favicon` (Windows has bsdtar built in) |
+| **pdfinfo** (poppler) | any | `npm run verify:pdf-tools` reads output back with it; without it the script falls back to pdf-lib and says so |
 
 `ffmpeg`/`ffprobe` must be **on your PATH**, not just installed. On Windows:
 
@@ -65,8 +66,13 @@ Then open **http://localhost:5500/**.
 > modules, which browsers block over `file://` — the page renders blank. Those
 > pages detect it and show an explanation, but the fix is always `npm run dev`.
 
-`js/config.js` auto-detects localhost and points the frontend at the local
-backend, so no configuration is needed.
+`js/shared/config.js` picks the API from the hostname: localhost talks to the
+local backend, a Vercel deployment (production or preview) to its own `/api/`,
+and GitHub Pages to production. No configuration is needed.
+
+`backend.py` listens on 127.0.0.1 with Flask's debugger off. Set
+`BACKEND_HOST=0.0.0.0` to reach it from another device, and `FLASK_DEBUG=1` for
+the debugger — never both on a network you do not trust.
 
 You only need `dev:api` if you are working on the YouTube or Instagram
 downloaders. Every other tool is client-side.
@@ -74,14 +80,19 @@ downloaders. Every other tool is client-side.
 ## 4. Check everything works
 
 ```bash
-npm test                     # ~1200 unit tests, no network needed
+npm test                     # ~1600 unit tests, no network needed
 
 # Real-browser checks. All need `npm run dev` running in another terminal.
 npm run verify:converters    # video + audio pages (also needs ffmpeg/ffprobe)
-npm run verify:image-editor  # image editor: exported bytes, crop at a narrow viewport
-npm run verify:convert-hub   # convert/ hub: routing, rendered options, a real MP4
+npm run verify:image-editor  # image editor: exported bytes, crop, undo, preview size
+npm run verify:convert-hub   # convert/ hub: routing, rendered options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
-npm run verify:pdf-tools     # reads produced PDFs back, checks pages and rotation
+npm run verify:pdf-tools     # reads produced PDFs back with pdfinfo: pages, sizes, rotation
+npm run verify:chrome        # theming, mobile nav, focus, contrast on every page
+npm run verify:downloaders   # YouTube/Instagram pages; also needs `npm run dev:api`
+
+# No browser: the Python API through Flask's test client, upstream faked out.
+npm run verify:api
 ```
 
 The `verify:*` scripts matter more than their runtime suggests. jsdom has no
@@ -90,7 +101,7 @@ class of bug that has actually broken this project — **every one of these scri
 caught a real bug while being written.** Run whichever covers what you touched;
 `verify:converters` is the one after any change to `js/shared/ffmpeg.js`.
 
-Each can be pointed at a deployment instead of localhost:
+Each browser script can be pointed at a deployment instead of localhost:
 
 ```bash
 SITE_URL=https://useful-tool-hub.vercel.app npm run verify:converters
@@ -119,14 +130,17 @@ a run** after a push — an empty Actions list right after pushing means "not ye
 not "broken".
 
 Vercel also builds a **preview deployment for every branch**, which is how to test
-a change before it reaches production. To have CI test previews automatically, add
-two repository secrets (Settings → Secrets and variables → Actions):
+a change before it reaches production. CI finds the deployment for the exact
+commit it is testing through the Vercel API — the PR's preview, or on a push the
+production build — which needs two repository secrets (Settings → Secrets and
+variables → Actions):
 
 - `VERCEL_TOKEN` — Vercel dashboard → Account Settings → Tokens
 - `VERCEL_PROJECT_ID` — Vercel project → Settings → General
 
-Without them the E2E job **skips** rather than silently re-testing production and
-reporting a false pass.
+Without them a PR's E2E job **skips** rather than silently re-testing production
+and reporting a false pass, and a push falls back to a fixed wait before testing
+production.
 
 ## 6. Where to pick the work back up
 

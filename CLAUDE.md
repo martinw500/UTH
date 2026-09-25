@@ -32,10 +32,13 @@ Run the one that covers what you touched:
 
 ```bash
 npm run verify:converters    # video + audio pages; also needs ffmpeg/ffprobe on PATH
-npm run verify:image-editor  # image editor: exported bytes, crop at a narrow viewport
-npm run verify:convert-hub   # convert/ hub: routing, rendered options, a real MP4
+npm run verify:image-editor  # image editor: bytes, dragged crop, crop after rotate, undo
+npm run verify:convert-hub   # convert/ hub: routing, options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
-npm run verify:pdf-tools     # reads every produced PDF back, checks pages and rotation
+npm run verify:pdf-tools     # reads every produced PDF back with pdfinfo
+npm run verify:chrome        # theming, nav, focus, contrast on every page
+npm run verify:downloaders   # YouTube/Instagram pages; also needs npm run dev:api
+npm run verify:api           # Python API input handling; no browser, no network
 ```
 
 ## Rules that are not preferences
@@ -46,12 +49,14 @@ npm run verify:pdf-tools     # reads every produced PDF back, checks pages and r
   a missing one passes every test and 404s in production.
 - **The homepage grid stays static HTML.** `deployed-site.test.js` fetches raw
   HTML with no JS; client-rendering it breaks every homepage assertion.
-- **Keep `npm test` hermetic.** It is `vercel.json`'s `buildCommand`, so a
-  failure freezes both deploys. Network- or browser-dependent checks go in
+- **Keep `npm test` hermetic.** The same suite is `vercel.json`'s
+  `buildCommand` (as `npm run test:build`), so a failure freezes both deploys. Network- or browser-dependent checks go in
   `deployed-site.test.js` or `scripts/`.
 - **Pure logic lives in its own importable module**, and the test imports the
   real thing. A test carrying its own copy of a function is testing the copy —
-  that is not hypothetical, it happened here.
+  that is not hypothetical, it happened here three times.
+- **Server text is inserted as text, never through `innerHTML`**, and a user's
+  URL never reaches a fetching library as-is — rebuild it on an allowlisted host.
 - **Update `STATE.md` in the same commit.** Delete what is no longer true; it
   describes the present, not history.
 
@@ -83,6 +88,18 @@ Each of these shipped to production and was invisible to a green test suite.
 - **`createDropzone` calls `onReject` once per file with a single object**, not
   with an array. Two pages had written `rejections[0]`, so every rejection was
   swallowed and dropping an unsupported file gave no feedback at all.
+- **The YouTube API passed any URL without a video id to yt-dlp**, whose generic
+  extractor fetches whatever it is given: an SSRF and open relay. Only a URL
+  rebuilt by `youtube_watch_url` reaches it now.
+- **Preview space is not source space.** The image editor stored a crop drawn
+  over the rotated preview as if it were in the source, so every crop after a
+  rotate or flip kept the wrong region. `previewRectToCrop` does the mapping.
+- **pdf-lib cannot decrypt.** With `ignoreEncryption` it happily wrote garbage
+  from encrypted PDFs and reported success; they are refused at load.
+- **Checks that could not fail.** An assertion inside a `try/catch` that caught
+  its own failure; a regex whose `\b` had become a literal backspace byte; a
+  narrow-viewport crop check that never dragged. **See a new check fail against
+  the bug it guards — break the code on purpose — before trusting it.**
 
 The pattern: for canvas pixels, `SharedArrayBuffer`, service workers, workers,
 binary formats and downloads, **jsdom proves almost nothing**. Drive a real
@@ -95,8 +112,8 @@ Two rules those scripts follow, both learned the hard way:
   leaves a blob URL in the download link, so waiting on the selector alone reads
   a stale result and every assertion is silently one export behind.
 - **Verify with a different implementation than the one under test.** The zip
-  writer is checked by unzipping with Info-ZIP; asserting our own byte layout
-  back at ourselves would prove nothing.
+  writer is checked by unzipping with Info-ZIP and PDFs are read back with
+  pdfinfo; asserting our own byte layout back at ourselves would prove nothing.
 
 ## When verifying
 

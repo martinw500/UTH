@@ -8,10 +8,11 @@ bundler, and because a pinned CDN URL has already broken production once — see
 the `814.ffmpeg.js` note in `STATE.md`. A vendored file cannot 404, works
 offline, and can be unit-tested directly.
 
-**Vendor single files, never a whole package directory.** Jest's `testMatch` is
-`**/tests/**/*.test.js`, so a vendored directory containing its own `tests/`
-folder would silently enrol a third party's suite into `npm run test:build` —
-which gates the Vercel deploy.
+**Vendor single files, never a whole package directory.** Jest ignores
+`js/vendor/`, but the rule keeps this folder auditable, and anywhere else a
+package's own `tests/` folder would match `**/tests/**/*.test.js` and silently
+enrol a third party's suite into `npm run test:build`, which gates the Vercel
+deploy.
 
 ---
 

@@ -65,16 +65,24 @@ Each of these exists because the hand-rolled copies had already drifted:
 
 **`js/shared/tools.js` is the source of truth.** Add a frozen entry with
 `id, title, href, category, tone, runs, desc, keywords`, then mirror it as a
-`.tool-card` in `#toolsGrid` and bump **both** counters (`#toolCount`,
-`#visibleCount`). `tests/tool-registry.test.js` asserts registry↔HTML parity —
-a card without an entry, a mismatched counter, or a `tone` with no CSS class is
-a red build.
+`.tool-card` in `#toolsGrid`:
+
+- inside the `<section id="cat-<category>">` that matches the entry's `category`;
+- with `data-tool` set to the id and `data-keywords` set to the entry's
+  `keywords`, character for character;
+- then bump **both** counters (`#toolCount`, `#visibleCount`) **and** the count
+  beside that category's `data-cat-link` in the side rail.
+
+`tests/tool-registry.test.js` asserts all of it — a card without an entry,
+keywords that differ, a wrong counter or rail count, or a `tone` with no CSS
+class is a red build.
 
 The grid stays **static HTML**: `deployed-site.test.js` fetches raw HTML with no
 JavaScript, and a crawler sees the same. The registry does not render it.
 
 ```html
-<a href="word-counter/index.html" class="tool-card" data-tool="word-counter">
+<a href="word-counter/index.html" class="tool-card" data-tool="word-counter"
+   data-keywords="word count counter characters reading time length essay">
     <div class="tool-card-icon tone-cyan">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> … </svg>
@@ -109,8 +117,10 @@ word no tool contains.
 - add a `describe('<Tool> page structure')` asserting every control id exists
 
 **`tests/deployed-site.test.js`**
-- add to `PAGES`
-- add its scripts (and any new `js/shared/*`) to the static-asset checks
+- add to `PAGES`, and the page's HTML file to `HTML_PAGES` — the static-asset
+  checks follow its script tags and imports from there, so there is no list of
+  scripts to maintain (a module chosen by name at runtime, like the hub's
+  engines, has to be named in `servedFiles`)
 - add a `describe('<Tool> — features present')` section
 
 Careful: this suite is **not** run by `npm test` — it needs the network, so it
@@ -147,8 +157,12 @@ Copy the shape from an existing one and add the npm script. What they do:
   leaves a blob URL in the download link, so waiting on the selector alone reads
   a stale result and every assertion is silently one export behind;
 - **verify with a different implementation than the one under test** where one
-  exists. The zip writer is checked by unzipping with Info-ZIP; asserting our own
-  byte layout back at ourselves would prove nothing.
+  exists. The zip writer is checked by unzipping with Info-ZIP and PDFs are read
+  back with pdfinfo; asserting our own byte layout back at ourselves would prove
+  nothing;
+- **see each new check fail** against the bug it guards (break the code on
+  purpose) before trusting it. A regex that silently matched nothing, and a
+  check that never dragged, both passed until someone did.
 
 ## 4. Only if the tool needs it
 
@@ -161,13 +175,17 @@ worker scope is path-based.
 The route decorator must declare the **full public path** (`@app.route('/api/name')`,
 not `/`). Mirror it into `backend.py` for local dev. `vercel.json` needs nothing;
 `/api/(.*)` already carries the CORS headers and Vercel discovers `.py` files
-automatically.
+automatically. **Never pass a user's URL to a fetching library as-is** — rebuild
+it from parsed parts on an allowlisted host, as `youtube_watch_url` does, return
+errors as your own sentences rather than the library's text, and add the cases
+to `scripts/verify-api.py`.
 
 **A third-party library** — vendor it into `js/vendor/` rather than using a CDN;
 see `js/vendor/README.md` for why and for the licence/provenance requirements.
-Vendor **single files, never a package directory** — Jest's `testMatch` is
-`**/tests/**/*.test.js`, so a vendored `tests/` folder would enrol someone else's
-suite into the deploy gate.
+Vendor **single files, never a package directory**. `js/vendor/` is excluded from
+Jest, but anywhere else a vendored `tests/` folder would match
+`**/tests/**/*.test.js` and enrol someone else's suite into the deploy gate —
+remember that for assets placed outside it, like the planned `assets/pdfjs/`.
 
 ## 5. Before you push
 
@@ -181,4 +199,4 @@ anything the change made untrue. It is a description of the present, not a log.
 
 For anything involving canvas pixels, `SharedArrayBuffer`, service workers or
 file downloads, a green unit suite proves very little — check it in a browser.
-`scripts/verify-converters.mjs` is the pattern to copy.
+`scripts/verify-image-editor.mjs` is the pattern to copy.

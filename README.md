@@ -23,7 +23,7 @@ Will be updated with more tools as I build them out.
 | **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |
 | **PDF Tools** | Merge, split, rotate and trim PDFs, or turn images into one | browser |
 | **Favicon Generator** | One image into a full favicon set — .ico, PNGs, manifest | browser |
-| **Colour Picker** | Convert between HEX, RGB and HSL | browser |
+| **Colour Picker** | Convert between HEX, RGB and HSL, or pick a colour from an image | browser |
 | **QR Code Generator** | Any text or link to a QR code, saved as PNG or SVG | browser |
 
 "browser" means the file never leaves your machine.
@@ -66,8 +66,7 @@ for local development. Everything else runs client-side via the Canvas API or ff
 
 ```
 index.html / styles.css / script.js   Homepage, global styles, search
-js/config.js                          API base URL (local vs production)
-js/shared/                            Shared ES modules (dom, format, image, colour, qr, ffmpeg…)
+js/shared/                            Shared ES modules (dom, format, image, color, qr, ffmpeg, config…)
 js/vendor/                            Vendored third-party code — see js/vendor/README.md
 <tool>/index.html + <tool>/js/        One directory per tool
 api/<name>/index.py                   Vercel serverless functions
@@ -79,19 +78,21 @@ scripts/verify-*.mjs                  Real-browser verification, one per artefac
 ## Tests
 
 ```bash
-npm test                     # unit suite (~1200 tests), no network needed
+npm test                     # unit suite (~1600 tests), no network needed
 npm run verify:converters    # video + audio pages: real browser + ffprobe
 npm run verify:image-editor  # image editor: real browser, checks exported bytes
-npm run verify:convert-hub   # the convert/ hub: routing, options, a real MP4
+npm run verify:convert-hub   # the convert/ hub: routing, options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a different implementation
-npm run verify:pdf-tools     # reads every produced PDF back and checks it
+npm run verify:pdf-tools     # reads every produced PDF back with pdfinfo
 npm run verify:chrome        # theming, mobile nav, focus, real contrast in both themes
+npm run verify:downloaders   # YouTube/Instagram pages; also needs npm run dev:api
+npm run verify:api           # the Python API's input handling; no browser, no network
 npm run test:e2e             # checks the deployed site; SITE_URL to target a preview
 ```
 
-The `verify:*` scripts all need `npm run dev` running in another terminal.
+The browser `verify:*` scripts need `npm run dev` running in another terminal.
 
-`npm test` is what Vercel runs on deploy, so a failure freezes deploys. For anything touching
+The same suite, as `npm run test:build`, is what Vercel runs on deploy, so a failure freezes deploys. For anything touching
 canvas, workers or downloads, a green unit suite proves very little — jsdom has no canvas, no
 `toBlob` and no `SharedArrayBuffer`, which is exactly where those bugs live. Use the `verify:*`
 scripts; each one has caught a real bug that the unit suite could not see.
