@@ -159,7 +159,9 @@ export async function reorderPdf(file, order) {
     const source = await loadPdf(file);
     const total = source.getPageCount();
     const valid = order.filter((i) => Number.isInteger(i) && i >= 0 && i < total);
-    if (valid.length !== total) throw new Error('The new order must list every page exactly once.');
+    if (valid.length !== total || new Set(valid).size !== total) {
+        throw new Error('The new order must list every page exactly once.');
+    }
 
     const out = await PDFDocument.create();
     for (const page of await out.copyPages(source, valid)) out.addPage(page);

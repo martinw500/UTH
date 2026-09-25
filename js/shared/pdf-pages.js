@@ -54,8 +54,13 @@ export function parsePageRange(spec, pageCount) {
         let end = rawEnd === '' ? pageCount : asPage(rawEnd);
         if (start === null || end === null) continue;
 
-        // "5-2" is a typo, not an empty selection.
-        if (start > end) [start, end] = [end, start];
+        // "5-2" is a typo, not an empty selection. An open range is not: "20-"
+        // on a 10-page file used to swap into 10-20 and select page 10.
+        if (rawStart !== '' && rawEnd !== '') {
+            if (start > end) [start, end] = [end, start];
+        } else if (start > end) {
+            continue;
+        }
         start = Math.max(1, start);
         end = Math.min(pageCount, end);
         for (let page = start; page <= end; page += 1) wanted.add(page - 1);

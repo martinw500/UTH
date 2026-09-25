@@ -1,7 +1,7 @@
 // pdf-tools/js/pdf-ops.js, against the vendored pdf-lib it ships with.
 
 import { PDFDocument } from '../js/vendor/pdf-lib.js';
-import { loadPdf, pageCountOf, sniffImageType } from '../pdf-tools/js/pdf-ops.js';
+import { loadPdf, pageCountOf, sniffImageType, reorderPdf } from '../pdf-tools/js/pdf-ops.js';
 
 const fileOf = (bytes, name = 'doc.pdf') => ({
     name,
@@ -69,5 +69,18 @@ describe('sniffImageType', () => {
     test('anything else needs a redraw', () => {
         expect(sniffImageType(new Uint8Array([0x52, 0x49, 0x46, 0x46]))).toBeNull();
         expect(sniffImageType(new Uint8Array([]))).toBeNull();
+    });
+});
+
+describe('reorderPdf', () => {
+    // [0, 0, 1] has as many entries as a 3-page file, so it passed the
+    // "every page exactly once" check and dropped page 3.
+    test('refuses an order that repeats a page', async () => {
+        await expect(reorderPdf(fileOf(await plainPdf(3)), [0, 0, 1])).rejects.toThrow(/exactly once/);
+    });
+
+    test('reorders when every page appears once', async () => {
+        const result = await reorderPdf(fileOf(await plainPdf(3)), [2, 0, 1]);
+        expect(result.pageCount).toBe(3);
     });
 });

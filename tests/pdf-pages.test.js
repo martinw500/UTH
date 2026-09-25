@@ -173,3 +173,20 @@ describe('splitPartName', () => {
         expect(splitPartName('', 0, 1)).toBe('document-1.pdf');
     });
 });
+
+describe('parsePageRange — open ranges past the end', () => {
+    // "5-2" is swapped as a typo, but that swap used to catch open ranges too:
+    // "20-" on a 10-page PDF became 10-20, selecting page 10, while "20" alone
+    // correctly selected nothing.
+    test('an open range starting past the last page selects nothing', () => {
+        expect(parsePageRange('20-', 10)).toEqual([]);
+    });
+
+    test('an open range ending before page one selects nothing', () => {
+        expect(parsePageRange('-0', 10)).toEqual([]);
+    });
+
+    test('a reversed closed range is still read as a typo', () => {
+        expect(parsePageRange('5-2', 10)).toEqual([1, 2, 3, 4]);
+    });
+});

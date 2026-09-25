@@ -57,13 +57,13 @@ remaining tests, CI, docs.
 ## Low
 - [ ] L-a Edge crop handles snap back with an aspect ratio (`geometry.js:114`)
 - [x] L-b Opus + 44.1/22.05 kHz fails (`audio-args.js:89`)
-- [ ] L-c Page range `20-` on a 10-page PDF selects page 10 (`pdf-pages.js:53-60`)
+- [x] L-c Page range `20-` on a 10-page PDF selects page 10 (`pdf-pages.js:53-60`)
 - [ ] L-d `MAX_CANVAS_DIMENSION` never enforced (`image.js:9`)
 - [ ] L-e Files over the batch cap dropped silently (image 50, PDF 40, hub 30)
 - [x] L-f Video converter drops unsupported files silently
 - [x] L-g `input..mp4` double dot (`media.js:65`)
 - [x] L-h ffmpeg blob URLs never revoked
-- [ ] L-i `reorderPdf` accepts duplicate pages
+- [x] L-i `reorderPdf` accepts duplicate pages
 - [ ] L-j Image preview width only shrinks (verify in a browser first)
 - [ ] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)
 - [ ] L-l Search spelling hints fire on correct words; accented words split
