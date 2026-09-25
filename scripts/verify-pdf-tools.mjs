@@ -77,6 +77,7 @@ function inspectPdf(page, bytes) {
         return {
             pages: doc.getPageCount(),
             rotations: doc.getPages().map((p) => p.getRotation().angle),
+            sizes: doc.getPages().map((p) => p.getSize()),
         };
     }, Array.from(bytes));
 }
@@ -203,6 +204,32 @@ async function main() {
         out = await runAndCollect(page);
         info = await inspectPdf(page, out.bytes);
         check(info.pages === 2, 'two images become a two-page PDF', `${info.pages} pages`);
+
+        // A phone photo: 400x300 pixels stored with EXIF orientation 6 (turn
+        // 90° clockwise to display), named .png as a mismatched upload would
+        // be. PDF viewers ignore EXIF, and the name used to route it to
+        // embedPng, which threw.
+        console.log('\nA sideways phone JPEG with the wrong extension');
+        await reset(page);
+        const rotated = await page.evaluate(async () => {
+            const c = document.createElement('canvas');
+            c.width = 400; c.height = 300;
+            c.getContext('2d').fillRect(0, 0, 400, 300);
+            const jpeg = new Uint8Array(await (await new Promise((r) => c.toBlob(r, 'image/jpeg'))).arrayBuffer());
+            // APP1 "Exif", big-endian TIFF, one IFD entry: Orientation (0x0112) = 6.
+            const tiff = [0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0];
+            const payload = [0x45, 0x78, 0x69, 0x66, 0, 0, ...tiff];
+            const app1 = [0xff, 0xe1, (payload.length + 2) >> 8, (payload.length + 2) & 255, ...payload];
+            return [0xff, 0xd8, ...app1, ...jpeg.slice(2)];
+        });
+        await upload(page, [{ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from(rotated) }]);
+        await page.selectOption('#operation', 'fromImages');
+        out = await runAndCollect(page);
+        info = await inspectPdf(page, out.bytes);
+        const [size] = info.sizes;
+        check(info.pages === 1, 'a JPEG named .png still converts', `${info.pages} page(s)`);
+        check(Math.round(size.width) === 300 && Math.round(size.height) === 400,
+            'and the page is upright (portrait)', `${size.width}x${size.height}`);
 
         // The operation must refuse mismatched input rather than producing a
         // broken file, since "merge" over images would silently do nothing.

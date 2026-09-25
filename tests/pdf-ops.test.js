@@ -1,7 +1,7 @@
 // pdf-tools/js/pdf-ops.js, against the vendored pdf-lib it ships with.
 
 import { PDFDocument } from '../js/vendor/pdf-lib.js';
-import { loadPdf, pageCountOf } from '../pdf-tools/js/pdf-ops.js';
+import { loadPdf, pageCountOf, sniffImageType } from '../pdf-tools/js/pdf-ops.js';
 
 const fileOf = (bytes, name = 'doc.pdf') => ({
     name,
@@ -55,5 +55,19 @@ describe('loadPdf', () => {
     test('names a file that is not a PDF at all', async () => {
         await expect(loadPdf(fileOf(new TextEncoder().encode('hello'), 'notes.pdf')))
             .rejects.toThrow('notes.pdf could not be read as a PDF.');
+    });
+});
+
+describe('sniffImageType', () => {
+    // By content, not file.type: a JPEG named .png used to go to embedPng and
+    // fail the whole batch with pdf-lib's raw error.
+    test('reads JPEG and PNG from their magic bytes', () => {
+        expect(sniffImageType(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
+        expect(sniffImageType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d]))).toBe('image/png');
+    });
+
+    test('anything else needs a redraw', () => {
+        expect(sniffImageType(new Uint8Array([0x52, 0x49, 0x46, 0x46]))).toBeNull();
+        expect(sniffImageType(new Uint8Array([]))).toBeNull();
     });
 });

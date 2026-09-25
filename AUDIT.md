@@ -38,7 +38,7 @@ remaining tests, CI, docs.
 - [x] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
 - [x] 9 Crop label / numeric fields / aspect wrong after a first crop (`croppableSize`)
 - [x] 10 PDF Run button re-enabled mid-run (`pdf-tools.js:94`)
-- [ ] 11 Images→PDF ignores EXIF orientation; MIME-mismatched file throws raw error
+- [x] 11 Images→PDF ignores EXIF orientation; MIME-mismatched file throws raw error
 - [x] 12 Hub progress shows item 1's name, sits at 100% on later runs (`ffmpeg.js:154-164`)
 - [x] 13 Hub engine import failure leaves UI stuck (`convert/js/main.js:192`)
 - [x] 14 Hub: unpreviewable video gets a fake 60 s duration (`media.js:46,82`)

@@ -8,6 +8,7 @@
 import { PDFDocument, degrees } from '../../js/vendor/pdf-lib.js';
 import { parsePageRange, normalisePdfRotation, splitPartName } from '../../js/shared/pdf-pages.js';
 import { sanitiseFilename, stripExtension } from '../../js/shared/format.js';
+import { parseExif } from '../../js/shared/exif.js';
 
 /**
  * Encrypted PDFs are common enough that the error has to name the cause.
@@ -238,12 +239,26 @@ export async function imagesToPdf(files, {
     };
 }
 
-/** JPEG and PNG pass through; anything else is re-encoded to PNG. */
+/** 'image/jpeg' or 'image/png' by magic bytes, else null. */
+export function sniffImageType(bytes) {
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'image/png';
+    return null;
+}
+
+/**
+ * Upright JPEG and PNG pass through untouched; everything else is redrawn.
+ *
+ * The type comes from the bytes: a JPEG named .png went to embedPng and failed
+ * the whole batch with pdf-lib's raw error. And PDF viewers ignore EXIF, so a
+ * phone photo stored sideways with an orientation tag landed on its side;
+ * decodeImageFile applies the tag, so those are redrawn upright.
+ */
 async function toEmbeddable(file) {
-    const type = (file.type || '').toLowerCase();
-    if (type === 'image/jpeg' || type === 'image/png') {
-        return { bytes: new Uint8Array(await file.arrayBuffer()), type };
-    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = sniffImageType(bytes);
+    const upright = type !== 'image/jpeg' || (parseExif(bytes.buffer)?.orientation ?? 1) === 1;
+    if (type && upright) return { bytes, type };
 
     const { decodeImageFile, canvasToBlob } = await import('../../js/shared/image.js');
     const source = await decodeImageFile(file);
@@ -251,8 +266,10 @@ async function toEmbeddable(file) {
     canvas.width = source.width;
     canvas.height = source.height;
     canvas.getContext('2d').drawImage(source, 0, 0);
-    const blob = await canvasToBlob(canvas, 'image/png');
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), type: 'image/png' };
+    // A photo stays a JPEG; PNG would be several times the size.
+    const out = type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+    const blob = await canvasToBlob(canvas, out, out === 'image/jpeg' ? 0.92 : undefined);
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), type: out };
 }
 
 /**
