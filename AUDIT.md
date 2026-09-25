@@ -64,7 +64,7 @@ remaining tests, CI, docs.
 - [x] L-g `input..mp4` double dot (`media.js:65`)
 - [x] L-h ffmpeg blob URLs never revoked
 - [x] L-i `reorderPdf` accepts duplicate pages
-- [ ] L-j Image preview width only shrinks (verify in a browser first)
+- [x] L-j Image preview width only shrinks (verify in a browser first)
 - [x] L-k `parseColor` accepts garbage / out-of-range (`color.js:627`)
 - [x] L-l Search spelling hints fire on correct words; accented words split
 - [x] L-m YouTube keyword `mp3` promises audio the tool cannot produce

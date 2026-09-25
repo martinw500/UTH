@@ -127,6 +127,16 @@ async function main() {
 
         console.log('\nFormat is really the format');
         await loadFixture(page);
+
+        // The preview measured its own shrink-wrapped wrapper, so it never grew
+        // past the canvas's default 300px, whatever the window.
+        const preview = await page.evaluate(() => ({
+            canvas: document.getElementById('previewCanvas').getBoundingClientRect().width,
+            area: document.getElementById('previewCanvas').closest('.editor-canvas-area').clientWidth,
+        }));
+        check(preview.canvas > 300 && preview.canvas >= preview.area * 0.8,
+            'an 800px image previews at the width of its panel',
+            `${Math.round(preview.canvas)}px of ${preview.area}px`);
         for (const [mime, magic] of Object.entries(MAGIC)) {
             await page.selectOption('#outputFormat', mime);
             const bytes = await exportBytes(page);

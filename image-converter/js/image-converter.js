@@ -143,7 +143,7 @@ function renderPreview() {
     const shown = cropping ? { ...state, resize: null } : state;
     const size = outputSize(item.width, item.height, shown);
     const scale = previewScaleFor(
-        size.width, size.height, ui.canvasWrapper.clientWidth || 800,
+        size.width, size.height, previewAreaWidth(),
     );
 
     const canvas = renderState(item.source, shown, {
@@ -163,6 +163,20 @@ function renderPreview() {
 }
 
 const renderPreviewSoon = debounce(renderPreview, 60);
+
+/**
+ * Width available to the preview. Not the wrapper's: it is an inline-block
+ * shrink-wrapped to the canvas, so it only ever reported the canvas's current
+ * width, and every preview stayed at the canvas's default 300px.
+ */
+function previewAreaWidth() {
+    const area = ui.canvasWrapper.parentElement;
+    const style = getComputedStyle(area);
+    const width = area.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return width > 0 ? width : 800;
+}
+
+window.addEventListener('resize', debounce(() => { if (currentItem()) renderPreview(); }, 150));
 
 function updateMeta() {
     const item = currentItem();
