@@ -9,9 +9,9 @@ YouTube or Instagram.
     pip install -r requirements.txt
     npm run verify:api
 
-The URL checks exist in three copies (api/youtube/index.py, download.py and
-backend.py) because cross-directory imports on Vercel are unverified; this
-asserts all three agree, so one cannot drift from the others unnoticed.
+The URL checks exist in two copies (api/youtube/index.py and download.py)
+because cross-directory imports on Vercel are unverified; backend.py imports
+index.py's. This asserts every route agrees, so a copy cannot drift unnoticed.
 """
 
 import importlib.util
@@ -32,6 +32,10 @@ def check(ok, label, detail=''):
     print(f"  {'ok  ' if ok else 'FAIL'} {label}{f' — {detail}' if detail else ''}")
     if not ok:
         failures.append(label)
+
+
+# backend.py imports the api/ helpers as packages, as it does when run from the root.
+sys.path.insert(0, ROOT)
 
 
 def load(relative, name):
@@ -107,6 +111,11 @@ for name, module in YOUTUBE_COPIES.items():
     check(status == 503 and '--cookies' not in message, f'{name}: the bot check is explained', message)
     message, _ = module.describe_youtube_error(Exception('Unsupported URL: <svg/onload=alert(1)>'))
     check('<' not in message, f'{name}: error text never echoes the input', message)
+    # "Service Unavailable" contains "unavailable", and used to tell users a
+    # video that YouTube was merely slow to serve had been removed.
+    message, status = module.describe_youtube_error(
+        Exception('ERROR: unable to download video data: HTTP Error 503: Service Unavailable'))
+    check(status == 503 and 'removed' not in message, f'{name}: a 503 is transient, not a removed video', message)
 
 
 def fake_downloader(ext):
@@ -133,15 +142,34 @@ for name, module in [('download.py', download), ('backend.py', backend)]:
     module.tempfile.mkdtemp = lambda: made.append(real_mkdtemp()) or made[-1]
     module.yt_dlp.YoutubeDL = fake_downloader('webm')
     try:
-        response = module.app.test_client().get('/api/youtube/download', query_string={
+        client = module.app.test_client()
+        response = client.get('/api/youtube/download', query_string={
             'url': 'https://youtu.be/dQw4w9WgXcQ', 'quality': '720p', 'filename': 'My clip.mp4',
-        })
+        }, buffered=True)
         disposition = response.headers.get('Content-Disposition', '')
+        response.get_data()
+        # buffered=True closes the response iterator, as a server does at the
+        # end of a response; backend.py cleans up then.
         check(response.status_code == 200 and 'My clip.webm' in disposition,
               f'{name}: served as .webm, the extension actually downloaded', disposition)
         check(made and not os.path.exists(made[0]), f'{name}: the temp directory is removed')
+        # The client sends a bare title; splitext used to cut it at its last dot.
+        response = client.get('/api/youtube/download', query_string={
+            'url': 'https://youtu.be/dQw4w9WgXcQ', 'filename': 'Episode 1.5 Recap',
+        }, buffered=True)
+        disposition = response.headers.get('Content-Disposition', '')
+        check('Episode 1.5 Recap.webm' in disposition, f'{name}: a title with a dot keeps it', disposition)
     finally:
         module.tempfile.mkdtemp = real_mkdtemp
+
+print('\nThe local Instagram route does not echo exception text')
+backend.fetch_post_with_retry = lambda shortcode: (_ for _ in ()).throw(
+    Exception("401 Unauthorized - 'Please wait a few minutes before you try again.'"))
+response = backend.app.test_client().get('/api/instagram', query_string={
+    'url': 'https://www.instagram.com/p/ABC123/'})
+error = response.get_json().get('error', '')
+check(response.status_code == 502 and '401' not in error and 'blocking' in error,
+      'a rate limit reads as a sentence', error)
 
 
 class FakeResponse:

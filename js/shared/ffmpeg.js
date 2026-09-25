@@ -164,7 +164,7 @@ export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
 
     const status = (phase, message) => { if (onStatus) onStatus(phase, message); };
 
-    loadPromise = (async () => {
+    const promise = (async () => {
         const unavailable = ffmpegUnavailableReason();
         if (unavailable) throw new Error(unavailable);
 
@@ -199,8 +199,9 @@ export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
                 await instance.load({ coreURL, wasmURL });
             }
         } catch (err) {
-            // Clear the memo so a later attempt can genuinely retry.
-            loadPromise = null;
+            // Clear the memo so a later attempt can genuinely retry -- unless a
+            // cancel already replaced it with a newer load.
+            if (loadPromise === promise) loadPromise = null;
             throw new Error(`Failed to load the FFmpeg engine: ${err.message || err}`);
         } finally {
             // load() has fetched all three by the time it settles; holding the
@@ -208,11 +209,18 @@ export async function loadFFmpeg({ onProgress, onLog, onStatus } = {}) {
             for (const url of blobUrls) URL.revokeObjectURL(url);
         }
 
+        // terminateFFmpeg ran while this was loading. Nothing holds this
+        // instance any more, so stop it here or its worker lives for the tab.
+        if (loadPromise !== promise) {
+            try { instance.terminate(); } catch { /* already gone */ }
+            throw new DOMException('Cancelled', 'AbortError');
+        }
         current = instance;
         return instance;
     })();
 
-    return loadPromise;
+    loadPromise = promise;
+    return promise;
 }
 
 /**

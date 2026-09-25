@@ -513,8 +513,10 @@ removes its temp directory and names the file by the extension actually download
 proxy re-checks the allowlist on every redirect hop. `backend.py` binds 127.0.0.1 with the
 debugger off (`BACKEND_HOST`, `FLASK_DEBUG=1` to opt in).
 
-The URL check has three copies (`api/youtube/index.py`, `download.py`, `backend.py`) until
-`api/_lib/` imports are verified on Vercel; **`npm run verify:api` asserts they agree** and drives
+The URL check has two copies (`api/youtube/index.py`, `download.py`) until `api/_lib/` imports are
+verified on Vercel; `backend.py` runs only locally, so it imports the api/ helpers as packages
+instead of copying them, and streams local downloads from disk rather than reading them into
+memory. **`npm run verify:api` asserts the copies agree** and drives
 every endpoint through Flask's test client with yt-dlp and requests faked out. `npm run
 verify:downloaders` drives both pages against the local backend.
 

@@ -40,9 +40,13 @@ export function sizedSvg(text, size = 1024) {
 
     const box = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
     const hasBox = box.length === 4 && box[2] > 0 && box[3] > 0;
-    let width = hasBox ? box[2] : parseFloat(svg.getAttribute('width'));
-    let height = hasBox ? box[3] : parseFloat(svg.getAttribute('height'));
-    if (!(width > 0 && height > 0)) { width = 1; height = 1; }
+    // Only plain or px lengths are user units; "100%" or "10mm" are not, and
+    // guessing would crop the drawing. With no usable size at all there is
+    // nothing to scale from, so leave the SVG as the browser draws it.
+    const userUnits = (value) => (/^\s*[\d.]+(px)?\s*$/.test(value ?? '') ? parseFloat(value) : NaN);
+    const width = hasBox ? box[2] : userUnits(svg.getAttribute('width'));
+    const height = hasBox ? box[3] : userUnits(svg.getAttribute('height'));
+    if (!(width > 0 && height > 0)) return null;
     if (!hasBox) svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
     const scale = size / Math.max(width, height);

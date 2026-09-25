@@ -70,7 +70,8 @@ from an id on a YouTube host and only that reaches yt-dlp, whose generic
 extractor would otherwise fetch any address it is given; the Instagram proxy
 re-checks its host allowlist on every redirect. Errors reach users as plain
 sentences, never library output, which echoed the input back. The URL check is
-copied into three files until `api/_lib/` imports are proven on Vercel, and
+copied into both YouTube functions until `api/_lib/` imports are proven on
+Vercel (`backend.py`, which only runs locally, imports it), and
 `scripts/verify-api.py` asserts the copies agree.
 
 ## Conventions that are load-bearing

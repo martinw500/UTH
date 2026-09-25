@@ -224,8 +224,8 @@ async function convertAll() {
                     options,
                     signal: controller.signal,
                     onProgress: ({ ratio, note }) => {
-                        const base = done / queue.length;
-                        const span = 1 / queue.length;
+                        const base = done / run.length;
+                        const span = 1 / run.length;
                         const overall = base + span * (Number.isFinite(ratio) ? ratio : 0.5);
                         ui.progressBar.style.width = `${Math.round(overall * 100)}%`;
                         ui.progressText.textContent = `${item.name}${note ? ` — ${note}` : ''}`;
@@ -239,10 +239,12 @@ async function convertAll() {
                 item.error = error?.message || 'Conversion failed.';
             }
             done += 1;
-            ui.progressBar.style.width = `${Math.round((done / queue.length) * 100)}%`;
+            ui.progressBar.style.width = `${Math.round((done / run.length) * 100)}%`;
         }
 
-        showResults(controller.signal.aborted);
+        // Cleared mid-run: the user threw this run away, so say nothing about
+        // it -- the workspace may already hold a new batch.
+        if (run.some((item) => queue.includes(item))) showResults(controller.signal.aborted);
     } catch (error) {
         showError(ui.notice, error?.message || 'The converter could not be loaded.');
     } finally {

@@ -360,6 +360,23 @@ describe('loadFFmpeg', () => {
         expect(await loadFFmpeg()).not.toBe(first);
     });
 
+    // Cancel in the hub while the engine was still loading found nothing to
+    // terminate; the load then finished, and its worker lived for the tab.
+    test('terminating during a load stops that instance when the load finishes', async () => {
+        let finishLoad;
+        FakeFFmpeg.prototype.load = function load() {
+            return new Promise((resolve) => { finishLoad = resolve; });
+        };
+        const pending = loadFFmpeg();
+        while (!finishLoad) await new Promise((resolve) => setTimeout(resolve, 0));
+        terminateFFmpeg();
+        finishLoad();
+        await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+        expect(FakeFFmpeg.instances[0].terminated).toBe(true);
+        FakeFFmpeg.prototype.load = async () => {};
+        expect(await loadFFmpeg()).not.toBe(FakeFFmpeg.instances[0]);
+    });
+
     // A wasm abort or out-of-memory leaves the instance unusable. It used to
     // stay memoised, so every later conversion failed until a reload.
     test('an instance that throws mid-run is discarded', async () => {

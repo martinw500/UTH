@@ -390,12 +390,17 @@ function enterCropMode() {
     syncCropInputs();
 }
 
-function cancelCrop() {
+/**
+ * Leave crop mode. Re-renders only when it was cropping (the preview drops the
+ * resize while cropping), and not when a commit is about to render anyway.
+ */
+function cancelCrop({ render = true } = {}) {
+    const wasCropping = cropping;
     cropping = false;
     ui.cropBtn.classList.remove('active');
     ui.cropOverlay.style.display = 'none';
     ui.cropConfirmBar.style.display = 'none';
-    renderPreview();
+    if (wasCropping && render) renderPreview();
 }
 
 function positionCropOverlay() {
@@ -916,11 +921,11 @@ ui.cancelCropBtn.addEventListener('click', cancelCrop);
 ui.applyCropBtn.addEventListener('click', () => {
     const item = currentItem();
     if (!item) return;
+    cancelCrop({ render: false });
     commit((next) => {
         next.crop = previewRectToCrop(cropRect, state, item.width, item.height);
         next.resize = null;
     });
-    cancelCrop();
     resetSizeInputs();
 });
 
@@ -974,10 +979,10 @@ ui.undoBtn.addEventListener('click', () => {
 });
 
 ui.resetBtn.addEventListener('click', () => {
+    cancelCrop({ render: false });
     commit((next) => Object.assign(next, createState()));
     syncAdjustmentInputs();
     resetSizeInputs();
-    cancelCrop();
 });
 
 ui.resizeUnit.addEventListener('change', () => { updateResizeUnitLabels(); resetSizeInputs(); });

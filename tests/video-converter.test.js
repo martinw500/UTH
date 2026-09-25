@@ -274,6 +274,12 @@ describe('Video Converter — buildFFmpegArgs', () => {
         expect(args).not.toContain('-to');
     });
 
+    test('an end before the start is named as such, not blamed on the duration', () => {
+        expect(() => buildFFmpegArgs('input.mp4', 'output.mp4', 'mp4', 'medium', {
+            startSec: 60, endSec: 30, videoDuration: 120, targetBytes: 5e6,
+        })).toThrow('The trim end must come after the trim start.');
+    });
+
     test('a start with no end still trims from the start', () => {
         const args = buildFFmpegArgs('input.mp4', 'output.mp4', 'mp4', 'medium', {
             startSec: 5, endSec: NaN, videoDuration: 0,

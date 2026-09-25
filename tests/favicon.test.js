@@ -36,6 +36,17 @@ describe('sizedSvg', () => {
             .toContain('<path d="M0 0h10"');
     });
 
+    // With nothing to scale from, a made-up 1x1 viewBox cropped the drawing to
+    // its top-left corner; units other than px were read as if they were.
+    test('leaves an SVG with no usable size alone', () => {
+        const svg = (attrs) => `<svg xmlns="http://www.w3.org/2000/svg" ${attrs}><circle cx="50" cy="50" r="40"/></svg>`;
+        expect(sizedSvg(svg(''))).toBeNull();
+        expect(sizedSvg(svg('width="100%" height="100%"'))).toBeNull();
+        expect(sizedSvg(svg('width="10mm" height="10mm"'))).toBeNull();
+        expect(attrs(sizedSvg(svg('width="32px" height="16px"')))).toEqual(
+            { width: '1024', height: '512', viewBox: '0 0 32 16' });
+    });
+
     test('is null for text that is not an SVG', () => {
         expect(sizedSvg('not svg at all')).toBeNull();
         expect(sizedSvg('<html><body></body></html>')).toBeNull();

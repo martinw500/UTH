@@ -6,7 +6,6 @@ Run with: python backend.py
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from urllib.parse import urlparse, urlsplit, urljoin, parse_qs
 import instaloader
 import requests
 import base64
@@ -14,10 +13,17 @@ import re
 import yt_dlp
 import sys
 import os
-import io
 import shutil
 import tempfile
 import traceback
+from urllib.parse import quote
+
+# What the API accepts is decided by the deployed functions' own helpers, so
+# local dev cannot drift from production. The api/ files cannot import each
+# other on Vercel until that is proven on a preview; this file only ever runs
+# locally, where it can.
+from api.youtube.index import youtube_watch_url, describe_youtube_error
+from api.instagram.proxy import is_allowed_media_url, fetch_allowed, safe_filename
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type"]}})
@@ -172,62 +178,11 @@ def get_instagram():
         
     except Exception as e:
         print(f'Error: {str(e)}')
-        return jsonify({'error': f'Failed to fetch Instagram post: {str(e)}'}), 500
-
-
-# NOTE: duplicated from api/instagram/proxy.py so local dev has the route at all.
-# Both copies move to api/_lib/ once cross-directory imports are verified on a
-# Vercel preview deploy.
-ALLOWED_HOST_SUFFIXES = ('cdninstagram.com', 'fbcdn.net', 'instagram.com')
-UNSAFE_FILENAME_CHARS = re.compile(r'[^A-Za-z0-9._-]')
-
-
-def is_allowed_media_url(media_url):
-    """Allow only https URLs whose *hostname* is an Instagram CDN host.
-
-    A substring check over the whole URL would let
-    ``https://evil.com/?x=instagram.com`` through, making this an open relay.
-    """
-    try:
-        parsed = urlparse(media_url)
-    except ValueError:
-        return False
-
-    if parsed.scheme != 'https' or not parsed.hostname:
-        return False
-
-    host = parsed.hostname.lower().rstrip('.')
-    return any(
-        host == suffix or host.endswith('.' + suffix)
-        for suffix in ALLOWED_HOST_SUFFIXES
-    )
-
-
-def fetch_allowed(media_url):
-    """GET a media URL, following redirects only while they stay on allowed hosts.
-
-    requests follows redirects on its own, and the allowlist used to be checked
-    on the first URL only, so an open redirect on any instagram.com host would
-    have let this fetch anything. Returns None when a hop leaves the allowlist.
-    """
-    url = media_url
-    for _ in range(4):
-        upstream = requests.get(url, headers=BROWSER_HEADERS, stream=True, timeout=30,
-                                allow_redirects=False)
-        if not upstream.is_redirect:
-            return upstream
-        url = urljoin(url, upstream.headers.get('Location', ''))
-        upstream.close()
-        if not is_allowed_media_url(url):
-            return None
-    return None
-
-
-def safe_filename(name, fallback):
-    if not name:
-        return fallback
-    cleaned = UNSAFE_FILENAME_CHARS.sub('_', name).strip('._')
-    return cleaned[:100] or fallback
+        # Never the exception text: it is instaloader's, and it echoes input.
+        blocked = any(sign in str(e) for sign in ('401', '429', 'wait', 'rate'))
+        return jsonify({'error': 'Instagram is blocking requests from this machine right now. '
+                        'Try again in a few minutes.' if blocked else
+                        'Could not fetch that post. It may be private or deleted.'}), 502
 
 
 @app.route('/api/instagram/proxy', methods=['GET', 'OPTIONS'])
@@ -290,59 +245,6 @@ def proxy_media():
 # =============================================================================
 # YOUTUBE DOWNLOADER
 # =============================================================================
-
-YOUTUBE_HOSTS = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'}
-YOUTUBE_ID = re.compile(r'[A-Za-z0-9_-]{11}')
-YOUTUBE_PATH_ID = re.compile(r'/(?:shorts|embed|live|v)/([^/?#]+)')
-
-
-def youtube_watch_url(raw):
-    """The canonical watch URL for one YouTube video, or None for anything else.
-
-    Only this rebuilt URL ever reaches yt-dlp. When no id was found the user's
-    URL used to be passed through as-is, and yt-dlp's generic extractor fetches
-    whatever address it is given: an open relay, and an SSRF into anything this
-    function can reach. Playlists and channels are refused too, since
-    extract_info walks every video in them until the function is killed.
-
-    Identical copies live in api/youtube/index.py, api/youtube/download.py and
-    backend.py; scripts/verify-api.py checks that they agree.
-    """
-    if not isinstance(raw, str):
-        return None
-    raw = raw.strip()
-    try:
-        parts = urlsplit(raw if '://' in raw else f'https://{raw}')
-        host = (parts.hostname or '').lower().rstrip('.')
-    except ValueError:
-        return None
-    if parts.scheme not in ('http', 'https') or host not in YOUTUBE_HOSTS:
-        return None
-    if host == 'youtu.be':
-        candidate = parts.path.strip('/').split('/')[0]
-    else:
-        in_path = YOUTUBE_PATH_ID.match(parts.path)
-        candidate = in_path.group(1) if in_path else parse_qs(parts.query).get('v', [''])[0]
-    if not YOUTUBE_ID.fullmatch(candidate):
-        return None
-    return f'https://www.youtube.com/watch?v={candidate}'
-
-
-def describe_youtube_error(error):
-    """A message and status for the user, never yt-dlp's own text.
-
-    That text is command-line advice ("use --cookies-from-browser"), and
-    echoing it reflected the submitted URL back into the page.
-    """
-    text = str(error)
-    if 'confirm you' in text and 'bot' in text:
-        return 'YouTube is blocking requests from this server right now. Try again later.', 503
-    if '429' in text or 'Too Many Requests' in text:
-        return 'YouTube is rate-limiting this server. Wait a few minutes and try again.', 503
-    if 'Private video' in text or 'unavailable' in text.lower():
-        return 'That video is private, removed or unavailable.', 404
-    return 'Could not fetch that video. It may be age-restricted, region-locked or removed.', 502
-
 
 @app.route('/api/youtube', methods=['GET', 'OPTIONS'])
 def get_youtube():
@@ -457,7 +359,9 @@ def download_youtube():
     if not video_url:
         return jsonify({'error': 'That is not a link to a single YouTube video.'}), 400
     height = re.sub(r'\D', '', request.args.get('quality', '360p')) or '360'
-    stem = os.path.splitext(request.args.get('filename', 'video'))[0] or 'video'
+    # Only a video extension is stripped: splitext cut "Episode 1.5 Recap" to "Episode 1".
+    stem = re.sub(r'\.(mp4|webm|mkv|mov)$', '', request.args.get('filename', 'video'),
+                  flags=re.IGNORECASE) or 'video'
 
     temp_dir = tempfile.mkdtemp()
     try:
@@ -520,23 +424,32 @@ def download_youtube():
         if file_size == 0:
             raise Exception('Downloaded file is empty')
         ext = os.path.splitext(downloaded_file)[1].lstrip('.') or 'mp4'
-        with open(downloaded_file, 'rb') as handle:
-            data = handle.read()
     except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True)
         print(f'\nDownload error: {str(e)}')
         print(f'Traceback: {traceback.format_exc()}')
         message, status = describe_youtube_error(e)
         return jsonify({'error': message}), status
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
-    from flask import send_file
-    return send_file(
-        io.BytesIO(data),
-        mimetype='video/webm' if ext == 'webm' else 'video/mp4',
-        as_attachment=True,
-        download_name=f'{stem}.{ext}',
-    )
+    # Streamed from disk, and the directory removed when the stream ends or is
+    # closed. Local downloads can be gigabytes; the deployed function reads into
+    # memory only because Vercel caps responses at 4.5 MB anyway. Not
+    # send_file(path) plus call_on_close: a file response is passed straight
+    # through to the server, which then never runs the close callback.
+    def stream():
+        try:
+            with open(downloaded_file, 'rb') as handle:
+                while chunk := handle.read(1024 * 1024):
+                    yield chunk
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    name = f'{stem}.{ext}'
+    fallback = name.encode('ascii', 'replace').decode().replace('"', "'")
+    return Response(stream(), mimetype='video/webm' if ext == 'webm' else 'video/mp4', headers={
+        'Content-Disposition': f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name)}",
+        'Content-Length': str(os.path.getsize(downloaded_file)),
+    })
 
 
 # =============================================================================

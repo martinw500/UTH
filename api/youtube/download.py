@@ -26,8 +26,8 @@ def youtube_watch_url(raw):
     function can reach. Playlists and channels are refused too, since
     extract_info walks every video in them until the function is killed.
 
-    Identical copies live in api/youtube/index.py, api/youtube/download.py and
-    backend.py; scripts/verify-api.py checks that they agree.
+    Identical copies live in api/youtube/index.py and api/youtube/download.py
+    (backend.py imports this one); scripts/verify-api.py checks that they agree.
     """
     if not isinstance(raw, str):
         return None
@@ -60,7 +60,11 @@ def describe_youtube_error(error):
         return 'YouTube is blocking requests from this server right now. Try again later.', 503
     if '429' in text or 'Too Many Requests' in text:
         return 'YouTube is rate-limiting this server. Wait a few minutes and try again.', 503
-    if 'Private video' in text or 'unavailable' in text.lower():
+    # Before the "unavailable" test: "HTTP Error 503: Service Unavailable" is
+    # YouTube having a bad minute, not a removed video.
+    if 'HTTP Error 5' in text or 'Service Unavailable' in text:
+        return 'YouTube did not answer properly. Try again in a minute.', 503
+    if 'Private video' in text or 'Video unavailable' in text or 'video is unavailable' in text.lower():
         return 'That video is private, removed or unavailable.', 404
     return 'Could not fetch that video. It may be age-restricted, region-locked or removed.', 502
 
@@ -78,7 +82,9 @@ def download_youtube():
         return jsonify({'error': 'That is not a link to a single YouTube video.'}), 400
     # Digits only: this lands inside a yt-dlp format expression.
     height = re.sub(r'\D', '', request.args.get('quality', '360p')) or '360'
-    stem = os.path.splitext(request.args.get('filename', 'video'))[0] or 'video'
+    # Only a video extension is stripped: splitext cut "Episode 1.5 Recap" to "Episode 1".
+    stem = re.sub(r'\.(mp4|webm|mkv|mov)$', '', request.args.get('filename', 'video'),
+                  flags=re.IGNORECASE) or 'video'
 
     # Removed in the finally. It used to be left behind on every request, so a
     # warm instance filled /tmp and then failed every download until a cold start.

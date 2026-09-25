@@ -63,6 +63,10 @@ export function buildFFmpegArgs(input, output, fmt, quality, options = {}) {
     const start = Number.isFinite(startSec) && startSec > 0 ? startSec : 0;
     const end = Number.isFinite(endSec) && !reachesEnd(endSec, videoDuration) ? endSec : null;
 
+    // Said plainly here: otherwise the duration clamps to 0 and a target size
+    // blames the browser for not knowing the video's length.
+    if (end !== null && end <= start) throw new Error('The trim end must come after the trim start.');
+
     if (start > 0) args.push('-ss', String(start));
     if (end !== null) args.push('-to', String(end));
 
