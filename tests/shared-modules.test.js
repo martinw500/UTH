@@ -1,4 +1,4 @@
-// js/shared/ — format, config, storage, dropzone and the pure half of image.
+// js/shared/ — format, config, storage, dropzone, dom and the pure half of image.
 
 import {
     formatBytes, stripExtension, getExtension, formatDuration,
@@ -7,6 +7,7 @@ import {
 import { resolveBackendUrl, apiUrl, API_CONFIG } from '../js/shared/config.js';
 import * as storage from '../js/shared/storage.js';
 import { createDropzone, matchesAccept } from '../js/shared/dropzone.js';
+import { setBusy } from '../js/shared/dom.js';
 import { fitWithin, isLossless, MIME_BY_FORMAT, EXT_BY_MIME, MAX_CANVAS_DIMENSION } from '../js/shared/image.js';
 
 describe('format', () => {
@@ -289,6 +290,41 @@ describe('createDropzone', () => {
         zone = null;
         fireChange([makeFile('a.png', 'image/png')]);
         expect(onFiles).not.toHaveBeenCalled();
+    });
+});
+
+describe('dom.setBusy', () => {
+    // Every caller turns busy off with `setBusy(btn, false)` and no label. The
+    // restore used to sit behind `if (busyLabel === undefined) return`, so every
+    // export, convert and zip button kept reading "Exporting…" after the job.
+    test('restores the idle label when busy is turned off without a label', () => {
+        const btn = document.createElement('button');
+        btn.innerHTML = '<svg></svg> Export';
+        setBusy(btn, true, 'Exporting…');
+        expect(btn.textContent).toBe('Exporting…');
+        expect(btn.disabled).toBe(true);
+        setBusy(btn, false);
+        expect(btn.innerHTML).toBe('<svg></svg> Export');
+        expect(btn.disabled).toBe(false);
+        expect(btn.getAttribute('aria-busy')).toBe('false');
+    });
+
+    test('a second busy call keeps the original idle label', () => {
+        const btn = document.createElement('button');
+        btn.textContent = 'Run';
+        setBusy(btn, true, 'Working…');
+        setBusy(btn, true, 'Still working…');
+        setBusy(btn, false);
+        expect(btn.textContent).toBe('Run');
+    });
+
+    test('without a label it only toggles disabled', () => {
+        const btn = document.createElement('button');
+        btn.textContent = 'Go';
+        setBusy(btn, true);
+        expect(btn.textContent).toBe('Go');
+        setBusy(btn, false);
+        expect(btn.textContent).toBe('Go');
     });
 });
 

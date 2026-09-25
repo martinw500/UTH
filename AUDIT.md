@@ -14,7 +14,7 @@ remaining tests, CI, docs.
 - [x] T5 `tests/deployed-site.test.js:929-951` try/catch swallows the 404 assertion
 
 ## High
-- [ ] 1 `setBusy` never restores the idle label (`js/shared/dom.js:56`)
+- [x] 1 `setBusy` never restores the idle label (`js/shared/dom.js:56`)
 - [ ] 2 Image editor crop lands in the wrong place after rotate/flip/straighten
 - [ ] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
 - [ ] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)

@@ -53,8 +53,8 @@ export function setBusy(button, busy, busyLabel) {
     if (!button) return;
     button.disabled = busy;
     button.setAttribute('aria-busy', busy ? 'true' : 'false');
-    if (busyLabel === undefined) return;
     if (busy) {
+        if (busyLabel === undefined) return;
         if (button.dataset.idleLabel === undefined) button.dataset.idleLabel = button.innerHTML;
         button.textContent = busyLabel;
     } else if (button.dataset.idleLabel !== undefined) {

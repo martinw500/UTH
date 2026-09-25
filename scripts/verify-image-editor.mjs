@@ -134,6 +134,13 @@ async function main() {
                 [...bytes.slice(0, 4)].map((b) => b.toString(16)).join(' '));
         }
 
+        // setBusy used to skip its restore when called without a label, which
+        // every caller does, so the button read "Exporting…" forever after.
+        console.log('\nButtons recover after a job');
+        await page.waitForFunction(() => !document.getElementById('exportBtn').disabled);
+        const exportLabel = (await page.textContent('#exportBtn')).trim();
+        check(!exportLabel.includes('…'), 'export button gets its idle label back', exportLabel);
+
         console.log('\nJPEG matte (transparency must not go black)');
         await page.selectOption('#outputFormat', 'image/jpeg');
         await page.fill('#matteColor', '#ffffff');
