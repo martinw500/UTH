@@ -9,19 +9,26 @@ import { PDFDocument, degrees } from '../../js/vendor/pdf-lib.js';
 import { parsePageRange, normalisePdfRotation, splitPartName } from '../../js/shared/pdf-pages.js';
 import { sanitiseFilename, stripExtension } from '../../js/shared/format.js';
 
-/** Encrypted PDFs are common enough that the error has to name the cause. */
+/**
+ * Encrypted PDFs are common enough that the error has to name the cause.
+ *
+ * pdf-lib cannot decrypt at all, even a file with only an owner password (many
+ * bank statements). ignoreEncryption lets it read the structure, which is how
+ * isEncrypted can be checked, but anything it then writes carries streams it
+ * could not read, so the output is blank or garbled. Refuse up front.
+ */
 export async function loadPdf(file) {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    let doc;
     try {
-        // ignoreEncryption lets a password-less "protected" file still open;
-        // a genuinely encrypted one still throws, and is reported as such.
-        return await PDFDocument.load(bytes, { ignoreEncryption: true });
-    } catch (error) {
-        if (/encrypt/i.test(error?.message ?? '')) {
-            throw new Error(`${file.name} is password-protected. Remove the password and try again.`);
-        }
+        doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    } catch {
         throw new Error(`${file.name} could not be read as a PDF.`);
     }
+    if (doc.isEncrypted) {
+        throw new Error(`${file.name} is password-protected. Remove the password and try again.`);
+    }
+    return doc;
 }
 
 export async function pageCountOf(file) {

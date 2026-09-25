@@ -38,6 +38,31 @@ const MAKE_PDF = `async (pages) => {
 }`;
 
 /**
+ * A one-page PDF whose trailer names an /Encrypt dictionary. pdf-lib cannot
+ * create encrypted files, so it is written by hand, the same way as in
+ * tests/pdf-ops.test.js.
+ */
+function encryptedPdf() {
+    const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>',
+        '<< /Filter /Standard /V 1 /R 2 /O (xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx) /U (xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx) /P -4 >>',
+    ];
+    let body = '%PDF-1.4\n';
+    const offsets = [];
+    objects.forEach((object, i) => {
+        offsets.push(body.length);
+        body += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const xref = body.length;
+    body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    for (const offset of offsets) body += `${String(offset).padStart(10, '0')} 00000 n \n`;
+    body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Encrypt 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return Buffer.from(body, 'latin1');
+}
+
+/**
  * Read a produced PDF back with pdf-lib and report what it actually contains.
  *
  * Passed as a real function, not a template string: page.evaluate treats a
@@ -188,6 +213,17 @@ async function main() {
         check(await page.isDisabled('#runBtn'), 'Run is disabled for images under Merge');
         const notice = (await page.textContent('#notice')) ?? '';
         check(/image/i.test(notice), 'and the reason is stated', notice.trim());
+
+        // pdf-lib cannot decrypt, so an encrypted file used to be "processed"
+        // into blank pages with a success message.
+        console.log('\nAn encrypted PDF is refused by name');
+        await reset(page);
+        await upload(page, [{ name: 'locked.pdf', mimeType: 'application/pdf', buffer: encryptedPdf() }]);
+        await page.selectOption('#operation', 'rotate');
+        await page.waitForFunction(() => /password/.test(document.getElementById('fileList')?.textContent ?? ''));
+        check(await page.isDisabled('#runBtn'), 'Run is disabled');
+        const locked = (await page.textContent('#notice')) ?? '';
+        check(/locked\.pdf is password-protected/.test(locked), 'and the notice names the file', locked.trim());
 
         check(errors.length === 0, 'no console errors overall', errors.join(' | '));
     } finally {

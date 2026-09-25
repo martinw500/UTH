@@ -17,7 +17,7 @@ remaining tests, CI, docs.
 - [x] 1 `setBusy` never restores the idle label (`js/shared/dom.js:56`)
 - [x] 2 Image editor crop lands in the wrong place after rotate/flip/straighten
 - [x] 3 Slider undo loses the pre-drag value (`image-converter.js:822-839`)
-- [ ] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)
+- [x] 4 Encrypted PDFs processed into broken output, reported as success (`pdf-ops.js:13-25`)
 - [ ] 5 Long filenames lose their extension (`format.js:91` via `download.js:126`)
 - [ ] 6 Audio converter rejects files the browser cannot preview (`audio-converter.js:215-219`)
 - [ ] 7 Cancel shows the previous run's results (`image-converter.js:628-666`, `convert/js/main.js:177-238`)
@@ -37,7 +37,7 @@ remaining tests, CI, docs.
 ## Medium
 - [ ] 8 Canvas PNG fallback ignored → `.webp` that is really PNG
 - [x] 9 Crop label / numeric fields / aspect wrong after a first crop (`croppableSize`)
-- [ ] 10 PDF Run button re-enabled mid-run (`pdf-tools.js:94`)
+- [x] 10 PDF Run button re-enabled mid-run (`pdf-tools.js:94`)
 - [ ] 11 Images→PDF ignores EXIF orientation; MIME-mismatched file throws raw error
 - [ ] 12 Hub progress shows item 1's name, sits at 100% on later runs (`ffmpeg.js:154-164`)
 - [ ] 13 Hub engine import failure leaves UI stuck (`convert/js/main.js:192`)

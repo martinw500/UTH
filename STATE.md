@@ -129,6 +129,10 @@ meant, because "1-999" and "5-2" are typos, not errors.
 Rotation is **cumulative** on whatever the page already carried — replacing it would silently
 un-rotate pages that were already sideways.
 
+**Encrypted PDFs are refused at load**, including owner-password-only ones. pdf-lib cannot decrypt;
+`ignoreEncryption` only lets it read the structure (so `isEncrypted` can be checked), and anything it
+writes from such a file has blank or garbled pages. The queue labels the file and Run stays disabled.
+
 `npm run verify:pdf-tools` builds fixtures with pdf-lib in the page, then reads every output back and
 asserts page counts and rotations. A PDF that merely parses proves nothing; readers are famously
 tolerant of malformed files.

@@ -85,16 +85,25 @@ async function updateRangePreview() {
         `${verb} ${indices.length} of ${first.pageCount}: ${describePageRange(indices)}`;
 }
 
-function validate() {
+// validate() runs whenever the queue or the operation changes, including mid-run,
+// so it must not re-enable Run while a job is still going.
+let running = false;
+
+function validate({ notify = true } = {}) {
     const op = currentOp();
     const wrongKind = queue.filter((item) => (op.needs === 'pdf' ? !item.isPdf : item.isPdf));
+    const unreadable = queue.find((item) => item.error);
     const tooFew = queue.length < op.min;
     const tooMany = op.max && queue.length > op.max;
 
-    ui.runBtn.disabled = tooFew || tooMany || wrongKind.length > 0 || queue.length === 0;
+    ui.runBtn.disabled = running || tooFew || tooMany || wrongKind.length > 0
+        || Boolean(unreadable) || queue.length === 0;
+    if (running || !notify) return;
 
     if (!queue.length) { clearNotice(ui.notice); return; }
-    if (wrongKind.length) {
+    if (unreadable) {
+        showError(ui.notice, unreadable.error);
+    } else if (wrongKind.length) {
         showError(ui.notice, op.needs === 'pdf'
             ? `${op.label} needs PDFs, but ${wrongKind.length} of these are images.`
             : `${op.label} needs images, but ${wrongKind.length} of these are PDFs.`);
@@ -126,9 +135,9 @@ async function addFiles(files) {
     for (const item of queue.filter((i) => i.isPdf && i.pageCount === null)) {
         try {
             item.pageCount = await pageCountOf(item.file);
-        } catch {
+        } catch (error) {
             item.pageCount = 0;
-            item.error = 'unreadable';
+            item.error = error?.message || `${item.name} could not be read as a PDF.`;
         }
         renderQueue();
     }
@@ -157,7 +166,7 @@ function renderQueue() {
         meta.className = 'file-item-size';
         meta.textContent = [
             formatBytes(item.size),
-            item.error ? 'could not be read' : null,
+            item.error ? (/password/.test(item.error) ? 'password-protected' : 'could not be read') : null,
             item.pageCount ? `${item.pageCount} page${item.pageCount === 1 ? '' : 's'}` : null,
         ].filter(Boolean).join(' · ');
         info.append(name, meta);
@@ -224,6 +233,7 @@ async function run() {
     const files = queue.map((item) => item.file);
 
     clearNotice(ui.notice);
+    running = true;
     setBusy(ui.runBtn, true, 'Working…');
     ui.progress.hidden = false;
     ui.results.hidden = true;
@@ -277,7 +287,10 @@ async function run() {
     } catch (error) {
         showError(ui.notice, error?.message || 'That did not work.');
     } finally {
+        running = false;
         setBusy(ui.runBtn, false);
+        // Button state only: the notice may be holding this run's error.
+        validate({ notify: false });
         ui.progress.hidden = true;
         ui.progressBar.style.width = '0%';
         ui.progressText.textContent = '';
