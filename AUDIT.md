@@ -69,7 +69,7 @@ remaining tests, CI, docs.
 - [x] L-l Search spelling hints fire on correct words; accented words split
 - [x] L-m YouTube keyword `mp3` promises audio the tool cannot produce
 - [x] L-n Instagram duplicate "Need help?" link, unreachable rate-limit branch
-- [ ] L-o QR textarea has no `maxlength`
+- [x] L-o QR textarea has no `maxlength`
 - [ ] L-p `requirements.txt` unpinned
 
 ## Remaining test gaps
@@ -80,7 +80,7 @@ remaining tests, CI, docs.
 - [ ] T10 ffmpeg version literals in HTML not tied to `FFMPEG_VERSION`
 - [ ] T11 Dead `matchesQuery` and its tests
 - [ ] T12 "nav links are valid" cannot fail
-- [ ] T13 QR page test waits on real timers
+- [x] T13 QR page test waits on real timers
 - [ ] T14 `deployed-site.test.js` lacks convert / favicon / pdf-tools coverage; misnamed tests
 - [ ] T15 Unit tests for `setBusy`, `pdf-ops.js`, `favicon.js`, `sanitiseFilename`
 

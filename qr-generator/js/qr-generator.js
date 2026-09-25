@@ -31,6 +31,9 @@ const copySvgBtn = byId('copySvgBtn');
 // disagree with what is on screen.
 let current = null;
 
+/** Byte capacity of a version-40 code at the lowest error correction. */
+const MAX_QR_BYTES = 2953;
+
 /** Module size that lands closest to the requested image size without exceeding it. */
 function moduleSizeFor(matrixSize, targetPixels) {
     return Math.max(1, Math.floor(targetPixels / matrixSize));
@@ -51,6 +54,19 @@ function render() {
         clearNotice(noticeHost);
         qrCanvas.width = 0;
         qrCanvas.height = 0;
+        return;
+    }
+
+    // The largest QR code holds 2953 bytes. Checked before encoding: a pasted
+    // megabyte used to rebuild the bit buffer for all 40 versions on every
+    // keystroke and freeze the page for seconds before saying it was too long.
+    const bytes = new TextEncoder().encode(text).length;
+    if (bytes > MAX_QR_BYTES) {
+        current = null;
+        qrVersion.textContent = '';
+        setExportsEnabled(false);
+        showError(noticeHost, `That is ${bytes} bytes; the most any QR code can hold is ${MAX_QR_BYTES}. `
+            + 'Shorten the text, or link to it instead.');
         return;
     }
 

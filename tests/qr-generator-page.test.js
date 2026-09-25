@@ -89,20 +89,35 @@ describe('QR generator page', () => {
         expect(document.getElementById('noticeHost').hidden).toBe(true);
     });
 
-    test('clearing the text disables the exports and clears the notice', () => {
+    // The input handler is debounced. Fake timers step past it; waiting on real
+    // ones was a race on a loaded CI runner.
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const type = (value) => {
         const input = document.getElementById('qrText');
-        const previous = input.value;
-
-        input.value = '';
+        input.value = value;
         input.dispatchEvent(new Event('input'));
-        // The input handler is debounced, so wait past the delay.
-        return new Promise(resolve => setTimeout(() => {
-            expect(document.getElementById('downloadPngBtn').disabled).toBe(true);
-            expect(document.getElementById('charCount').textContent).toBe('0 characters');
+        jest.advanceTimersByTime(200);
+    };
 
-            input.value = previous;
-            input.dispatchEvent(new Event('input'));
-            setTimeout(resolve, 200);
-        }, 200));
+    test('clearing the text disables the exports and clears the notice', () => {
+        const previous = document.getElementById('qrText').value;
+        type('');
+        expect(document.getElementById('downloadPngBtn').disabled).toBe(true);
+        expect(document.getElementById('charCount').textContent).toBe('0 characters');
+        type(previous);
+        expect(document.getElementById('downloadPngBtn').disabled).toBe(false);
+    });
+
+    test('a paste bigger than any QR code holds is refused without encoding it', () => {
+        const previous = document.getElementById('qrText').value;
+        const started = Date.now();
+        type('x'.repeat(1_000_000));
+        expect(Date.now() - started).toBeLessThan(500);
+        expect(document.getElementById('noticeHost').textContent)
+            .toMatch(/most any QR code can hold is 2953/);
+        expect(document.getElementById('downloadPngBtn').disabled).toBe(true);
+        type(previous);
     });
 });
