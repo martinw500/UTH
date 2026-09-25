@@ -269,8 +269,34 @@ describe('suggestSpelling', () => {
         expect(suggestSpelling('xylophone')).toBeNull();
     });
 
+    // The hint kept its own idea of "exact", looking only at titles and
+    // keywords, so words with direct results were "corrected": "photos" to
+    // photo, "optimize" to optimise, "colours" to colour.
+    test.each(['photos', 'optimize', 'colours', 'colors'])(
+        'does not correct %s, which already has direct results', (word) => {
+            expect(searchTools(word).direct.length).toBeGreaterThan(0);
+            expect(suggestSpelling(word)).toBeNull();
+        },
+    );
+
     test('says nothing for an empty query', () => {
         expect(suggestSpelling('')).toBeNull();
+    });
+});
+
+describe('non-ASCII queries', () => {
+    // The tokeniser split on accented letters, so "vídeo" searched for "v"
+    // and "deo" and found nothing directly.
+    test('accents are ignored', () => {
+        expect(direct('vídeo')).toContain('video-converter');
+    });
+
+    test('a query with no words at all matches nothing, not everything', () => {
+        expect(searchTools('\u{1F600}').direct).toHaveLength(0);
+    });
+
+    test('an empty query still lists every tool', () => {
+        expect(searchTools('').direct.length).toBeGreaterThan(5);
     });
 });
 

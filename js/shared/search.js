@@ -89,8 +89,10 @@ const STOP_WORDS = new Set([
 
 const WORD_RE = /[a-z0-9]+/g;
 
+/** Lowercase words, accents stripped: "vídeo" is "video", not "v" and "deo". */
 export function tokenise(text) {
-    return String(text ?? '').toLowerCase().match(WORD_RE) ?? [];
+    return String(text ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .match(WORD_RE) ?? [];
 }
 
 /**
@@ -273,7 +275,10 @@ export const MAX_RELATED = 4;
 export function searchTools(query, tools = TOOLS) {
     const terms = expandQuery(query);
     if (!terms.length) {
-        return { terms, direct: tools.map((tool) => ({ tool, score: 0 })), related: [] };
+        // Only a genuinely empty query lists everything; one made of emoji or
+        // punctuation used to report every tool as a match.
+        const everything = String(query ?? '').trim() === '';
+        return { terms, direct: everything ? tools.map((tool) => ({ tool, score: 0 })) : [], related: [] };
     }
 
     const scored = tools
@@ -303,6 +308,13 @@ export function searchTools(query, tools = TOOLS) {
  */
 export function suggestSpelling(query, tools = TOOLS) {
     for (const term of expandQuery(query)) {
+        // Right as typed if the ranking matched it without typo tolerance, by
+        // whatever route: a synonym, a prefix, the description.
+        if (tools.some((tool) => {
+            const { score, fuzzy } = scoreTerm(tool, term);
+            return score > 0 && !fuzzy;
+        })) continue;
+
         let exact = false;
         let best = null;
         let bestDistance = Infinity;
