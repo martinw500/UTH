@@ -85,10 +85,10 @@ remaining tests, CI, docs.
 - [x] T15 Unit tests for `setBusy`, `pdf-ops.js`, `favicon.js`, `sanitiseFilename`
 
 ## CI
-- [ ] C1 `sleep 30` before production E2E can test the previous deploy
-- [ ] C2 Node 20 (EOL) in workflows
-- [ ] C3 No `concurrency:` group on Pages deploy
-- [ ] C4 `ci.yml:81` step name overstates what it greps
+- [x] C1 `sleep 30` before production E2E can test the previous deploy
+- [x] C2 Node 20 (EOL) in workflows
+- [x] C3 No `concurrency:` group on Pages deploy
+- [x] C4 `ci.yml:81` step name overstates what it greps
 
 ## Docs (last)
 - [ ] D  README, STATE.md, CLAUDE.md, docs/ against the code

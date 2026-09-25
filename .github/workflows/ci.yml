@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -78,7 +78,7 @@ jobs:
       - name: Validate vercel.json
         run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf-8')); console.log('vercel.json is valid JSON')"
 
-      - name: Check for console.error/debugger statements
+      - name: Check for debugger statements
         run: |
           echo "Checking for leftover debugger statements..."
           if grep -rn "debugger;" --include="*.js" --exclude-dir=node_modules --exclude-dir=.git .; then
@@ -113,48 +113,57 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      # On a PR, test that PR's Vercel preview rather than production, so a
-      # regression is caught before it is merged. Needs VERCEL_TOKEN and
-      # VERCEL_PROJECT_ID repo secrets; without them the PR run is skipped
-      # rather than silently re-testing production and reporting a false pass.
-      - name: Resolve Vercel preview URL
+      # Wait for THIS commit's deployment, found by SHA. On a PR that is its
+      # preview, which the E2E then targets, so a regression is caught before
+      # merge. On a push it is the production build, and the E2E then tests the
+      # production domain. A fixed 30s sleep used to stand in for the push case;
+      # Vercel's build runs the whole unit suite first, so the E2E could test
+      # the previous deploy and pass or fail for the wrong commit.
+      #
+      # Needs VERCEL_TOKEN and VERCEL_PROJECT_ID repo secrets. Without them a PR
+      # run is skipped rather than re-testing production for a false pass, and
+      # a push falls back to a fixed wait.
+      - name: Wait for this commit's Vercel deployment
         id: preview
-        if: github.event_name == 'pull_request'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
-            echo "Vercel secrets not configured; skipping preview E2E."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+            if [ "$EVENT" = "pull_request" ]; then
+              echo "Vercel secrets not configured; skipping preview E2E."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Vercel secrets not configured; waiting a fixed 90s for production instead."
+              sleep 90
+            fi
             exit 0
           fi
-          for attempt in $(seq 1 20); do
+          target=""
+          if [ "$EVENT" = "push" ]; then target="&target=production"; fi
+          for attempt in $(seq 1 40); do
             url=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&state=READY&limit=20" \
+              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&state=READY&limit=20$target" \
               | jq -r --arg sha "$SHA" \
                 '.deployments[] | select(.meta.githubCommitSha == $sha) | .url' | head -n1)
             if [ -n "$url" ]; then
-              echo "Preview ready: https://$url"
-              echo "site=https://$url" >> "$GITHUB_OUTPUT"
+              echo "Deployment for $SHA is ready: https://$url"
+              if [ "$EVENT" = "pull_request" ]; then echo "site=https://$url" >> "$GITHUB_OUTPUT"; fi
               exit 0
             fi
-            echo "Waiting for preview deployment ($attempt/20)..."
+            echo "Waiting for the deployment of $SHA ($attempt/40)..."
             sleep 15
           done
-          echo "No READY preview deployment found for $SHA" >&2
+          echo "No READY deployment found for $SHA" >&2
           exit 1
-
-      - name: Wait for Vercel production deploy to settle
-        if: github.event_name == 'push'
-        run: sleep 30
 
       - name: Run E2E tests
         if: steps.preview.outputs.skip != 'true'

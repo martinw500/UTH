@@ -10,6 +10,12 @@ permissions:
   pages: write
   id-token: write
 
+# Two quick pushes would otherwise run two Pages deploys at once. Queued, not
+# cancelled: a deploy cut off halfway is worse than one that runs a minute late.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   # Pages had no test gate at all, so it could ship a commit Vercel's build
   # rejected -- leaving the static frontend and the API on different contracts.
@@ -20,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       - run: npm ci
       - run: npm run test:build
