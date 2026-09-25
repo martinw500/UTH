@@ -16,6 +16,10 @@
  */
 
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const BASE = (process.env.SITE_URL || 'http://localhost:5500').replace(/\/$/, '');
 const PAGE = `${BASE}/pdf-tools/`;
@@ -26,13 +30,19 @@ const check = (ok, label, detail = '') => {
     if (!ok) failures += 1;
 };
 
-/** Build a PDF in the page with pdf-lib, so no binary fixture is needed. */
-const MAKE_PDF = `async (pages) => {
-    const { PDFDocument, rgb } = await import('/js/vendor/pdf-lib.js');
+/**
+ * Build a PDF in the page with pdf-lib, so no binary fixture is needed.
+ * `rotate` pre-rotates every page, which is what makes "rotation is
+ * cumulative" testable. The import is relative to the page: a root-absolute
+ * one 404s under GitHub Pages' /UTH/ prefix.
+ */
+const MAKE_PDF = `async (pages, rotate = 0) => {
+    const { PDFDocument, rgb, degrees } = await import(new URL('../js/vendor/pdf-lib.js', location.href).href);
     const doc = await PDFDocument.create();
     for (let i = 0; i < pages; i += 1) {
         const p = doc.addPage([300, 400]);
         p.drawRectangle({ x: 20, y: 20, width: 260, height: 360, color: rgb(i / pages, 0.4, 0.8) });
+        if (rotate) p.setRotation(degrees(rotate));
     }
     return Array.from(await doc.save());
 }`;
@@ -63,16 +73,40 @@ function encryptedPdf() {
 }
 
 /**
- * Read a produced PDF back with pdf-lib and report what it actually contains.
- *
- * Passed as a real function, not a template string: page.evaluate treats a
- * string as an expression and silently ignores the argument, so a stringified
- * version of this would return the function itself and every assertion would
- * read undefined.
+ * Report what a produced PDF actually contains, read by something that is
+ * not pdf-lib: poppler's pdfinfo. Asserting pdf-lib's output back through
+ * pdf-lib would agree with any bug the two share.
  */
 function inspectPdf(page, bytes) {
+    const file = path.join(os.tmpdir(), `uth-verify-${process.pid}.pdf`);
+    fs.writeFileSync(file, bytes);
+    try {
+        const text = execFileSync('pdfinfo', ['-f', '1', '-l', '9999', file], { encoding: 'latin1' });
+        const pages = Number(/^Pages:\s+(\d+)/m.exec(text)?.[1]);
+        const sizes = [...text.matchAll(/^Page\s+\d+ size:\s+([\d.]+) x ([\d.]+)/gm)]
+            .map((m) => ({ width: Number(m[1]), height: Number(m[2]) }));
+        const rotations = [...text.matchAll(/^Page\s+\d+ rot:\s+(\d+)/gm)].map((m) => Number(m[1]));
+        return { pages, sizes, rotations };
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        if (!inspectPdf.warned) {
+            console.log('  (pdfinfo is not on PATH; reading back with pdf-lib, which proves less)');
+            inspectPdf.warned = true;
+        }
+        return inspectWithPdfLib(page, bytes);
+    } finally {
+        fs.rmSync(file, { force: true });
+    }
+}
+
+/**
+ * The fallback. Passed as a real function, not a template string:
+ * page.evaluate treats a string as an expression and silently ignores the
+ * argument, so every assertion would read undefined.
+ */
+function inspectWithPdfLib(page, bytes) {
     return page.evaluate(async (data) => {
-        const { PDFDocument } = await import('/js/vendor/pdf-lib.js');
+        const { PDFDocument } = await import(new URL('../js/vendor/pdf-lib.js', location.href).href);
         const doc = await PDFDocument.load(new Uint8Array(data));
         return {
             pages: doc.getPageCount(),
@@ -177,8 +211,21 @@ async function main() {
         await page.selectOption('#rotateAngle', '90');
         out = await runAndCollect(page);
         info = await inspectPdf(page, out.bytes);
-        check(info.rotations.every((r) => r === 90),
+        check(info.rotations.length === 3 && info.rotations.every((r) => r === 90),
             'every page is rotated 90°', info.rotations.join(','));
+
+        // Rotation adds to what a page already carries; replacing it would
+        // silently un-rotate pages that were already sideways.
+        console.log('\nRotate an already-rotated PDF');
+        await reset(page);
+        await upload(page, [pdfFile('sideways.pdf', await page.evaluate(`(${MAKE_PDF})(2, 90)`))]);
+        await page.selectOption('#operation', 'rotate');
+        await page.fill('#pageRange', 'all');
+        await page.selectOption('#rotateAngle', '90');
+        out = await runAndCollect(page);
+        info = await inspectPdf(page, out.bytes);
+        check(info.rotations.length === 2 && info.rotations.every((r) => r === 180),
+            'a page at 90° turned 90° more ends at 180°', info.rotations.join(','));
 
         console.log('\nSplit');
         await reset(page);

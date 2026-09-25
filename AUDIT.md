@@ -74,7 +74,7 @@ remaining tests, CI, docs.
 
 ## Remaining test gaps
 - [x] T6 Narrow-viewport crop check never drags
-- [ ] T7 `verify-pdf-tools` reads back with pdf-lib; root-absolute import; no pre-rotated fixture
+- [x] T7 `verify-pdf-tools` reads back with pdf-lib; root-absolute import; no pre-rotated fixture
 - [x] T8 Only one of three `coi-serviceworker.js` parse-checked
 - [x] T9 `/convert/` COOP/COEP headers untested
 - [x] T10 ffmpeg version literals in HTML not tied to `FFMPEG_VERSION`
