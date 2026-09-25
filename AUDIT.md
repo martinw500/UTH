@@ -81,7 +81,7 @@ remaining tests, CI, docs.
 - [x] T11 Dead `matchesQuery` and its tests
 - [x] T12 "nav links are valid" cannot fail
 - [x] T13 QR page test waits on real timers
-- [ ] T14 `deployed-site.test.js` lacks convert / favicon / pdf-tools coverage; misnamed tests
+- [x] T14 `deployed-site.test.js` lacks convert / favicon / pdf-tools coverage; misnamed tests
 - [x] T15 Unit tests for `setBusy`, `pdf-ops.js`, `favicon.js`, `sanitiseFilename`
 
 ## CI

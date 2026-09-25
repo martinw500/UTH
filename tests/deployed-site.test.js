@@ -21,6 +21,43 @@ import {
     findWorkerChunk,
     resolveWorkerChunk,
 } from '../js/shared/ffmpeg.js';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const ROOT = path.resolve(__dirname, '..');
+const HTML_PAGES = [
+    'index.html', 'feedback.html', 'image-converter/index.html', 'video-converter/index.html',
+    'color-converter/index.html', 'youtube-downloader/index.html', 'instagram-downloader/index.html',
+    'qr-generator/index.html', 'audio-converter/index.html', 'convert/index.html',
+    'favicon-generator/index.html', 'pdf-tools/index.html',
+];
+
+/** Local files the pages load, found by following script tags and imports. */
+function servedFiles() {
+    const seen = new Set();
+    const visit = (file) => {
+        if (seen.has(file) || !fs.existsSync(path.join(ROOT, file))) return;
+        seen.add(file);
+        if (!file.endsWith('.js')) return;
+        const source = fs.readFileSync(path.join(ROOT, file), 'utf-8');
+        for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+            visit(path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1])));
+        }
+    };
+    for (const page of HTML_PAGES) {
+        const html = fs.readFileSync(path.join(ROOT, page), 'utf-8');
+        for (const match of html.matchAll(/<script[^>]*\bsrc="([^"]+)"/g)) {
+            if (!/^([a-z]+:|\/\/)/i.test(match[1])) {
+                visit(path.posix.normalize(path.posix.join(path.posix.dirname(page), match[1])));
+            }
+        }
+    }
+    // Chosen at runtime by name, so no import literal mentions them.
+    visit('convert/js/engines/image.js');
+    visit('convert/js/engines/media.js');
+    for (const tool of ['video-converter', 'audio-converter', 'convert']) visit(`${tool}/coi-serviceworker.js`);
+    return [...seen].sort();
+}
 
 // Increase timeout — network requests to the live site
 jest.setTimeout(30000);
@@ -173,70 +210,13 @@ describe('Static assets are accessible on deployed site', () => {
         expect(res.ok).toBe(true);
     });
 
-    test('script.js loads', async () => {
-        const res = await checkResource(`${SITE}/script.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('js/shared/config.js loads', async () => {
-        const res = await checkResource(`${SITE}/js/shared/config.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('image-converter/js/image-converter.js loads', async () => {
-        const res = await checkResource(`${SITE}/image-converter/js/image-converter.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('video-converter/js/video-converter.js loads', async () => {
-        const res = await checkResource(`${SITE}/video-converter/js/video-converter.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('color-converter/js/color-converter.js loads', async () => {
-        const res = await checkResource(`${SITE}/color-converter/js/color-converter.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('youtube-downloader/js/youtube-downloader.js loads', async () => {
-        const res = await checkResource(`${SITE}/youtube-downloader/js/youtube-downloader.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('instagram-downloader/js/instagram-downloader.js loads', async () => {
-        const res = await checkResource(`${SITE}/instagram-downloader/js/instagram-downloader.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('COI service worker file loads', async () => {
-        const res = await checkResource(`${SITE}/video-converter/coi-serviceworker.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    test('qr-generator/js/qr-generator.js loads', async () => {
-        const res = await checkResource(`${SITE}/qr-generator/js/qr-generator.js`);
-        expect(res.ok).toBe(true);
-    });
-
-    // A module page dies on the first failed import, and these are fetched by
-    // the browser rather than named in the HTML, so nothing else would catch a
-    // path that is wrong only once deployed.
-    test.each([
-        'js/shared/qr.js',
-        'js/shared/ffmpeg.js',
-        'js/shared/format.js',
-        'video-converter/js/video-args.js',
-        'audio-converter/js/audio-converter.js',
-        'audio-converter/js/audio-args.js',
-        'audio-converter/coi-serviceworker.js',
-        'js/shared/dom.js',
-        'js/shared/notify.js',
-        'js/shared/clipboard.js',
-        'js/shared/color.js',
-        'js/shared/image.js',
-        'js/vendor/qrcode-generator.js',
-        'js/vendor/qrcode-generator-utf8.js',
-    ])('%s loads', async (file) => {
+    // Every file a page loads: its <script src> tags, then everything those
+    // import, followed through the whole module graph of the local checkout.
+    // A module page dies on the first failed import, and the hand-kept lists
+    // this replaces had drifted: the convert, favicon and PDF tools' scripts,
+    // pdf-lib, zip.js and the shared download and result modules were never
+    // checked at all.
+    test.each(servedFiles())('%s is served', async (file) => {
         const res = await checkResource(`${SITE}/${file}`);
         expect(res.ok).toBe(true);
     });
@@ -750,16 +730,18 @@ describe('QR Code Generator — features present', () => {
         expect(page.body).toContain('src="js/qr-generator.js"');
     });
 
-    // Served over HTTP the guard must stay dormant; if it ever fired here the
-    // page would be blank for every visitor.
-    test('ships the file:// guard, and it does not trigger over HTTP', () => {
+    // Whether it stays dormant over HTTP needs a browser; verify:chrome loads
+    // every page and would see a blank one.
+    test('ships the file:// guard', () => {
         expect(page.body).toContain('file-protocol-notice');
         expect(page.body).toContain("location.protocol === 'file:'");
     });
 
+    // Browsers refuse to run a module served with a non-JavaScript MIME type.
     test('is served with a JavaScript content type for the module', async () => {
-        const res = await checkResource(`${SITE}/qr-generator/js/qr-generator.js`);
+        const res = await fetch(`${SITE}/qr-generator/js/qr-generator.js`, { method: 'HEAD' });
         expect(res.ok).toBe(true);
+        expect(res.headers.get('content-type')).toMatch(/javascript/);
     });
 
     test('says processing is local', () => {
@@ -820,6 +802,104 @@ describe('Audio Converter — features present', () => {
 
     test('says processing is local', () => {
         expect(page.body).toContain('locally in your browser');
+    });
+});
+
+// ============================================
+// 9d. CONVERT HUB, FAVICON GENERATOR, PDF TOOLS
+// ============================================
+// These three shipped without E2E coverage, so e2e-parity.test.js had nothing
+// to guard for them either.
+
+describe('File Converter — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/convert/');
+    });
+
+    test('is served with COOP and COEP headers', () => {
+        expect(page.headers['cross-origin-opener-policy']).toBe('same-origin');
+        expect(page.headers['cross-origin-embedder-policy']).toBe('credentialless');
+    });
+
+    test('has the queue, target picker and options panel', () => {
+        expect(page.body).toContain('id="dropzone"');
+        expect(page.body).toContain('id="fileList"');
+        expect(page.body).toContain('id="targetFormat"');
+        expect(page.body).toContain('id="optionsPanel"');
+    });
+
+    test('can convert, cancel and download everything', () => {
+        expect(page.body).toContain('id="convertBtn"');
+        expect(page.body).toContain('id="cancelBtn"');
+        expect(page.body).toContain('id="downloadAllBtn"');
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module"');
+        expect(page.body).toContain('file-protocol-notice');
+    });
+
+    test('its own COI service worker is reachable', async () => {
+        const res = await checkResource(`${SITE}/convert/coi-serviceworker.js`);
+        expect(res.ok).toBe(true);
+    });
+});
+
+describe('Favicon Generator — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/favicon-generator/');
+    });
+
+    test('has the source dropzone and previews', () => {
+        expect(page.body).toContain('id="dropzone"');
+        expect(page.body).toContain('id="previewGrid"');
+    });
+
+    test('has the padding, background and manifest settings', () => {
+        expect(page.body).toContain('id="padding"');
+        expect(page.body).toContain('id="useBackground"');
+        expect(page.body).toContain('id="siteName"');
+        expect(page.body).toContain('id="themeColor"');
+    });
+
+    test('generates a zip and an HTML snippet', () => {
+        expect(page.body).toContain('id="generateBtn"');
+        expect(page.body).toContain('id="downloadZipBtn"');
+        expect(page.body).toContain('id="snippet"');
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module"');
+        expect(page.body).toContain('file-protocol-notice');
+    });
+});
+
+describe('PDF Tools — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/pdf-tools/');
+    });
+
+    test('offers every operation', () => {
+        ['merge', 'extract', 'remove', 'split', 'rotate', 'optimise', 'fromImages'].forEach((op) => {
+            expect(page.body).toContain(`value="${op}"`);
+        });
+    });
+
+    test('has the page range, run button and results', () => {
+        expect(page.body).toContain('id="pageRange"');
+        expect(page.body).toContain('id="runBtn"');
+        expect(page.body).toContain('id="resultList"');
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module"');
+        expect(page.body).toContain('file-protocol-notice');
     });
 });
 
@@ -990,8 +1070,8 @@ describe('Security and best practices', () => {
         expect(SITE).toMatch(/^https:\/\//);
     });
 
-    test('video converter is the only page with COEP header', async () => {
-        // Homepage should NOT have COEP (it would break external resources)
+    // COEP on the homepage would block its cross-origin resources.
+    test('the homepage is not served with COEP', async () => {
         const homepage = await fetchPage('/');
         expect(homepage.headers['cross-origin-embedder-policy']).toBeUndefined();
     });
