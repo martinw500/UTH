@@ -70,7 +70,7 @@ remaining tests, CI, docs.
 - [x] L-m YouTube keyword `mp3` promises audio the tool cannot produce
 - [x] L-n Instagram duplicate "Need help?" link, unreachable rate-limit branch
 - [x] L-o QR textarea has no `maxlength`
-- [ ] L-p `requirements.txt` unpinned
+- [x] L-p `requirements.txt` unpinned
 
 ## Remaining test gaps
 - [ ] T6 Narrow-viewport crop check never drags
