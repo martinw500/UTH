@@ -74,16 +74,17 @@ export async function convert(file, { target, options = {}, signal, onProgress =
             ? undefined
             : Number(options.quality ?? 80) / 100;
 
-        // encodeVerified reports the browser silently substituting PNG for a
-        // format it cannot encode, which would otherwise save a PNG named .avif.
-        const encoded = await encodeVerified(matted, target.mime, quality);
-        if (encoded.fellBack) {
-            throw new Error(
-                `Your browser cannot encode ${target.label}. `
-                + 'The file would have been a PNG with the wrong extension, so nothing was saved.',
-            );
-        }
-        blob = encoded.blob;
+        blob = (await encodeVerified(matted, target.mime, quality)).blob;
+    }
+
+    // A browser that cannot encode a format silently substitutes PNG, which
+    // would save a PNG named .avif. Checked after both paths: the target-size
+    // one used to skip it.
+    if (blob.type && blob.type !== target.mime) {
+        throw new Error(
+            `Your browser cannot encode ${target.label}. `
+            + 'The file would have been a PNG with the wrong extension, so nothing was saved.',
+        );
     }
 
     onProgress({ phase: 'done', ratio: 1, note: '' });

@@ -654,6 +654,10 @@ async function exportAll() {
     const extension = EXT_BY_MIME[ui.outputFormat.value] ?? 'png';
     let completed = 0;
     let lastNote = '';
+    let substituted = false;
+    // Fresh state per run: after a Cancel, items the loop never reached kept
+    // the previous run's results and were offered as this run's.
+    for (const item of items) Object.assign(item, { status: 'pending', result: null, error: null });
 
     try {
         // Strictly serial. Encoding 50 large images in parallel will exhaust the
@@ -665,7 +669,12 @@ async function exportAll() {
             try {
                 const { blob, note } = await encodeItem(item);
                 lastNote = note || lastNote;
-                item.result = { blob, filename: outputFilename(item.name, extension) };
+                // Name the file by what the browser actually produced. One that
+                // cannot encode WebP or AVIF silently hands back a PNG, which
+                // used to be saved as .webp.
+                const actual = EXT_BY_MIME[blob.type] ?? extension;
+                if (actual !== extension) substituted = true;
+                item.result = { blob, filename: outputFilename(item.name, actual) };
                 item.status = 'done';
             } catch {
                 item.status = 'error';
@@ -678,6 +687,12 @@ async function exportAll() {
         }
 
         showResults(items, lastNote);
+        if (substituted) {
+            notify(ui.editorNotice,
+                'Your browser cannot encode that format, so it produced PNG instead. '
+                + 'The files are named .png to match.',
+                { level: 'error' });
+        }
     } finally {
         setBusy(ui.exportBtn, false);
         ui.cancelExportBtn.hidden = true;
