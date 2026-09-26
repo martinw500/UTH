@@ -49,7 +49,7 @@ jobs:
       # Deriving the file set from git instead means new tools need no CI edit.
       - name: Check core assets exist
         run: |
-          for f in index.html styles.css script.js js/config.js vercel.json; do
+          for f in index.html styles.css script.js js/shared/config.js vercel.json; do
             if [ ! -f "$f" ]; then
               echo "ERROR: Missing file: $f"
               exit 1
