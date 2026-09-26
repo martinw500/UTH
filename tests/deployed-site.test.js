@@ -14,6 +14,17 @@
 // Without this these tests can only ever validate what is already in production.
 const SITE = (process.env.SITE_URL || 'https://useful-tool-hub.vercel.app').replace(/\/$/, '');
 
+// Previews sit behind Vercel Deployment Protection, which answers every request
+// with a 302 to its login page. Wrapped here so every fetch to SITE carries the
+// bypass, including ones added later; other hosts are left alone.
+const BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+if (BYPASS) {
+    const plainFetch = globalThis.fetch;
+    globalThis.fetch = (url, init = {}) => (String(url).startsWith(SITE)
+        ? plainFetch(url, { ...init, headers: { ...init.headers, 'x-vercel-protection-bypass': BYPASS } })
+        : plainFetch(url, init));
+}
+
 // Reuses the app's own chunk discovery so this file cannot drift from it.
 import {
     FFMPEG_UMD_BASE,
@@ -1000,9 +1011,12 @@ describe('Navigation is consistent across all pages', () => {
 describe('API endpoints are reachable', () => {
     // These used to wrap the assertion in try/catch, so a 404 threw, was
     // caught, and passed. Node's fetch has no CORS to excuse a failure.
-    test.each(['youtube', 'instagram'])('%s API endpoint exists', async (name) => {
-        const res = await fetch(`${SITE}/api/${name}/`, { method: 'GET' });
-        expect(res.status).not.toBe(404);
+    // No trailing slash: that is the path the pages call, and Vercel 404s
+    // `/api/youtube/`. The JSON body proves the function ran, not just routed.
+    test.each(['youtube', 'instagram'])('%s API endpoint answers', async (name) => {
+        const res = await fetch(`${SITE}/api/${name}`);
+        expect(res.status).toBe(400);
+        expect(await res.json()).toEqual({ error: 'URL parameter required' });
     });
 });
 

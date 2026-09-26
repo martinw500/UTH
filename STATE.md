@@ -588,6 +588,10 @@ Still open: `CONTRIBUTING.md`, issue/PR templates, and reunifying `backend.py` o
 - **E2E waits for this commit's deploy through the Vercel API**, which needs `VERCEL_TOKEN` and
   `VERCEL_PROJECT_ID` repo secrets. Without them a PR's E2E skips (re-testing production would be a
   false pass) and a push falls back to a fixed wait, which can test the previous deploy.
+  **Previews are behind Deployment Protection** — every request, `/api/*` included, gets a 302 to
+  Vercel's login. Preview E2E also needs `VERCEL_AUTOMATION_BYPASS_SECRET` (Vercel → Deployment
+  Protection → Protection Bypass for Automation), as a repo secret for CI and in your env locally;
+  for curl, send it as the `x-vercel-protection-bypass` header.
 - **jsdom cannot see the bugs that matter most here** — canvas pixels, `toBlob`,
   `SharedArrayBuffer`, service workers, `EyeDropper`. Each `scripts/verify-*.mjs` drives a real
   browser; extend one rather than trusting a green unit suite.

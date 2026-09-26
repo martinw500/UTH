@@ -170,4 +170,5 @@ jobs:
         env:
           # Empty on push, so the test file falls back to the production URL.
           SITE_URL: ${{ steps.preview.outputs.site }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run test:e2e
