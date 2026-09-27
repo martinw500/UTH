@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Downloader — Useful Tool Hub</title>
-    <meta name="description" content="Download YouTube videos in multiple formats and quality levels. Free, no sign-up required.">
+    <meta name="description" content="Why the YouTube downloader only runs on your own computer, and how to run it there.">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -82,12 +82,31 @@
                 </div>
                 <div class="tool-header-text">
                     <h1>YouTube Downloader</h1>
-                    <p>Download videos in various formats and quality levels</p>
+                    <p>Runs on your own computer only</p>
                 </div>
             </div>
 
+            <!-- Shown unless the page talks to a backend on this machine; the
+                 module swaps the two over. Hidden by default, so the hosted
+                 page never flashes a form that cannot work. -->
+            <div class="tool-panel retired-notice" id="retiredNotice">
+                <h2>This one only works on your own computer</h2>
+                <p>
+                    A hosted YouTube downloader cannot work here, whatever the code does. YouTube
+                    answers every request from a cloud server with a "confirm you're not a bot"
+                    check. Even past that, the host caps a response at about 4.5&nbsp;MB, has no
+                    ffmpeg to merge high-quality video with its audio (so 360p is the best it could
+                    send), and YouTube's download links only work from the address that asked for
+                    them. Rather than show a button that always fails, it is switched off.
+                </p>
+                <p>From your own computer, where YouTube sees a home connection, it works in full:</p>
+<pre class="code-snippet"><code>git clone https://github.com/martinw500/UTH.git &amp;&amp; cd UTH
+pip install -r requirements-local.txt &amp;&amp; npm run dev:api
+npm run dev   # in a second terminal, then open http://localhost:5500/youtube-downloader/</code></pre>
+            </div>
+
             <!-- Tool Panel -->
-            <div class="tool-panel">
+            <div class="tool-panel" id="localTool" hidden>
 
                 <!-- Notice -->
                 <div class="tool-panel-notice">

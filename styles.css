@@ -827,6 +827,18 @@ body::before {
     margin-bottom: 24px;
 }
 
+/* A tool that cannot run on this host says why, in prose. */
+.retired-notice h2 {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+}
+
+.retired-notice p {
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+
 .tool-panel-notice {
     display: flex;
     align-items: flex-start;

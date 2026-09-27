@@ -3,7 +3,3 @@ flask>=3.1,<4
 flask-cors>=6.0,<7
 requests>=2.32,<3
 instaloader>=4.15,<5
-# Deliberately unpinned: yt-dlp has to track YouTube's changes, and an old
-# pin breaks every download sooner or later. Vercel installs the latest on
-# each deploy.
-yt-dlp

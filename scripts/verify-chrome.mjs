@@ -12,6 +12,7 @@
  */
 
 import { chromium } from 'playwright';
+import { TOOL_COUNT } from '../js/shared/tools.js';
 
 const BASE = (process.env.SITE_URL || 'http://localhost:5500').replace(/\/$/, '');
 
@@ -203,7 +204,7 @@ async function main() {
             .filter((c) => c.getBoundingClientRect().height > 0)
             .map((c) => c.dataset.tool));
 
-        check((await visibleCards()).length === 10, 'every tool is listed');
+        check((await visibleCards()).length === TOOL_COUNT, 'every tool is listed');
         check(await page.locator('.cat-section').count() === 3, 'grouped into three categories');
         check(await page.isVisible('.app-sidebar'), 'the category rail is present');
 
@@ -263,7 +264,7 @@ async function main() {
         check(await page.isVisible('#noResults'), 'genuine nonsense still says nothing found');
 
         await page.fill('#searchInput', '');
-        check((await visibleCards()).length === 10, 'clearing the query restores everything');
+        check((await visibleCards()).length === TOOL_COUNT, 'clearing the query restores everything');
         check(await page.isVisible('.cat-section'), 'and the category browse view comes back');
 
         // ---- Mobile nav ----

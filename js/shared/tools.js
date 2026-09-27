@@ -122,16 +122,6 @@ export const TOOLS = Object.freeze([
     }),
 
     Object.freeze({
-        id: 'youtube-downloader',
-        title: 'YouTube Downloader',
-        href: 'youtube-downloader/index.html',
-        category: 'download',
-        tone: 'tone-red',
-        runs: 'server',
-        desc: 'Download videos from YouTube in several formats and qualities',
-        keywords: 'youtube video download mp4 save clip',
-    }),
-    Object.freeze({
         id: 'instagram-downloader',
         title: 'Instagram Downloader',
         href: 'instagram-downloader/index.html',

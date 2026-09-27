@@ -2,11 +2,11 @@
 Check the Python API's input handling through Flask's test client.
 
 Deliberately NOT part of `npm test` (which is Jest, and gates the deploy): this
-needs the Python dependencies from requirements.txt. It needs no network --
+needs the Python dependencies from requirements-local.txt. It needs no network --
 yt-dlp and requests are replaced with fakes, so nothing here can reach
 YouTube or Instagram.
 
-    pip install -r requirements.txt
+    pip install -r requirements-local.txt
     npm run verify:api
 
 The URL checks exist in two copies (api/youtube/index.py and download.py)

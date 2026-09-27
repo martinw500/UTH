@@ -36,7 +36,7 @@ Nothing in the deployed site uses your local ffmpeg — the converters run
 ```bash
 npm ci                              # exact versions from package-lock.json
 npx playwright install chromium     # browser for every verify:* script — npm ci does NOT do this
-pip install -r requirements.txt     # Flask backend deps
+pip install -r requirements-local.txt   # Flask backend deps, plus yt-dlp
 ```
 
 `npx playwright install` downloads ~115 MB to a shared location outside the repo
@@ -48,7 +48,7 @@ A virtualenv for the Python side is optional but tidy:
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows;  source .venv/bin/activate  elsewhere
-pip install -r requirements.txt
+pip install -r requirements-local.txt
 ```
 
 ## 3. Run it

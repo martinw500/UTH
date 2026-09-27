@@ -153,7 +153,6 @@ describe('finding the obvious thing', () => {
         ['favicon', 'favicon-generator'],
         ['qr code', 'qr-generator'],
         ['merge pdf', 'pdf-tools'],
-        ['youtube', 'youtube-downloader'],
         ['instagram reel', 'instagram-downloader'],
         ['hex rgb', 'color-converter'],
         ['crop', 'image-converter'],
@@ -186,7 +185,6 @@ describe('describing an intent rather than a name', () => {
     });
 
     test('shorthand works', () => {
-        expect(top('yt')).toBe('youtube-downloader');
         expect(top('insta')).toBe('instagram-downloader');
     });
 

@@ -7,16 +7,15 @@ Will be updated with more tools as I build them out.
 
 ## Live Website
 
-- **https://useful-tool-hub.vercel.app** — full site, including the downloaders
-- **https://martinw500.github.io/UTH/** — same site on GitHub Pages (the downloaders call the
-  Vercel API)
+- **https://useful-tool-hub.vercel.app** — full site, including the Instagram downloader
+- **https://martinw500.github.io/UTH/** — same site on GitHub Pages (the Instagram downloader
+  calls the Vercel API)
 
 ## Tools
 
 | Tool | What it does | Runs |
 | --- | --- | --- |
 | **File Converter** | Images, video and audio between formats, in one place | browser |
-| **YouTube Downloader** | Download videos in multiple formats and qualities | server |
 | **Instagram Downloader** | Save photos and videos from public posts and reels | server |
 | **Image Editor** | Crop, straighten, adjust, resize, compress — in batches | browser |
 | **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
@@ -43,7 +42,7 @@ Will be updated with more tools as I build them out.
 ```bash
 npm ci
 npx playwright install chromium     # only for the npm run verify:* scripts
-pip install -r requirements.txt
+pip install -r requirements-local.txt
 
 npm run dev        # site on http://localhost:5500
 npm run dev:api    # API on  http://localhost:5000  (only needed for the downloaders)
@@ -57,9 +56,10 @@ Full details, including the ffmpeg/ffprobe prerequisite, in [docs/SETUP.md](docs
 ## Architecture in one paragraph
 
 Static HTML/CSS/JS with **no framework, no bundler and no build step** — the files in the repo are
-the files the browser loads. Python serverless functions under `api/` handle the two things a
-browser cannot do (YouTube via `yt-dlp`, Instagram via `instaloader`); `backend.py` mirrors them
-for local development. Everything else runs client-side via the Canvas API or ffmpeg.wasm. See
+the files the browser loads. Python serverless functions under `api/` handle the one thing a
+browser cannot do (Instagram via `instaloader`); `backend.py` mirrors it for local development,
+and also serves the YouTube downloader, which runs only there — YouTube bot-checks every cloud
+server, so it is not deployed. Everything else runs client-side via the Canvas API or ffmpeg.wasm. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Project structure

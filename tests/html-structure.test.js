@@ -112,7 +112,6 @@ describe('Homepage structure', () => {
     });
 
     test('has links to all tool pages', () => {
-        expect(html).toContain('href="youtube-downloader/index.html"');
         expect(html).toContain('href="instagram-downloader/index.html"');
         expect(html).toContain('href="image-converter/index.html"');
         expect(html).toContain('href="video-converter/index.html"');
@@ -518,7 +517,7 @@ describe('Documentation', () => {
         // breaks something later if skipped.
         expect(setup).toContain('playwright install');
         expect(setup).toContain('ffprobe');
-        expect(setup).toContain('requirements.txt');
+        expect(setup).toContain('requirements-local.txt');
     });
 });
 

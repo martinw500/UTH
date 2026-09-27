@@ -156,9 +156,9 @@ describe('Homepage — all tools accessible', () => {
         expect(page.body).toContain('Search tools');
     });
 
-    test('has link to YouTube Downloader', () => {
-        expect(page.body).toContain('href="youtube-downloader/index.html"');
-        expect(page.body).toContain('YouTube Downloader');
+    // Retired from the hosted site; the page stays at its URL to say why.
+    test('no longer links the YouTube downloader', () => {
+        expect(page.body).not.toContain('href="youtube-downloader/index.html"');
     });
 
     test('has link to Instagram Downloader', () => {
@@ -579,10 +579,10 @@ describe('Colour Picker — all features present', () => {
 });
 
 // ============================================
-// 8. YOUTUBE DOWNLOADER — input and features
+// 8. YOUTUBE DOWNLOADER — retired, explains itself
 // ============================================
 
-describe('YouTube Downloader — features present', () => {
+describe('YouTube Downloader — says why it is switched off', () => {
     let page;
 
     beforeAll(async () => {
@@ -593,38 +593,16 @@ describe('YouTube Downloader — features present', () => {
         expect(page.status).toBe(200);
     });
 
-    test('has URL input field', () => {
-        expect(page.body).toContain('id="youtubeUrl"');
-        expect(page.body).toContain('placeholder="https://www.youtube.com/watch?v=');
+    test('explains why, and how to run it locally', () => {
+        expect(page.body).toContain('id="retiredNotice"');
+        expect(page.body).toContain('only works on your own computer');
+        expect(page.body).toContain('requirements-local.txt');
     });
 
-    test('has fetch button', () => {
-        expect(page.body).toContain('id="fetchBtn"');
-        expect(page.body).toContain('Fetch');
-    });
-
-    test('has error display', () => {
-        expect(page.body).toContain('id="errorMsg"');
-        expect(page.body).toContain('id="errorText"');
-    });
-
-    test('has loading state', () => {
-        expect(page.body).toContain('id="loading"');
-        expect(page.body).toContain('Fetching video information');
-    });
-
-    test('has results container for video info and quality options', () => {
-        expect(page.body).toContain('id="results"');
-        expect(page.body).toContain('id="videoInfo"');
-        expect(page.body).toContain('id="qualityOptions"');
-    });
-
-    test('loads youtube-downloader.js as a module', () => {
+    // The module reveals the form only against a local backend.
+    test('ships the form hidden', () => {
+        expect(page.body).toContain('id="localTool" hidden');
         expect(page.body).toContain('type="module" src="js/youtube-downloader.js"');
-    });
-
-    test('has terms of service notice', () => {
-        expect(page.body).toContain('personal use only');
     });
 });
 
@@ -1011,12 +989,18 @@ describe('Navigation is consistent across all pages', () => {
 describe('API endpoints are reachable', () => {
     // These used to wrap the assertion in try/catch, so a 404 threw, was
     // caught, and passed. Node's fetch has no CORS to excuse a failure.
-    // No trailing slash: that is the path the pages call, and Vercel 404s
-    // `/api/youtube/`. The JSON body proves the function ran, not just routed.
-    test.each(['youtube', 'instagram'])('%s API endpoint answers', async (name) => {
-        const res = await fetch(`${SITE}/api/${name}`);
+    // No trailing slash: that is the path the page calls. The JSON body
+    // proves the function ran, not just routed.
+    test('instagram API endpoint answers', async () => {
+        const res = await fetch(`${SITE}/api/instagram`);
         expect(res.status).toBe(400);
         expect(await res.json()).toEqual({ error: 'URL parameter required' });
+    });
+
+    // .vercelignore keeps it off Vercel; the code stays for local use.
+    test('the YouTube API is not deployed', async () => {
+        const res = await fetch(`${SITE}/api/youtube`);
+        expect(res.status).toBe(404);
     });
 });
 

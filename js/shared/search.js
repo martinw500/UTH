@@ -72,7 +72,6 @@ export const SYNONYMS = Object.freeze({
     greyscale: ['greyscale', 'grayscale'],
 
     // shorthand
-    yt: ['youtube'],
     ig: ['instagram'],
     insta: ['instagram'],
     vid: ['video'],

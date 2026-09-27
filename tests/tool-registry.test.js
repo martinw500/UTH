@@ -52,9 +52,11 @@ describe('the registry is internally consistent', () => {
         for (const tool of TOOLS) expect(['browser', 'server']).toContain(tool.runs);
     });
 
-    test('only the two downloaders use a server', () => {
+    // The YouTube downloader was retired from the hosted site: YouTube
+    // bot-checks every cloud IP. Its page remains, and runs locally only.
+    test('only the Instagram downloader uses a server', () => {
         const server = TOOLS.filter((t) => t.runs === 'server').map((t) => t.id).sort();
-        expect(server).toEqual(['instagram-downloader', 'youtube-downloader']);
+        expect(server).toEqual(['instagram-downloader']);
     });
 
     test('the registry is frozen against accidental mutation', () => {

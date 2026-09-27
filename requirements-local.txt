@@ -1,0 +1,7 @@
+# Local backend (backend.py): everything Vercel installs, plus yt-dlp.
+# The YouTube downloader is not deployed -- YouTube bot-checks every cloud IP --
+# so yt-dlp stays out of requirements.txt, which Vercel installs.
+-r requirements.txt
+# Deliberately unpinned: yt-dlp has to track YouTube's changes, and an old pin
+# breaks every download sooner or later.
+yt-dlp

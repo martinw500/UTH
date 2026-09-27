@@ -5,8 +5,11 @@
 // Everything the server sends is inserted as text, never as HTML. The error
 // used to go through innerHTML, and it echoed the submitted URL back, so a URL
 // carrying markup ran as script in the page.
+//
+// Only usable against a backend on this machine. YouTube bot-checks every
+// cloud IP, so the hosted page shows why instead (see STATE.md).
 
-import { apiUrl, errorFromResponse } from '../../js/shared/config.js';
+import { API_CONFIG, apiUrl, errorFromResponse, resolveBackendUrl } from '../../js/shared/config.js';
 import { el } from '../../js/shared/dom.js';
 import { formatDuration, formatViews, sanitiseFilename } from '../../js/shared/format.js';
 import { saveBlob } from '../../js/shared/download.js';
@@ -153,6 +156,11 @@ async function downloadVideo(format, button) {
         button.disabled = false;
         button.replaceChildren(icon('download'), ` ${idle.trim()}`);
     }
+}
+
+if (API_CONFIG.BACKEND_URL === resolveBackendUrl('localhost')) {
+    document.getElementById('retiredNotice').hidden = true;
+    document.getElementById('localTool').hidden = false;
 }
 
 fetchBtn.addEventListener('click', () => {

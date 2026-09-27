@@ -1,5 +1,9 @@
 # Local development only
 backend.py
+requirements-local.txt
+# Retired on the hosted site (YouTube bot-checks cloud IPs); backend.py still
+# imports it locally.
+api/youtube/
 test_*.py
 .venv/
 __pycache__/

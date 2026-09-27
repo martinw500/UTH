@@ -16,7 +16,7 @@ nothing is compiled for deployment.
 Browser ──> GitHub Pages  (frontend only)
        └──> Vercel        (same frontend + /api/* serverless functions)
                               │
-                              └──> yt-dlp / instaloader ──> YouTube, Instagram
+                              └──> instaloader ──> Instagram
 ```
 
 Two hosts serve the same static files. Only Vercel runs the API.
@@ -61,9 +61,14 @@ scripts/              Verification that needs a real browser.
 — everything happens in the browser. Canvas, ffmpeg.wasm, pdf-lib, or plain
 maths. No server involved, nothing uploaded.
 
-**Server-backed** (YouTube, Instagram) — a Vercel function resolves media URLs
-with `yt-dlp` / `instaloader`, and a second function proxies the download so the
-browser can fetch it despite CORS.
+**Server-backed** (Instagram) — a Vercel function resolves media URLs with
+`instaloader`, and a second function proxies the download so the browser can
+fetch it despite CORS.
+
+**Local only** (YouTube) — `api/youtube/` is in `.vercelignore`: YouTube answers
+every cloud IP with a bot check, Vercel caps a response at ~4.5 MB and has no
+ffmpeg. The page explains that unless its backend is on localhost, where
+`backend.py` serves it with `yt-dlp` from `requirements-local.txt`.
 
 The API only accepts what it can serve. `youtube_watch_url` rebuilds a watch URL
 from an id on a YouTube host and only that reaches yt-dlp, whose generic
