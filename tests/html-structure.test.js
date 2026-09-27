@@ -564,6 +564,22 @@ describe('Vendored libraries', () => {
         expect(readme).toMatch(/Version:\*\*\s*\d+\.\d+\.\d+/);
     });
 
+    // pdf.js checks at startup that the worker is the same build as the API,
+    // and fails every document if not. Re-vendoring one file and not the other
+    // is the easy mistake.
+    test('pdf.js and its worker are the same version', () => {
+        const version = (file) => {
+            const source = fs.readFileSync(path.join(ROOT, file), 'utf-8');
+            return [...new Set(source.match(/"\d+\.\d+\.\d+"/g))];
+        };
+        const api = version('js/vendor/pdfjs.js');
+        const worker = version('js/vendor/pdfjs.worker.js');
+        expect(api.length).toBeGreaterThan(0);
+        expect(worker.some((v) => api.includes(v))).toBe(true);
+        const readme = fs.readFileSync(path.join(ROOT, 'js/vendor/README.md'), 'utf-8');
+        expect(api.some((v) => readme.includes(`**Version:** ${v.replace(/"/g, '')}`))).toBe(true);
+    });
+
     // LGPL: the licence must ship with it, and the file must stay separate
     // and unmodified -- the README says so, and this keeps the notice there.
     test('libheif ships its LGPL licence and a do-not-edit note', () => {
@@ -600,6 +616,13 @@ describe('Required static assets exist', () => {
         'js/shared/heic.js',
         'js/vendor/libheif-bundle.js',
         'js/vendor/libheif.LICENSE.txt',
+        'js/shared/pdf-render.js',
+        'js/vendor/pdfjs.js',
+        'js/vendor/pdfjs.worker.js',
+        'js/vendor/pdfjs.LICENSE.txt',
+        'assets/pdfjs/cmaps/UniJIS-UTF16-H.bcmap',
+        'assets/pdfjs/standard_fonts/LiberationSans-Regular.ttf',
+        'assets/pdfjs/wasm/openjpeg.wasm',
         'vercel.json',
     ];
 

@@ -56,8 +56,8 @@ export const TOOLS = Object.freeze([
         category: 'convert',
         tone: 'tone-red',
         runs: 'browser',
-        desc: 'Merge, split, rotate and trim PDFs, or turn images into one',
-        keywords: 'pdf merge split rotate combine join extract pages document images to pdf compress optimise',
+        desc: 'Merge, split, rotate, sign and trim PDFs, or save pages as JPG',
+        keywords: 'pdf merge split rotate combine join extract pages document images to pdf compress optimise sign signature jpg jpeg png picture convert thumbnails',
     }),
     Object.freeze({
         id: 'video-converter',

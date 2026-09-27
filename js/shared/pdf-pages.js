@@ -131,3 +131,56 @@ export function splitPartName(baseName, index, total) {
     const width = String(total).length;
     return `${stem}-${String(index + 1).padStart(width, '0')}.pdf`;
 }
+
+/**
+ * Indices back into text the page-range field accepts, for when a thumbnail
+ * click changes the selection. The field stays the one source of truth, so
+ * this must round-trip through parsePageRange.
+ */
+export function pageRangeSpec(indices, pageCount) {
+    const sorted = [...new Set(indices)].filter((i) => i >= 0 && i < pageCount).sort((a, b) => a - b);
+    if (!sorted.length) return '';
+    if (sorted.length === pageCount) return 'all';
+    return describePageRange(sorted).replace(/–/g, '-');
+}
+
+/**
+ * Where pdf-lib must draw an image so it lands where the user put it.
+ *
+ * The user places the box on the page *as displayed*: after its /Rotate and
+ * cropped to its CropBox. pdf-lib draws in the page's own, unrotated user
+ * space. Getting that mapping wrong is the canvas-vs-CSS-pixels bug again -- a
+ * signature that lands somewhere other than where it was dropped, or on its
+ * side. Stored normalised (0..1), like the image editor's crop.
+ *
+ * @param {object} o
+ * @param {{u: number, v: number, w: number, h: number}} o.box  left, top, width, height,
+ *        as fractions of the displayed page; v grows downwards
+ * @param {number} o.rotation  the page's /Rotate, degrees clockwise
+ * @param {{x: number, y: number, width: number, height: number}} o.cropBox  unrotated, PDF points
+ * @returns {{x: number, y: number, width: number, height: number, rotate: number}}
+ *        pdf-lib drawImage options, with `rotate` in degrees anticlockwise about (x, y)
+ */
+export function placeOnPage({ box, rotation, cropBox }) {
+    const r = normalisePdfRotation(rotation);
+    const { x: x0, y: y0, width: W, height: H } = cropBox;
+    const x1 = x0 + W;
+    const y1 = y0 + H;
+    const sideways = r === 90 || r === 270;
+    const displayW = sideways ? H : W;
+    const displayH = sideways ? W : H;
+
+    // A point on the displayed page -> user space. (0, 0) is the displayed
+    // top-left; rotating a page clockwise brings its bottom-left there at 90.
+    const toUser = (u, v) => ({
+        0: [x0 + u * W, y1 - v * H],
+        90: [x0 + v * W, y0 + u * H],
+        180: [x1 - u * W, y0 + v * H],
+        270: [x1 - v * W, y1 - u * H],
+    })[r];
+
+    // The image's bottom-left as the user sees it, and the displayed page's
+    // "right" is user space rotated by the same angle, anticlockwise.
+    const [x, y] = toUser(box.u, box.v + box.h);
+    return { x, y, width: box.w * displayW, height: box.h * displayH, rotate: r };
+}

@@ -10,6 +10,9 @@ import { attachDownload } from '../../js/shared/download.js';
 import { buildZip } from '../../js/shared/zip.js';
 import { parsePageRange, describePageRange } from '../../js/shared/pdf-pages.js';
 import { savings } from '../../js/shared/compression.js';
+import { openPdf, closePdf } from '../../js/shared/pdf-render.js';
+import { createThumbGrid } from './thumbs.js';
+import { createSigner } from './sign-ui.js';
 import {
     pageCountOf,
     mergePdfs,
@@ -19,6 +22,8 @@ import {
     rotatePdf,
     imagesToPdf,
     optimisePdf,
+    pdfToImages,
+    signPdf,
 } from './pdf-ops.js';
 
 const MAX_FILES = 40;
@@ -28,7 +33,10 @@ const ui = requireIds(
     'dropzone', 'fileInput', 'browseBtn', 'notice',
     'workspace', 'queueSummary', 'fileList', 'addMoreBtn', 'clearBtn',
     'operation', 'opFields',
-    'rangeField', 'pageRange', 'rangePreview',
+    'rangeField', 'pageRange', 'rangePreview', 'thumbGrid',
+    'dpiField', 'pdfDpi',
+    'signField', 'signPad', 'signText', 'signUploadBtn', 'signUpload', 'signClearBtn', 'signRemember',
+    'signPage', 'signStage', 'signPageCanvas', 'signBox', 'signImg', 'signHandle',
     'splitField', 'splitMode', 'splitSize',
     'rotateField', 'rotateAngle',
     'imageField', 'pdfPageSize', 'pdfMargin', 'pdfMarginValue',
@@ -54,9 +62,32 @@ const OPERATIONS = {
     rotate: { label: 'Rotate', fields: ['rangeField', 'rotateField'], needs: 'pdf', min: 1, max: 1 },
     optimise: { label: 'Optimise', fields: [], needs: 'pdf', min: 1, max: 1 },
     fromImages: { label: 'Images to PDF', fields: ['imageField'], needs: 'image', min: 1 },
+    toImages: { label: 'Save as JPG', fields: ['rangeField', 'dpiField'], needs: 'pdf', min: 1, max: 1 },
+    sign: { label: 'Sign', fields: ['signField'], needs: 'pdf', min: 1, max: 1 },
 };
 
-const ALL_FIELDS = ['rangeField', 'splitField', 'rotateField', 'imageField'];
+const ALL_FIELDS = ['rangeField', 'splitField', 'rotateField', 'imageField', 'dpiField', 'signField'];
+
+/**
+ * The pdf.js document for a queue item, opened once and shared by the
+ * thumbnails and the signing stage. pdf-lib does the edits; this only renders.
+ */
+const docFor = (item) => (item.pdfjs ??= openPdf(item.file));
+const closeDoc = (item) => item.pdfjs?.then(closePdf).catch(() => {});
+
+/** The one readable PDF that previews are drawn from, if there is exactly one. */
+const previewItem = () => (queue.length === 1 && queue[0].isPdf && !queue[0].error && queue[0].pageCount > 0
+    ? queue[0] : null);
+
+const thumbs = createThumbGrid({ grid: ui.thumbGrid, rangeInput: ui.pageRange, docFor });
+const signer = createSigner({ ui, docFor, onChange: () => validate({ notify: false }) });
+
+function refreshPreviews() {
+    const op = currentOp();
+    const item = previewItem();
+    if (item && op.fields.includes('rangeField')) thumbs.show(item); else thumbs.hide();
+    if (item && op.fields.includes('signField')) signer.show(item); else signer.hide();
+}
 
 const isPdf = (file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 
@@ -68,6 +99,7 @@ function updateFields() {
     const op = currentOp();
     for (const id of ALL_FIELDS) ui[id].hidden = !op.fields.includes(id);
     updateRangePreview();
+    refreshPreviews();
     validate();
 }
 
@@ -95,9 +127,10 @@ function validate({ notify = true } = {}) {
     const unreadable = queue.find((item) => item.error);
     const tooFew = queue.length < op.min;
     const tooMany = op.max && queue.length > op.max;
+    const unsigned = ui.operation.value === 'sign' && !signer.ready;
 
     ui.runBtn.disabled = running || tooFew || tooMany || wrongKind.length > 0
-        || Boolean(unreadable) || queue.length === 0;
+        || Boolean(unreadable) || queue.length === 0 || unsigned;
     if (running || !notify) return;
 
     if (!queue.length) { clearNotice(ui.notice); return; }
@@ -144,6 +177,7 @@ async function addFiles(files) {
         renderQueue();
     }
     updateRangePreview();
+    refreshPreviews();
     validate();
     if (leftOut) {
         showError(ui.notice, `Up to ${MAX_FILES} files at a time, so ${leftOut} `
@@ -207,9 +241,11 @@ function renderQueue() {
         remove.textContent = '×';
         remove.addEventListener('click', () => {
             queue = queue.filter((i) => i.id !== item.id);
+            closeDoc(item);
             if (!queue.length) { clearAll(); return; }
             renderQueue();
             updateRangePreview();
+            refreshPreviews();
             validate();
         });
         actions.append(remove);
@@ -220,7 +256,10 @@ function renderQueue() {
 }
 
 function clearAll() {
+    queue.forEach(closeDoc);
     queue = [];
+    thumbs.hide();
+    signer.hide();
     resultUrl.revoke();
     ui.workspace.hidden = true;
     ui.dropzone.hidden = false;
@@ -270,6 +309,23 @@ async function run() {
                     margin: Number(ui.pdfMargin.value),
                     onProgress,
                 });
+                break;
+            case 'toImages': {
+                const images = await pdfToImages(files[0], {
+                    rangeSpec: ui.pageRange.value, dpi: Number(ui.pdfDpi.value), onProgress,
+                });
+                result = images.length === 1
+                    ? { blob: images[0].data, filename: images[0].name, pageCount: null, note: '1 image' }
+                    : {
+                        blob: await buildZip(images),
+                        filename: `${images[0].name.replace(/-page-\d+\.jpg$/, '')}-pages.zip`,
+                        pageCount: null,
+                        note: `${images.length} images`,
+                    };
+                break;
+            }
+            case 'sign':
+                result = await signPdf(files[0], signer.value());
                 break;
             case 'split': {
                 const parts = await splitPdf(files[0], {
@@ -347,7 +403,7 @@ createDropzone({
 ui.addMoreBtn.addEventListener('click', () => ui.fileInput.click());
 ui.clearBtn.addEventListener('click', clearAll);
 ui.operation.addEventListener('change', updateFields);
-ui.pageRange.addEventListener('input', updateRangePreview);
+ui.pageRange.addEventListener('input', () => { updateRangePreview(); thumbs.sync(); });
 ui.splitMode.addEventListener('change', () => {
     ui.splitSize.disabled = ui.splitMode.value === 'single';
 });

@@ -168,7 +168,7 @@ The scripts:
 | `verify-image-editor.mjs` | magic bytes, JPEG matte, a dragged crop at a narrow viewport, crop after rotate, undo, preview size |
 | `verify-convert-hub.mjs` | routing, rendered options, a real MP4, cancel then convert, per-file progress, no ffmpeg for images |
 | `verify-favicon.mjs` | a **different** unzip reads the archive; .ico offsets hit real PNGs; SVG sources rasterise large |
-| `verify-pdf-tools.mjs` | pages, sizes and rotations read back by **pdfinfo**; encrypted input refused |
+| `verify-pdf-tools.mjs` | pages, sizes and rotations read back by **pdfinfo**; encrypted input refused; thumbnails render lazily; JPG export read by **ffprobe**; signatures land where placed at `/Rotate` 0 and 90, checked by rasterising with **pdftoppm** |
 | `verify-photo-privacy.mjs` | **exiftool** finds no location, camera or serial; the ICC profile survives; **ffmpeg** decodes identical pixels; HEIC becomes JPEG |
 | `verify-chrome.mjs` | theming, mobile nav, focus and real contrast on every page |
 | `verify-downloaders.mjs` | server text is inserted as text; plain-text platform errors read as sentences |

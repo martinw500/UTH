@@ -149,6 +149,46 @@ async function runAndCollect(page) {
     return { name, bytes };
 }
 
+
+/** A 200x50 signature: left half ink, right half transparent, so a flipped or
+ *  turned placement shows up as ink on the wrong side. */
+const MAKE_SIGNATURE = `() => {
+    const c = document.createElement('canvas');
+    c.width = 200; c.height = 50;
+    c.getContext('2d').fillRect(0, 0, 100, 50);
+    return new Promise((r) => c.toBlob(async (b) => r(Array.from(new Uint8Array(await b.arrayBuffer()))), 'image/png'));
+}`;
+
+/** Rasterise page 1 as a viewer shows it (pdftoppm applies /Rotate), grey. */
+function rasterise(bytes) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uth-ras-'));
+    try {
+        fs.writeFileSync(path.join(dir, 'in.pdf'), bytes);
+        execFileSync('pdftoppm', ['-r', '72', '-f', '1', '-l', '1', '-png', path.join(dir, 'in.pdf'), path.join(dir, 'out')]);
+        const png = path.join(dir, fs.readdirSync(dir).find((f) => f.endsWith('.png')));
+        const [w, h] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries',
+            'stream=width,height', '-of', 'csv=p=0', png], { encoding: 'utf8' }).trim().split(',').map(Number);
+        const grey = execFileSync('ffmpeg', ['-v', 'error', '-i', png, '-f', 'rawvideo', '-pix_fmt', 'gray', '-']);
+        return { w, h, grey };
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/** Bounding box of pixels that differ by more than a little. */
+function changedBox(a, b) {
+    let left = a.w; let top = a.h; let right = -1; let bottom = -1;
+    for (let y = 0; y < a.h; y += 1) {
+        for (let x = 0; x < a.w; x += 1) {
+            if (Math.abs(a.grey[y * a.w + x] - b.grey[y * a.w + x]) > 40) {
+                left = Math.min(left, x); right = Math.max(right, x);
+                top = Math.min(top, y); bottom = Math.max(bottom, y);
+            }
+        }
+    }
+    return right < 0 ? null : { left, top, right: right + 1, bottom: bottom + 1 };
+}
+
 const pdfFile = (name, bytes) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from(bytes) });
 
 async function main() {
@@ -280,6 +320,93 @@ async function main() {
 
         // The operation must refuse mismatched input rather than producing a
         // broken file, since "merge" over images would silently do nothing.
+        console.log('\nThumbnails');
+        await reset(page);
+        await upload(page, [pdfFile('six.pdf', await page.evaluate(`(${MAKE_PDF})(6)`))]);
+        await page.selectOption('#operation', 'extract');
+        await page.waitForSelector('#thumbGrid:not([hidden]) .pdf-thumb[data-state="done"] canvas', { timeout: 30000 });
+        check(await page.locator('#thumbGrid .pdf-thumb').count() === 6, 'one thumbnail per page');
+        await page.click('#thumbGrid .pdf-thumb[data-index="1"]');
+        check(await page.inputValue('#pageRange') === '1, 3-6', 'clicking page 2 deselects it in the range',
+            await page.inputValue('#pageRange'));
+        await page.fill('#pageRange', '1-2');
+        check(await page.getAttribute('#thumbGrid .pdf-thumb[data-index="4"]', 'aria-pressed') === 'false'
+            && await page.getAttribute('#thumbGrid .pdf-thumb[data-index="0"]', 'aria-pressed') === 'true',
+            'typing a range updates the highlight');
+
+        // Rendered on demand: a long PDF must not render every page at once.
+        await reset(page);
+        await upload(page, [pdfFile('long.pdf', await page.evaluate(`(${MAKE_PDF})(80)`))]);
+        await page.selectOption('#operation', 'extract');
+        await page.waitForSelector('#thumbGrid .pdf-thumb[data-state="done"]', { timeout: 30000 });
+        await page.waitForTimeout(1500);
+        const rendered = await page.locator('#thumbGrid .pdf-thumb[data-state="done"]').count();
+        check(rendered > 0 && rendered < 80, 'a long PDF renders only the pages in view', `${rendered} of 80`);
+
+        console.log('\nSave pages as JPG');
+        for (const [range, expected] of [['2', 1], ['1-3', 3]]) {
+            await reset(page);
+            await upload(page, [pdfFile('doc.pdf', await page.evaluate(`(${MAKE_PDF})(3)`))]);
+            await page.selectOption('#operation', 'toImages');
+            await page.fill('#pageRange', range);
+            await page.selectOption('#pdfDpi', '150');
+            const out = await runAndCollect(page);
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uth-jpg-'));
+            try {
+                let jpgs;
+                if (expected === 1) {
+                    fs.writeFileSync(path.join(dir, out.name), out.bytes);
+                    jpgs = [out.name];
+                } else {
+                    fs.writeFileSync(path.join(dir, 'out.zip'), out.bytes);
+                    execFileSync('unzip', ['-q', path.join(dir, 'out.zip'), '-d', dir]);
+                    jpgs = fs.readdirSync(dir).filter((f) => f.endsWith('.jpg')).sort();
+                }
+                check(jpgs.length === expected, `pages "${range}" give ${expected} JPEG${expected === 1 ? '' : 's'}`, jpgs.join(', '));
+                const size = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,width,height',
+                    '-of', 'csv=p=0', path.join(dir, jpgs[0])], { encoding: 'utf8' }).trim();
+                // 300 x 400 pt at 150 dpi.
+                check(size === 'mjpeg,625,833', 'ffprobe reads a 150 dpi JPEG of the page', size);
+                if (expected === 1) check(jpgs[0] === 'doc-page-2.jpg', 'named for its page', jpgs[0]);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        }
+
+        console.log('\nSign a page');
+        const signature = Buffer.from(await page.evaluate(`(${MAKE_SIGNATURE})()`));
+        for (const rotation of [0, 90]) {
+            await reset(page);
+            const original = Buffer.from(await page.evaluate(`(${MAKE_PDF})(1, ${rotation})`));
+            await upload(page, [pdfFile('contract.pdf', original)]);
+            await page.selectOption('#operation', 'sign');
+            check(await page.isDisabled('#runBtn'), `/Rotate ${rotation}: Run waits for a signature`);
+            await page.waitForFunction(() => document.getElementById('signPageCanvas').width > 300, null, { timeout: 30000 });
+            await page.setInputFiles('#signUpload', { name: 'sig.png', mimeType: 'image/png', buffer: signature });
+            await page.waitForSelector('#signBox:not([hidden])');
+            // Move it off the default spot with the keyboard, the accessible way.
+            await page.focus('#signBox');
+            for (let i = 0; i < 10; i += 1) await page.keyboard.press('ArrowLeft');
+            const box = await page.$eval('#signBox', (el) => ['left', 'top', 'width', 'height']
+                .map((k) => parseFloat(el.style[k]) / 100));
+            const signed = await runAndCollect(page);
+            check(inspectPdf(page, signed.bytes).pages === 1, `/Rotate ${rotation}: still one page`);
+
+            const before = rasterise(original);
+            const after = rasterise(signed.bytes);
+            const ink = changedBox(before, after);
+            // Ink is the signature's left half only; the right half is transparent.
+            const want = {
+                left: box[0] * after.w, top: box[1] * after.h,
+                right: (box[0] + box[2] / 2) * after.w, bottom: (box[1] + box[3]) * after.h,
+            };
+            const near = (a, b) => Math.abs(a - b) <= 3;
+            check(Boolean(ink) && near(ink.left, want.left) && near(ink.right, want.right)
+                && near(ink.top, want.top) && near(ink.bottom, want.bottom),
+                `/Rotate ${rotation}: the ink lands where the box was, right way up`,
+                ink ? `ink ${ink.left},${ink.top}-${ink.right},${ink.bottom} want ${want.left.toFixed(0)},${want.top.toFixed(0)}-${want.right.toFixed(0)},${want.bottom.toFixed(0)}` : 'no ink found');
+        }
+
         console.log('\nMismatched input is refused, not mangled');
         await reset(page);
         await upload(page, [{ name: 'one.png', mimeType: 'image/png', buffer: Buffer.from(png) }]);

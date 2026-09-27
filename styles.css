@@ -2887,6 +2887,157 @@ body::before {
     margin-bottom: 20px;
 }
 
+/* PDF tools: page thumbnails and signing */
+.pdf-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 10px;
+    max-height: 340px;
+    overflow-y: auto;
+    margin-top: 12px;
+    padding: 4px;
+}
+
+.pdf-thumb {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: none;
+    border: 2px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.pdf-thumb[aria-pressed="true"] {
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.pdf-thumb:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.pdf-thumb-page {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.pdf-thumb[data-state="done"] .pdf-thumb-page {
+    aspect-ratio: auto;
+    background: none;
+}
+
+.pdf-thumb-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+.pdf-thumb[aria-pressed="false"] .pdf-thumb-canvas {
+    opacity: 0.45;
+}
+
+/* Spans the two-column option grid: the page needs the room. */
+.sign-field {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Paper, in both themes: ink is dark and so is a signature on a PDF. */
+.sign-pad {
+    width: 100%;
+    height: 140px;
+    background: #ffffff;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    touch-action: none;
+    cursor: crosshair;
+}
+
+.sign-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.sign-tools .input-field {
+    flex: 1;
+    min-width: 160px;
+}
+
+.sign-page-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sign-page-row .input-label {
+    margin: 0;
+}
+
+.sign-page-row .input-field {
+    width: 96px;
+    flex: none;
+}
+
+.sign-stage {
+    position: relative;
+    max-width: 520px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    user-select: none;
+}
+
+.sign-stage canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.sign-box {
+    position: absolute;
+    outline: 1px dashed var(--primary);
+    cursor: move;
+    touch-action: none;
+}
+
+.sign-box:focus-visible {
+    outline: 2px solid var(--primary);
+}
+
+.sign-box img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.sign-handle {
+    position: absolute;
+    right: -7px;
+    bottom: -7px;
+    width: 14px;
+    height: 14px;
+    background: var(--primary);
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+}
+
 /* Photo privacy: what each photo gives away */
 .privacy-card {
     padding: 16px 18px;

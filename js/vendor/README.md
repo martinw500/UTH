@@ -83,9 +83,8 @@ curl -sSL -o js/vendor/pdf-lib.js \
 ```
 
 **pdf-lib writes and edits PDFs; it does not render them.** Anything needing a
-page rasterised (PDF → image, thumbnails) needs pdf.js as well, which is a
-separate, larger dependency with its own worker. It is deliberately not
-vendored yet — see the PDF entry in `STATE.md`.
+page rasterised (PDF → image, thumbnails, the signing stage) goes through
+pdf.js, below.
 
 ---
 
@@ -123,4 +122,48 @@ Re-vendor with:
 ```bash
 curl -sSL -o js/vendor/libheif-bundle.js \
   https://cdn.jsdelivr.net/npm/libheif-js@1.23.2/libheif-wasm/libheif-bundle.mjs
+```
+
+---
+
+## pdf.js
+
+- **Upstream:** https://github.com/mozilla/pdf.js
+- **Package:** `pdfjs-dist` on npm
+- **Version:** 6.3.289
+- **Licence:** Apache-2.0 — see `pdfjs.LICENSE.txt`. The fonts and wasm decoders
+  under `assets/pdfjs/` carry their own licence files alongside them.
+
+| File here | From the npm tarball |
+| --- | --- |
+| `pdfjs.js` | `legacy/build/pdf.min.mjs` |
+| `pdfjs.worker.js` | `legacy/build/pdf.worker.min.mjs` |
+| `../../assets/pdfjs/{cmaps,standard_fonts,wasm,iccs}/` | the directories of the same names |
+
+- **SHA-256:** `pdfjs.js` `f401927e692efc7735e0cd528c490d0dd31b7f0972c122b7040df805be45cce4`,
+  `pdfjs.worker.js` `a33cfe728c584fdba4fcc1fd54bcdc2f9f2f13889ddbb5b2bd1d0f8cbe49b84e`
+- **Modifications: none.** Byte-for-byte copies, renamed to `.js`.
+
+The **legacy** build, because the modern one needs `Promise.withResolvers` and
+iOS 17.0–17.3 fails at import with a bare `TypeError`. **The two files must be
+the same version** — pdf.js refuses a mismatched worker — and
+`tests/html-structure.test.js` checks it, and that this entry names it.
+
+The asset directories are not single files, which is why they live under
+`assets/pdfjs/` rather than here. They are fetched only when a document needs
+them: cmaps for CJK text, standard fonts for PDFs that do not embed theirs,
+and wasm decoders for JPEG 2000 and JBIG2 images, which scanned PDFs use.
+
+**The worker is attached through `workerPort`, never `workerSrc`** — see
+`js/shared/pdf-render.js`.
+
+Re-vendor with:
+
+```bash
+npm pack pdfjs-dist@6.3.289 && tar xzf pdfjs-dist-6.3.289.tgz
+cp package/legacy/build/pdf.min.mjs js/vendor/pdfjs.js
+cp package/legacy/build/pdf.worker.min.mjs js/vendor/pdfjs.worker.js
+cp package/LICENSE js/vendor/pdfjs.LICENSE.txt
+rm -rf assets/pdfjs && mkdir -p assets/pdfjs
+cp -R package/cmaps package/standard_fonts package/wasm package/iccs assets/pdfjs/
 ```

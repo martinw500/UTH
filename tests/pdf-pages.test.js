@@ -5,6 +5,8 @@ import {
     chunkPages,
     normalisePdfRotation,
     splitPartName,
+    pageRangeSpec,
+    placeOnPage,
 } from '../js/shared/pdf-pages.js';
 
 describe('parsePageRange', () => {
@@ -188,5 +190,80 @@ describe('parsePageRange — open ranges past the end', () => {
 
     test('a reversed closed range is still read as a typo', () => {
         expect(parsePageRange('5-2', 10)).toEqual([1, 2, 3, 4]);
+    });
+});
+
+describe('pageRangeSpec', () => {
+    test('writes runs the field can read back', () => {
+        expect(pageRangeSpec([0, 1, 2, 6], 10)).toBe('1-3, 7');
+        expect(parsePageRange(pageRangeSpec([0, 1, 2, 6], 10), 10)).toEqual([0, 1, 2, 6]);
+    });
+
+    test('everything is "all", nothing is empty', () => {
+        expect(pageRangeSpec([2, 0, 1], 3)).toBe('all');
+        expect(pageRangeSpec([], 3)).toBe('');
+    });
+
+    test('ignores duplicates and pages that do not exist', () => {
+        expect(pageRangeSpec([4, 4, 9, -1], 5)).toBe('5');
+    });
+});
+
+describe('placeOnPage', () => {
+    // Independent of the implementation's lookup table: rotate the image's
+    // corners the way pdf-lib will, then project user space onto the page as a
+    // viewer displays it -- rotated clockwise by /Rotate, cropped, y down -- and
+    // check the corners land on the box the user drew.
+    const rad = (d) => (d * Math.PI) / 180;
+
+    function displayed(point, rotation, crop) {
+        const cw = ([X, Y]) => [
+            X * Math.cos(rad(rotation)) + Y * Math.sin(rad(rotation)),
+            -X * Math.sin(rad(rotation)) + Y * Math.cos(rad(rotation)),
+        ];
+        const corners = [[crop.x, crop.y], [crop.x + crop.width, crop.y],
+            [crop.x, crop.y + crop.height], [crop.x + crop.width, crop.y + crop.height]].map(cw);
+        const minX = Math.min(...corners.map((c) => c[0]));
+        const maxY = Math.max(...corners.map((c) => c[1]));
+        const width = Math.max(...corners.map((c) => c[0])) - minX;
+        const height = maxY - Math.min(...corners.map((c) => c[1]));
+        const [px, py] = cw(point);
+        return [(px - minX) / width, (maxY - py) / height];
+    }
+
+    function imageCorner(draw, a, b) {
+        const t = rad(draw.rotate);
+        return [
+            draw.x + a * Math.cos(t) - b * Math.sin(t),
+            draw.y + a * Math.sin(t) + b * Math.cos(t),
+        ];
+    }
+
+    const crop = { x: 20, y: 30, width: 600, height: 800 }; // offset, not square
+    const box = { u: 0.55, v: 0.8, w: 0.3, h: 0.08 };
+
+    test.each([0, 90, 180, 270])('at /Rotate %i the image lands on the box, upright', (rotation) => {
+        const draw = placeOnPage({ box, rotation, cropBox: crop });
+        const bottomLeft = displayed(imageCorner(draw, 0, 0), rotation, crop);
+        const topRight = displayed(imageCorner(draw, draw.width, draw.height), rotation, crop);
+        // Bottom-left of the image at the box's bottom-left, and top-right at
+        // its top-right: right way up, not mirrored, not on its side.
+        expect(bottomLeft[0]).toBeCloseTo(box.u, 6);
+        expect(bottomLeft[1]).toBeCloseTo(box.v + box.h, 6);
+        expect(topRight[0]).toBeCloseTo(box.u + box.w, 6);
+        expect(topRight[1]).toBeCloseTo(box.v, 6);
+    });
+
+    test('an unnormalised rotation is read the way PDF means it', () => {
+        expect(placeOnPage({ box, rotation: -90, cropBox: crop }))
+            .toEqual(placeOnPage({ box, rotation: 270, cropBox: crop }));
+        expect(placeOnPage({ box, rotation: 450, cropBox: crop }).rotate).toBe(90);
+    });
+
+    test('sizes are in points of the displayed page', () => {
+        const flat = placeOnPage({ box, rotation: 0, cropBox: crop });
+        expect(flat.width).toBeCloseTo(0.3 * 600);
+        const sideways = placeOnPage({ box, rotation: 90, cropBox: crop });
+        expect(sideways.width).toBeCloseTo(0.3 * 800);
     });
 });

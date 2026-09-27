@@ -876,13 +876,15 @@ describe('PDF Tools — features present', () => {
     });
 
     test('offers every operation', () => {
-        ['merge', 'extract', 'remove', 'split', 'rotate', 'optimise', 'fromImages'].forEach((op) => {
+        ['merge', 'extract', 'remove', 'split', 'rotate', 'optimise', 'fromImages', 'toImages', 'sign'].forEach((op) => {
             expect(page.body).toContain(`value="${op}"`);
         });
     });
 
     test('has the page range, run button and results', () => {
         expect(page.body).toContain('id="pageRange"');
+        expect(page.body).toContain('id="thumbGrid"');
+        expect(page.body).toContain('id="signPad"');
         expect(page.body).toContain('id="runBtn"');
         expect(page.body).toContain('id="resultList"');
     });

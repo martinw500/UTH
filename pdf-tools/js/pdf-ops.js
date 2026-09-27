@@ -1,12 +1,11 @@
-// PDF operations, on vendored pdf-lib.
-//
-// pdf-lib writes and edits PDFs; it does not render them. Anything needing a
-// page rasterised (PDF -> image) needs pdf.js as well, which is a separate and
-// much larger dependency. That is why this file offers no such operation
-// rather than faking one.
+// PDF operations. pdf-lib writes and edits; pdf.js (js/shared/pdf-render.js,
+// loaded on first use) renders, for anything that needs to see a page.
 
 import { PDFDocument, degrees } from '../../js/vendor/pdf-lib.js';
-import { parsePageRange, normalisePdfRotation, splitPartName } from '../../js/shared/pdf-pages.js';
+import {
+    parsePageRange, normalisePdfRotation, splitPartName, placeOnPage,
+} from '../../js/shared/pdf-pages.js';
+import { openPdf, renderPage, closePdf } from '../../js/shared/pdf-render.js';
 import { sanitiseFilename, stripExtension } from '../../js/shared/format.js';
 import { parseExif } from '../../js/shared/exif.js';
 
@@ -293,5 +292,58 @@ export async function optimisePdf(file) {
         pageCount: doc.getPageCount(),
         originalSize: file.size,
         newSize: bytes.length,
+    };
+}
+
+/**
+ * Render the selected pages to JPEGs at `dpi`. One page comes back as a JPEG,
+ * several as zip entries.
+ */
+export async function pdfToImages(file, { rangeSpec = 'all', dpi = 150, onProgress = () => {} } = {}) {
+    const doc = await openPdf(file);
+    try {
+        const indices = parsePageRange(rangeSpec, doc.numPages);
+        if (!indices.length) throw new Error('That range selects no pages.');
+        const { canvasToBlob } = await import('../../js/shared/image.js');
+        const stem = sanitiseFilename(stripExtension(file.name), 'document');
+        const width = String(doc.numPages).length;
+
+        const images = [];
+        for (const [done, index] of indices.entries()) {
+            const canvas = await renderPage(doc, index + 1, { scale: dpi / 72 });
+            images.push({
+                name: `${stem}-page-${String(index + 1).padStart(width, '0')}.jpg`,
+                data: await canvasToBlob(canvas, 'image/jpeg', 0.9),
+            });
+            canvas.width = 0; // release the pixels before the next page
+            onProgress({ ratio: (done + 1) / indices.length, note: `page ${index + 1}` });
+        }
+        return images;
+    } finally {
+        closePdf(doc);
+    }
+}
+
+/**
+ * Put a signature image on one page.
+ *
+ * `box` is where the user dropped it on the page as displayed, normalised;
+ * placeOnPage maps that through the page's /Rotate and CropBox into the
+ * unrotated space pdf-lib draws in. pdf-lib wraps the existing content in q/Q
+ * before appending, so a page that leaves its graphics state transformed
+ * cannot drag the signature off with it.
+ */
+export async function signPdf(file, { pageIndex, box, png }) {
+    const doc = await loadPdf(file);
+    if (!(pageIndex >= 0 && pageIndex < doc.getPageCount())) throw new Error('That page does not exist.');
+    const page = doc.getPage(pageIndex);
+    const image = await doc.embedPng(png);
+    const place = placeOnPage({ box, rotation: page.getRotation().angle, cropBox: page.getCropBox() });
+    page.drawImage(image, { ...place, rotate: degrees(place.rotate) });
+
+    return {
+        blob: new Blob([await doc.save()], { type: 'application/pdf' }),
+        filename: outName(file.name, '-signed'),
+        pageCount: doc.getPageCount(),
     };
 }

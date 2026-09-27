@@ -150,9 +150,28 @@ empty type through the hub.
 Merge, keep/remove pages, split, rotate, optimise, and images→PDF, on **vendored pdf-lib** (ESM
 build, so the page imports it directly instead of loading a classic script and reading a global).
 
-**pdf-lib writes and edits PDFs; it does not render them.** There is no PDF→image operation because
-that needs pdf.js — a separate, much larger dependency with its own worker. Do not add a
-half-working one.
+**pdf-lib edits; pdf.js renders.** pdf.js (`js/shared/pdf-render.js`, vendored legacy build,
+imported on first use) draws the page thumbnails, the signing stage and PDF→JPG. **Its worker is
+built by us at `{ type: 'module' }` and passed as `workerPort` — never `workerSrc`**, which guesses
+classic-vs-module from the URL (the `classWorkerURL` trap again). cmaps, standard fonts and the
+JPEG 2000 / JBIG2 wasm decoders live under `assets/pdfjs/` and are passed as URLs from `siteUrl()`.
+In v6 a document is freed through `loadingTask.destroy()` (`closePdf`); `doc.destroy()` is gone.
+`pdf-tools/` has no COOP/COEP and needs none.
+
+**Thumbnails render only when scrolled into view, one at a time** — a 400-page PDF rendered
+eagerly runs the tab out of memory. **The page-range field stays the one source of truth**: a
+click rewrites it (`pageRangeSpec`, which round-trips through `parsePageRange`) and the highlight
+is read back from it.
+
+**Signing places the signature on the page as displayed, stored normalised (0..1)**, and
+`placeOnPage` (`js/shared/pdf-pages.js`) maps that through the page's `/Rotate` and CropBox into
+the unrotated user space pdf-lib draws in, with the image rotated by the same angle. Its test
+checks against an independent projection, and `verify:pdf-tools` rasterises signed pages at
+`/Rotate` 0 and 90 with `pdftoppm` and requires the changed pixels to match the box — using a
+half-inked signature, so a flipped or sideways one fails. A remembered signature is stored only
+when the user ticks the box.
+
+"Flatten & compress" (rasterise every page) is now possible and still not built.
 
 **"Optimise" is not image compression and must never be labelled as if it were.** All it does is
 `save({ useObjectStreams: true })`, which restructures the object table for a usually single-digit
@@ -444,9 +463,10 @@ Agreed scope, in build order. Steps 1–3 are **done** (`download.js`, `site-url
 `result-card.js` — see *Done* above); what follows is what remains. Each step is its own commit,
 independently green and deployable.
 
-**Build order, September 2026: 9 with signing, then 10 (OCR), then 11 (transcribe), then 5–8.**
-Step 4 (HEIC and photo privacy) is done — see *Done*. Photo privacy, PDFs, OCR and transcription are the four a non-technical person hits most,
-and all four are otherwise "upload it to a stranger". The plan is in the entries below.
+**Build order, September 2026: 10 (OCR), then 11 (transcribe), then 5–8.** Steps 4 (HEIC and
+photo privacy) and 9 (pdf.js: thumbnails, PDF→JPG, signing) are done — see *Done*. Photo privacy,
+PDFs, OCR and transcription are the four a non-technical person hits most, and all four are
+otherwise "upload it to a stranger".
 
 The bar every tool idea had to clear: **would a non-technical person hit this, and is the current
 best answer "upload your private file to a stranger"?** Rejected on that basis, so nobody
@@ -486,24 +506,6 @@ tooling — near-zero overlap with the people who want an Instagram downloader).
   Watch: Safari has no `getDisplayMedia` audio and different MIME support (probe, don't assume);
   `MediaRecorder` WebM carries no duration until remuxed, so seek bars misbehave; long recordings
   need `ondataavailable` chunking, not one in-memory blob.
-
-- **9 — pdf.js: page thumbnails, PDF→JPG, sign a PDF (flatten-compress later).** The biggest item; one
-  dependency unlocks four features, including seeing pages instead of typing `1-3, 7` blind.
-  Vendor `legacy/build/pdf.min.mjs` and `pdf.worker.min.mjs` (**legacy** — the modern build needs
-  `Promise.withResolvers`, and iOS 17.0–17.3 would fail at import with a bare `TypeError`).
-  **Attach the worker with `GlobalWorkerOptions.workerPort`, constructing the `Worker` ourselves at
-  `{ type: 'module' }` — never `workerSrc`**, which lets pdf.js guess classic-vs-module, and the
-  `.mjs`→`.js` rename makes any extension heuristic wrong. That is the `classWorkerURL` trap again.
-  Pin that both files carry the same version literal. Keep `js/vendor/` literally single-files-only
-  and put `cmaps/` and `standard_fonts/` under `assets/pdfjs/`. **Do not add `coi-serviceworker.js`
-  to `pdf-tools/`** — pdf.js needs no `SharedArrayBuffer`. Render thumbnails on demand via
-  `IntersectionObserver` at concurrency 1; a 400-page PDF rendered eagerly OOMs the tab.
-  Stays in `pdf-tools/` — routing PDFs into `convert/` is separable and needs
-  `engineFor(target, kind)` overrides, since `engine` is currently a property of the target.
-  **Signing:** draw, type or upload a signature, drag it onto a rendered page, then pdf-lib
-  `embedPng` + `drawImage`. Store the placement normalised (0..1) like the crop, and **map it
-  through the page's existing `/Rotate` and CropBox** — pdf-lib draws in unrotated space, which is
-  the canvas-vs-CSS-pixels bug class again. Verify by rasterising with `pdftoppm` and finding the ink.
 
 - **10 — text from an image (OCR).** A screenshot, a photo of a page or a scanned PDF → editable
   text. tesseract.js plus language data are too big to vendor, so they load from **pinned-version

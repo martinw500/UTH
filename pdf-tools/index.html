@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Tools — Useful Tool Hub</title>
-    <meta name="description" content="Merge, split, rotate and trim PDFs, or turn images into a PDF. Runs entirely in your browser — nothing is uploaded.">
+    <meta name="description" content="Merge, split, rotate, trim and sign PDFs, save pages as images, or turn images into a PDF. Runs entirely in your browser — nothing is uploaded.">
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,7 +78,7 @@
                 </div>
                 <div class="tool-header-text">
                     <h1>PDF Tools</h1>
-                    <p>Merge, split, rotate and trim PDFs — or turn images into one</p>
+                    <p>Merge, split, rotate, trim and sign PDFs — see every page</p>
                 </div>
             </div>
 
@@ -98,7 +98,7 @@
                     <div class="dropzone-text">
                         <strong>Drop PDFs here</strong> or <button type="button" class="dropzone-browse" id="browseBtn">browse files</button>
                     </div>
-                    <div class="dropzone-hint">PDFs to merge, split, rotate or trim — or images to turn into a PDF</div>
+                    <div class="dropzone-hint">PDFs to merge, split, rotate, trim, sign or save as images — or images to turn into a PDF</div>
                     <input type="file" id="fileInput" accept="application/pdf,.pdf,image/*" multiple hidden>
                 </div>
 
@@ -131,6 +131,8 @@
                                     <option value="rotate">Rotate pages</option>
                                     <option value="optimise">Optimise file structure</option>
                                     <option value="fromImages">Turn images into a PDF</option>
+                                    <option value="toImages">Save pages as JPG images</option>
+                                    <option value="sign">Sign a page</option>
                                 </select>
                             </div>
                         </div>
@@ -142,6 +144,46 @@
                                 <input type="text" class="input-field" id="pageRange" placeholder="e.g. 1-3, 7, 10-" value="all">
                                 <div class="option-hint">Use <code>1-3</code>, <code>7</code>, <code>9-</code>, <code>last</code>, or <code>all</code>.</div>
                                 <div class="option-hint" id="rangePreview"></div>
+                                <div class="pdf-thumbs" id="thumbGrid" hidden aria-label="Pages — click to select"></div>
+                            </div>
+
+                            <div class="setting-group" id="dpiField" hidden>
+                                <label class="input-label" for="pdfDpi">Resolution</label>
+                                <select class="format-select" id="pdfDpi">
+                                    <option value="72">72 dpi — for screens</option>
+                                    <option value="150" selected>150 dpi — good for most uses</option>
+                                    <option value="300">300 dpi — for printing</option>
+                                </select>
+                                <div class="option-hint">Several pages come back as a zip.</div>
+                            </div>
+
+                            <div class="setting-group sign-field" id="signField" hidden>
+                                <label class="input-label" for="signPad">Your signature</label>
+                                <canvas class="sign-pad" id="signPad" aria-label="Draw your signature here"></canvas>
+                                <div class="sign-tools">
+                                    <input type="text" class="input-field" id="signText" placeholder="…or type your name" autocomplete="name">
+                                    <button class="btn btn-ghost btn-sm" id="signUploadBtn" type="button">Use an image</button>
+                                    <button class="btn btn-ghost btn-sm" id="signClearBtn" type="button">Clear</button>
+                                    <input type="file" id="signUpload" accept="image/png,image/jpeg,.png,.jpg,.jpeg" hidden>
+                                </div>
+                                <label class="checkbox-field">
+                                    <input type="checkbox" id="signRemember">
+                                    <span>Remember my signature on this device</span>
+                                </label>
+
+                                <div class="sign-page-row">
+                                    <label class="input-label" for="signPage">Page</label>
+                                    <input type="number" class="input-field input-sm" id="signPage" min="1" value="1">
+                                </div>
+                                <div class="sign-stage" id="signStage">
+                                    <canvas id="signPageCanvas"></canvas>
+                                    <div class="sign-box" id="signBox" tabindex="0" role="button" hidden
+                                         aria-label="Signature: drag, or use the arrow keys, to move it; Shift and the arrows resize it">
+                                        <img id="signImg" alt="">
+                                        <span class="sign-handle" id="signHandle"></span>
+                                    </div>
+                                </div>
+                                <div class="option-hint">Drag the signature to where it goes, and its corner to resize it.</div>
                             </div>
 
                             <div class="setting-group" id="splitField" hidden>

@@ -11,9 +11,9 @@ Everything below assumes a clone of https://github.com/martinw500/UTH.
 | **Node.js** | 22 (CI pins 22; jsdom needs at least 20.19) | tests, dev server |
 | **Python** | 3.12 (see `.python-version`) | the local API backend, `npm run verify:api` |
 | **Git** | any | — |
-| **ffmpeg** + **ffprobe** | any recent | **only** `npm run verify:converters` |
-| **unzip** or bsdtar | any | **only** `npm run verify:favicon` (Windows has bsdtar built in) |
-| **pdfinfo** (poppler) | any | `npm run verify:pdf-tools` reads output back with it; without it the script falls back to pdf-lib and says so |
+| **ffmpeg** + **ffprobe** | any recent | the `verify:*` scripts that read media back: converters, convert-hub (HEIC), photo-privacy, pdf-tools |
+| **unzip** or bsdtar | any | `npm run verify:favicon` and `verify:pdf-tools` (Windows has bsdtar built in) |
+| **pdfinfo**, **pdftoppm** (poppler) | any | `npm run verify:pdf-tools` reads output back with them, and rasterises signed pages to find the ink |
 | **exiftool** | any | `npm run verify:photo-privacy` reads the cleaned photos back with it (and ffmpeg). On macOS it also uses `sips` to make a HEIC |
 
 `ffmpeg`/`ffprobe` must be **on your PATH**, not just installed. On Windows:
@@ -88,7 +88,7 @@ npm run verify:converters    # video + audio pages (also needs ffmpeg/ffprobe)
 npm run verify:image-editor  # image editor: exported bytes, crop, undo, preview size
 npm run verify:convert-hub   # convert/ hub: routing, rendered options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
-npm run verify:pdf-tools     # reads produced PDFs back with pdfinfo: pages, sizes, rotation
+npm run verify:pdf-tools     # pdfinfo/pdftoppm read the output: pages, rotation, where a signature landed
 npm run verify:photo-privacy # exiftool finds nothing identifying; ffmpeg decodes identical pixels
 npm run verify:chrome        # theming, mobile nav, focus, contrast on every page
 npm run verify:downloaders   # YouTube/Instagram pages; also needs `npm run dev:api`

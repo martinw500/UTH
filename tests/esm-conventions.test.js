@@ -40,7 +40,11 @@ function specifiersIn(source) {
     let match;
     SPECIFIER_RE.lastIndex = 0;
     while ((match = SPECIFIER_RE.exec(source)) !== null) {
-        out.push(match[1] || match[2] || match[3]);
+        const spec = match[1] || match[2] || match[3];
+        // `import("${t}")` inside a template literal is code being *built*
+        // (pdf.js writes one for its CDN worker wrapper), not an import. No
+        // real specifier contains "${".
+        if (!spec.includes('${')) out.push(spec);
     }
     return out;
 }
