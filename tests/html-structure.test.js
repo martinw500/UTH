@@ -34,6 +34,7 @@ const PAGES = [
     'convert/index.html',
     'favicon-generator/index.html',
     'pdf-tools/index.html',
+    'photo-privacy/index.html',
 ];
 
 // ============================================
@@ -521,6 +522,32 @@ describe('Documentation', () => {
     });
 });
 
+describe('Photo Privacy page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('photo-privacy/index.html');
+    });
+
+    test('has the dropzone, and accepts iPhone HEIC by extension', () => {
+        expect(html).toContain('id="dropzone"');
+        expect(html).toContain('id="browseBtn"');
+        // iOS and Windows often report .heic with an empty type.
+        expect(html).toMatch(/id="fileInput" accept="[^"]*\.heic/);
+    });
+
+    test('has the report list, the clean button and the results', () => {
+        ['notice', 'workspace', 'queueSummary', 'addMoreBtn', 'clearBtn', 'reportList',
+            'cleanBtn', 'results', 'resultsInfo', 'downloadAllBtn', 'resultList'].forEach((id) => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/photo-privacy.js"></script>');
+    });
+});
+
 describe('Vendored libraries', () => {
     // Vendoring an MIT library carries an attribution obligation. A future
     // cleanup that deletes the licence file should fail the build.
@@ -535,6 +562,16 @@ describe('Vendored libraries', () => {
         const readme = fs.readFileSync(path.join(ROOT, 'js/vendor/README.md'), 'utf-8');
         expect(readme).toContain('kazuhikoarase/qrcode-generator');
         expect(readme).toMatch(/Version:\*\*\s*\d+\.\d+\.\d+/);
+    });
+
+    // LGPL: the licence must ship with it, and the file must stay separate
+    // and unmodified -- the README says so, and this keeps the notice there.
+    test('libheif ships its LGPL licence and a do-not-edit note', () => {
+        const licence = fs.readFileSync(path.join(ROOT, 'js/vendor/libheif.LICENSE.txt'), 'utf-8');
+        expect(licence).toContain('GNU LESSER GENERAL PUBLIC LICENSE');
+        const readme = fs.readFileSync(path.join(ROOT, 'js/vendor/README.md'), 'utf-8');
+        expect(readme).toContain('catdad-experiments/libheif-js');
+        expect(readme).toContain('Do not edit it');
     });
 });
 
@@ -558,6 +595,11 @@ describe('Required static assets exist', () => {
         'js/vendor/qrcode-generator.js',
         'js/vendor/qrcode-generator-utf8.js',
         'js/vendor/qrcode-generator.LICENSE.txt',
+        'photo-privacy/js/photo-privacy.js',
+        'js/shared/metadata.js',
+        'js/shared/heic.js',
+        'js/vendor/libheif-bundle.js',
+        'js/vendor/libheif.LICENSE.txt',
         'vercel.json',
     ];
 

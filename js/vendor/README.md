@@ -86,3 +86,41 @@ curl -sSL -o js/vendor/pdf-lib.js \
 page rasterised (PDF → image, thumbnails) needs pdf.js as well, which is a
 separate, larger dependency with its own worker. It is deliberately not
 vendored yet — see the PDF entry in `STATE.md`.
+
+---
+
+## libheif-js
+
+- **Upstream:** https://github.com/catdad-experiments/libheif-js (an Emscripten
+  build of https://github.com/strukturag/libheif, with libde265 for HEVC)
+- **Package:** `libheif-js` on npm
+- **Version:** 1.23.2
+- **Licence:** **LGPL-3.0** — see `libheif.LICENSE.txt`, which is the package's
+  `libheif-wasm/LICENSE` (the LGPL and the GPL text it incorporates). The first
+  non-permissive file here. It is shipped **unmodified** as a separate,
+  dynamically loaded file, which is what the LGPL asks: anyone can swap in their
+  own build of the library. **Do not edit it, inline it or minify it into
+  another file** — that would make the including code a combined work.
+
+| File here | From the npm tarball |
+| --- | --- |
+| `libheif-bundle.js` | `libheif-wasm/libheif-bundle.mjs` |
+
+- **SHA-256:** `d05292271af008d300cc75be374feb8fd35b418a71420a556c3fb817f662b502`
+- **Modifications: none.** A byte-for-byte copy, renamed to `.js`.
+
+The **wasm-bundle** build: the ~1.4 MB `.wasm` is base64-inlined, so there is no
+second file whose path has to resolve under `/UTH/`. About 2 MB, and loaded only
+by `js/shared/heic.js`, which `decodeImageFile` imports only after the browser's
+own decoder has failed on a HEIC file — Safari decodes HEIC natively, so most
+iPhone users never download it.
+
+**Decode only.** HEIC *encoding* needs x265, which is GPL-2.0 and would
+relicense the site.
+
+Re-vendor with:
+
+```bash
+curl -sSL -o js/vendor/libheif-bundle.js \
+  https://cdn.jsdelivr.net/npm/libheif-js@1.23.2/libheif-wasm/libheif-bundle.mjs
+```

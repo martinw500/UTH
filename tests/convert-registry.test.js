@@ -41,6 +41,12 @@ describe('detectKind', () => {
         },
     );
 
+    // iOS and Windows often give .heic an empty type. Input only: no target
+    // produces HEIC (encoding it needs GPL x265).
+    test.each(['IMG_0001.HEIC', 'photo.heif', 'photo.hif'])('%s is an image with no MIME type', (name) => {
+        expect(detectKind(file(name, ''))).toBe('image');
+    });
+
     // Windows reports .m4a as audio/mp4, which by prefix is indistinguishable
     // from video/mp4. The extension is the only thing that disambiguates.
     test('an .m4a reported as audio/mp4 is audio, not video', () => {

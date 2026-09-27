@@ -36,6 +36,7 @@ npm run verify:image-editor  # image editor: bytes, dragged crop, crop after rot
 npm run verify:convert-hub   # convert/ hub: routing, options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
 npm run verify:pdf-tools     # reads every produced PDF back with pdfinfo
+npm run verify:photo-privacy # exiftool finds nothing identifying; pixels unchanged
 npm run verify:chrome        # theming, nav, focus, contrast on every page
 npm run verify:downloaders   # YouTube/Instagram pages; also needs npm run dev:api
 npm run verify:api           # Python API input handling; no browser, no network

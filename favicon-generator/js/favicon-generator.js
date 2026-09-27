@@ -139,7 +139,7 @@ createDropzone({
     dropzone: ui.dropzone,
     fileInput: ui.fileInput,
     browseBtn: ui.browseBtn,
-    accept: ['image/*'],
+    accept: ['image/*', '.heic', '.heif'],
     multiple: false,
     maxBytes: 50 * 1024 * 1024,
     paste: true,

@@ -22,7 +22,7 @@ export const KINDS = Object.freeze(['image', 'video', 'audio']);
  * .m4a as audio/mp4 which is indistinguishable from video/mp4 by prefix.
  */
 const EXTENSIONS = Object.freeze({
-    image: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'gif', 'svg', 'ico'],
+    image: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'bmp', 'gif', 'svg', 'ico', 'heic', 'heif', 'hif'],
     video: ['mp4', 'webm', 'mkv', 'avi', 'mov', 'ogv', 'm4v', 'mpg', 'mpeg', 'wmv', 'flv'],
     audio: ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'wav', 'flac', 'wma', 'aiff'],
 });

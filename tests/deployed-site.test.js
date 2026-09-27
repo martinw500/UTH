@@ -40,7 +40,7 @@ const HTML_PAGES = [
     'index.html', 'feedback.html', 'image-converter/index.html', 'video-converter/index.html',
     'color-converter/index.html', 'youtube-downloader/index.html', 'instagram-downloader/index.html',
     'qr-generator/index.html', 'audio-converter/index.html', 'convert/index.html',
-    'favicon-generator/index.html', 'pdf-tools/index.html',
+    'favicon-generator/index.html', 'pdf-tools/index.html', 'photo-privacy/index.html',
 ];
 
 /** Local files the pages load, found by following script tags and imports. */
@@ -106,6 +106,7 @@ const PAGES = [
     { path: '/convert/', name: 'File Converter' },
     { path: '/favicon-generator/', name: 'Favicon Generator' },
     { path: '/pdf-tools/', name: 'PDF Tools' },
+    { path: '/photo-privacy/', name: 'Photo Privacy' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -423,7 +424,7 @@ describe('Image Editor — all controls present', () => {
 
     test('has file input accepting images', () => {
         expect(page.body).toContain('id="fileInput"');
-        expect(page.body).toContain('accept="image/*"');
+        expect(page.body).toContain('accept="image/*,.heic,.heif"');
     });
 
     test('has preview canvas', () => {
@@ -888,6 +889,33 @@ describe('PDF Tools — features present', () => {
 
     test('loads its script as a module, with the file:// guard', () => {
         expect(page.body).toContain('type="module"');
+        expect(page.body).toContain('file-protocol-notice');
+    });
+});
+
+describe('Photo Privacy — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/photo-privacy/');
+    });
+
+    test('has the dropzone, clean button and results', () => {
+        expect(page.body).toContain('id="dropzone"');
+        expect(page.body).toContain('id="cleanBtn"');
+        expect(page.body).toContain('id="resultList"');
+    });
+
+    test('accepts iPhone HEIC', () => {
+        expect(page.body).toContain('.heic,.heif');
+    });
+
+    test('says photos are never uploaded', () => {
+        expect(page.body).toContain('Your photos are never uploaded');
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module" src="js/photo-privacy.js"');
         expect(page.body).toContain('file-protocol-notice');
     });
 });

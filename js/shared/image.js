@@ -262,19 +262,49 @@ async function downscaleLoop(source, mime, targetBytes, { minScale, onProgress, 
     return { blob: last, quality: quality ?? 1, scale, reachedTarget: false, attempts };
 }
 
+// HEVC brands only. mif1/msf1 are generic HEIF and AVIF lists them too, and
+// browsers decode AVIF themselves (this libheif build has no AV1 decoder).
+const HEIF_BRANDS = /^(heic|heix|heim|heis|hevc|hevx)$/;
+
+/**
+ * Whether a file is HEIC/HEIF, by its bytes rather than its name or type: iOS
+ * and Windows often report an empty type for .heic, and a renamed file is
+ * still HEIC. Checks the ftyp major brand and every compatible brand.
+ */
+export async function isHeif(file) {
+    try {
+        const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+        const ascii = (at) => String.fromCharCode(...head.subarray(at, at + 4));
+        if (head.length < 16 || ascii(4) !== 'ftyp') return false;
+        const size = Math.min(new DataView(head.buffer).getUint32(0, false), head.length);
+        for (let at = 8; at + 4 <= size; at += 4) {
+            if (at !== 12 && HEIF_BRANDS.test(ascii(at))) return true; // 12 is minor_version
+        }
+    } catch { /* unreadable: not ours to decode */ }
+    return false;
+}
+
 /**
  * Decode a File into an ImageBitmap or HTMLImageElement.
  *
  * Prefers createImageBitmap with imageOrientation:'from-image', which applies
  * EXIF rotation -- otherwise phone photos come out sideways.
+ *
+ * HEIC is the one branch point: Safari decodes it natively, so the ~2 MB
+ * decoder in heic.js is imported only when the browser's own attempt failed.
  */
 export async function decodeImageFile(file) {
     if (typeof createImageBitmap === 'function') {
         try {
             return await createImageBitmap(file, { imageOrientation: 'from-image' });
         } catch {
-            // Older Safari rejects the options bag; fall through.
+            // Older Safari rejects the options bag; HEIC fails everywhere else.
         }
+    }
+
+    if (await isHeif(file)) {
+        const { decodeHeic } = await import('./heic.js');
+        return decodeHeic(file);
     }
 
     const url = URL.createObjectURL(file);

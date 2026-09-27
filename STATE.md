@@ -43,9 +43,9 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Nine tools: Instagram downloader (server-backed), file converter (the `convert/` hub), image
-editor, PDF tools, favicon generator, video converter, audio converter, colour converter, QR
-generator.
+Ten tools: Instagram downloader (server-backed), file converter (the `convert/` hub), image
+editor, photo privacy, PDF tools, favicon generator, video converter, audio converter, colour
+converter, QR generator.
 
 **The YouTube downloader is retired from the hosted site, and should stay that way.** YouTube
 answers every datacenter IP (Vercel's included) with "confirm you're not a bot"; past that, Vercel
@@ -115,6 +115,36 @@ follows `prefers-color-scheme` and `data-theme` stays absent.
 **The mobile nav used to be unreachable** — `.nav-links` was `display: none` below 768px with
 nothing to reveal it, so Feedback and GitHub could not be opened on any phone.
 
+
+### Photo privacy, and HEIC everywhere
+**Stripping is byte-exact, never through a canvas** — a canvas round trip recompresses the photo,
+which is how most "remove EXIF" sites quietly degrade it. `js/shared/metadata.js` rewrites the
+container with metadata segments dropped. It is separate from `js/shared/exif.js`, which has three
+callers that only need orientation, camera and GPS.
+
+What it keeps is as deliberate as what it drops. **The ICC profile stays** (APP2 `ICC_PROFILE`,
+PNG `iCCP`, WebP `ICCP`): iPhone photos are Display P3 and turn dull without it. **APP14 stays**:
+CMYK/YCCK JPEGs decode inverted without it. APP2 is shared with MPF, the index of the extra images
+phones append, so APP2 is decided by its header, not its marker. **Everything after the main
+image's EOI is cut** — depth maps and HDR gain maps are whole JPEGs with their own EXIF. The JPEG
+walker steps over scan data to find segments between progressive scans, rather than stopping at
+the first SOS. WebP's VP8X EXIF/XMP flag bits are cleared along with the chunks.
+
+HEIC is read (the `Exif` item via `meta/iinf` + `iloc`) but not rewritten — that means patching
+every other item's offsets — so "clean" for HEIC is a JPEG export.
+
+**HEIC decoding has one branch point: `decodeImageFile`.** `createImageBitmap` first (Safari
+decodes HEIC natively); only if that fails *and* `isHeif` sniffs a HEVC brand does it import
+`js/shared/heic.js` and the ~2 MB vendored libheif. `mif1` alone does not count — AVIF lists it
+too, and browsers decode AVIF themselves. The `accept` lists carry `.heic,.heif` explicitly,
+because iOS and Windows report an empty type for them and `image/*` would silently reject the file
+on exactly the devices this is for. **libheif is LGPL-3.0**: it stays a separate, unmodified file
+(see `js/vendor/README.md`). Decode only — HEIC encoding needs x265, which is GPL.
+
+`npm run verify:photo-privacy` builds fixtures with ffmpeg, exiftool and `sips`, cleans them in
+the page, then checks with **exiftool** that the identifying tags are gone, the P3 profile
+survived, and **ffmpeg decodes identical pixels**. `verify:convert-hub` converts a HEIC with an
+empty type through the hub.
 
 ### PDF tools
 Merge, keep/remove pages, split, rotate, optimise, and images→PDF, on **vendored pdf-lib** (ESM
@@ -414,8 +444,8 @@ Agreed scope, in build order. Steps 1–3 are **done** (`download.js`, `site-url
 `result-card.js` — see *Done* above); what follows is what remains. Each step is its own commit,
 independently green and deployable.
 
-**Build order, September 2026: 4, then 9 with signing, then 10 (OCR), then 11 (transcribe), then
-5–8.** Photo privacy, PDFs, OCR and transcription are the four a non-technical person hits most,
+**Build order, September 2026: 9 with signing, then 10 (OCR), then 11 (transcribe), then 5–8.**
+Step 4 (HEIC and photo privacy) is done — see *Done*. Photo privacy, PDFs, OCR and transcription are the four a non-technical person hits most,
 and all four are otherwise "upload it to a stranger". The plan is in the entries below.
 
 The bar every tool idea had to clear: **would a non-technical person hit this, and is the current
@@ -423,31 +453,6 @@ best answer "upload your private file to a stranger"?** Rejected on that basis, 
 re-proposes them: calculators, unit/currency converters, timers, password generators (one search
 away, and every phone ships one), and JSON/base64/regex/markdown/UUID/lorem-ipsum (developer
 tooling — near-zero overlap with the people who want an Instagram downloader).
-
-- **4 — HEIC input, and a photo-privacy tool.** One release, one story.
-  `decodeImageFile` in `js/shared/image.js` is the single branch point: try `createImageBitmap`
-  first (Safari decodes HEIC natively, so most iPhone users download nothing), and only on failure
-  `await import('./heic.js')`. That one edit gives HEIC to the image editor, the favicon generator
-  and `convert/` at once. `EXTENSIONS.image` gains `heic, heif, hif`; **no new `TARGETS` row** —
-  HEIC is input-only by construction.
-  **The `accept` lists are not optional**: iOS and Windows often report `file.type === ''` for
-  `.heic`, so `image/*` will not match in `matchesAccept` and the file is silently rejected on
-  exactly the devices this targets. Add `.heic,.heif` in `convert/`, `image-converter/`,
-  `favicon-generator/`.
-  Vendor the **wasm-bundle** build of `libheif-js` (wasm base64-inlined), not the split
-  `.mjs` + `.wasm` pair — a separate `.wasm` needs its own path resolution under `/UTH/`.
-  **Licence: LGPL-3.0-or-later**, the first non-permissive thing in `js/vendor/`. Fine to ship
-  unmodified as a dynamically-loaded file with upstream and version recorded; write
-  *do not edit this file* in `js/vendor/README.md`. **Decode only** — HEIC encoding needs x265
-  (GPL-2.0) and would relicense the site.
-  The privacy tool strips **byte-exact, not through a canvas** — a canvas round trip recompresses
-  the photo. The unmerged `youtube-error-recovery-and-transcript` branch has a JPEG/PNG/WebP
-  stripper in its `js/shared/exif.js`; port it as `js/shared/metadata.js` (main's `exif.js` has
-  three callers — leave it), but first make it keep APP2 (ICC — iPhone photos are Display P3 and go
-  dull without it) and APP14 (Adobe — CMYK JPEGs invert without it), cut anything after the main
-  image's EOI (MPF/gain-map images carry their own EXIF), clear VP8X's EXIF/XMP flags, and add the
-  WebP tests it lacks. HEIC originals: find the `Exif` item via `iinf`/`iloc`; "clean" means a
-  clean JPEG. Verify with `exiftool`, a different implementation. Its value is in the reveal.
 
 - **5 — global `Ctrl+K` and recent tools.** Today `script.js` binds it on the homepage only.
   Extract an overlay that reuses the existing ranked `searchTools`, and put it on every page.
@@ -644,7 +649,8 @@ npm run dev:api       # Flask backend on :5000
 SITE_URL=https://<preview>.vercel.app npm run test:e2e
 
 # Real browser, need `npm run dev` running: verify:converters (also ffprobe), verify:image-editor,
-# verify:convert-hub, verify:favicon, verify:pdf-tools (pdfinfo), verify:chrome,
+# verify:convert-hub, verify:favicon, verify:pdf-tools (pdfinfo), verify:photo-privacy (exiftool),
+# verify:chrome,
 # verify:downloaders (also `npm run dev:api`). No browser: verify:api.
 ```
 

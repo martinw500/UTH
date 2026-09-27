@@ -17,7 +17,7 @@ import { TOOL_COUNT } from '../js/shared/tools.js';
 const BASE = (process.env.SITE_URL || 'http://localhost:5500').replace(/\/$/, '');
 
 const PAGES = [
-    '/', '/convert/', '/image-converter/', '/pdf-tools/', '/favicon-generator/',
+    '/', '/convert/', '/image-converter/', '/pdf-tools/', '/photo-privacy/', '/favicon-generator/',
     '/video-converter/', '/audio-converter/', '/color-converter/', '/qr-generator/',
     '/youtube-downloader/', '/instagram-downloader/', '/feedback.html',
 ];

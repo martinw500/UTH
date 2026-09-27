@@ -91,6 +91,16 @@ export const TOOLS = Object.freeze([
         keywords: 'image editor photo crop resize compress rotate straighten filter brightness contrast saturation sharpen grayscale greyscale sepia invert hue batch convert jpg jpeg png webp avif quality format picture',
     }),
     Object.freeze({
+        id: 'photo-privacy',
+        title: 'Photo Privacy',
+        href: 'photo-privacy/index.html',
+        category: 'edit',
+        tone: 'tone-green',
+        runs: 'browser',
+        desc: 'See where, when and with what a photo was taken — then remove it',
+        keywords: 'photo privacy metadata exif gps location remove strip clean hide camera date iphone heic safe share',
+    }),
+    Object.freeze({
         id: 'favicon-generator',
         title: 'Favicon Generator',
         href: 'favicon-generator/index.html',

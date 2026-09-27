@@ -14,6 +14,7 @@ Everything below assumes a clone of https://github.com/martinw500/UTH.
 | **ffmpeg** + **ffprobe** | any recent | **only** `npm run verify:converters` |
 | **unzip** or bsdtar | any | **only** `npm run verify:favicon` (Windows has bsdtar built in) |
 | **pdfinfo** (poppler) | any | `npm run verify:pdf-tools` reads output back with it; without it the script falls back to pdf-lib and says so |
+| **exiftool** | any | `npm run verify:photo-privacy` reads the cleaned photos back with it (and ffmpeg). On macOS it also uses `sips` to make a HEIC |
 
 `ffmpeg`/`ffprobe` must be **on your PATH**, not just installed. On Windows:
 
@@ -88,6 +89,7 @@ npm run verify:image-editor  # image editor: exported bytes, crop, undo, preview
 npm run verify:convert-hub   # convert/ hub: routing, rendered options, cancel, a real MP4
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
 npm run verify:pdf-tools     # reads produced PDFs back with pdfinfo: pages, sizes, rotation
+npm run verify:photo-privacy # exiftool finds nothing identifying; ffmpeg decodes identical pixels
 npm run verify:chrome        # theming, mobile nav, focus, contrast on every page
 npm run verify:downloaders   # YouTube/Instagram pages; also needs `npm run dev:api`
 

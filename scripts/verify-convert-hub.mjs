@@ -16,6 +16,10 @@
  */
 
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const BASE = (process.env.SITE_URL || 'http://localhost:5500').replace(/\/$/, '');
 const PAGE = `${BASE}/convert/`;
@@ -143,6 +147,7 @@ async function main() {
         console.log('\nAn image conversion does not download ffmpeg');
         const ffmpegHits = requested.filter((u) => /ffmpeg-core|\.wasm/.test(u));
         check(ffmpegHits.length === 0, 'no ffmpeg core was fetched', ffmpegHits.join(' | '));
+        check(!requested.some((u) => u.includes('libheif')), 'nor the HEIC decoder');
 
         console.log('\nBatch');
         await page.reload({ waitUntil: 'networkidle' });
@@ -157,6 +162,44 @@ async function main() {
         await page.click('#convertBtn');
         await page.waitForSelector('#downloadAllBtn:not([hidden])', { timeout: 30000 });
         check(await page.locator('#outputList .output-item').count() === 3, 'three results');
+
+        // Chrome has no HEIC decoder, so this goes through the vendored libheif
+        // -- the one branch in decodeImageFile. The empty type is what iOS and
+        // Windows report for .heic. Needs macOS `sips` to make the fixture.
+        console.log('\nAn iPhone HEIC converts');
+        const heic = (() => {
+            const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uth-heic-'));
+            try {
+                const png = path.join(dir, 'in.png');
+                execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x240', '-frames:v', '1', png]);
+                execFileSync('sips', ['-s', 'format', 'heic', png, '--out', path.join(dir, 'in.heic')], { stdio: 'ignore' });
+                return fs.readFileSync(path.join(dir, 'in.heic'));
+            } catch {
+                return null;
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        })();
+        if (!heic) {
+            console.log('  --   no sips or ffmpeg here; HEIC check skipped');
+        } else {
+            await page.reload({ waitUntil: 'networkidle' });
+            await page.setInputFiles('#fileInput', { name: 'IMG_0042.HEIC', mimeType: '', buffer: heic });
+            await page.waitForSelector('#workspace:not([hidden])');
+            await page.selectOption('#targetFormat', 'jpg');
+            await page.click('#convertBtn');
+            await page.waitForSelector('#outputList .output-item a[download]', { timeout: 30000 });
+            const heicHref = await page.getAttribute('#outputList a[download]', 'href');
+            const heicOut = Buffer.from(await page.evaluate(async (url) => {
+                const b = await (await fetch(url)).arrayBuffer();
+                return Array.from(new Uint8Array(b));
+            }, heicHref));
+            check(heicOut.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])), 'it becomes a real JPEG');
+            check(await page.getAttribute('#outputList a[download]', 'download') === 'IMG_0042.jpg',
+                'named for the target format');
+            check(requested.some((u) => u.endsWith('/js/vendor/libheif-bundle.js')),
+                'through the vendored decoder, which only HEIC loads');
+        }
 
         // Mixed kinds have no single sensible target list.
         console.log('\nMixed input kinds are reported, not silently dropped');

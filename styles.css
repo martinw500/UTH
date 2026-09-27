@@ -2887,6 +2887,80 @@ body::before {
     margin-bottom: 20px;
 }
 
+/* Photo privacy: what each photo gives away */
+.privacy-card {
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+
+.privacy-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.privacy-headline {
+    margin: 10px 0 0;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.privacy-headline.is-location,
+.privacy-headline.is-error {
+    color: var(--error-text);
+}
+
+.privacy-headline.is-none {
+    color: var(--success-text);
+}
+
+.privacy-facts {
+    display: grid;
+    grid-template-columns: minmax(96px, max-content) 1fr;
+    gap: 6px 16px;
+    margin: 12px 0 0;
+    font-size: 0.9rem;
+}
+
+.privacy-facts dt {
+    color: var(--text-muted);
+}
+
+.privacy-facts dd {
+    margin: 0;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.privacy-facts dd.is-sensitive {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.privacy-facts a {
+    color: var(--primary-readable);
+}
+
+.privacy-blocks {
+    margin: 12px 0 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.privacy-all {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.privacy-all summary {
+    cursor: pointer;
+}
+
 .export-actions {
     display: flex;
     align-items: center;

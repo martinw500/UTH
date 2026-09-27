@@ -322,7 +322,7 @@ createDropzone({
     dropzone: ui.dropzone,
     fileInput: ui.fileInput,
     browseBtn: ui.browseBtn,
-    accept: ['image/*', 'video/*', 'audio/*', '.mkv', '.avi', '.mov', '.flac', '.opus', '.m4a'],
+    accept: ['image/*', 'video/*', 'audio/*', '.heic', '.heif', '.mkv', '.avi', '.mov', '.flac', '.opus', '.m4a'],
     multiple: true,
     maxBytes: MAX_BYTES,
     paste: true,
