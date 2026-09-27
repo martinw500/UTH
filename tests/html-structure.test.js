@@ -35,6 +35,7 @@ const PAGES = [
     'favicon-generator/index.html',
     'pdf-tools/index.html',
     'photo-privacy/index.html',
+    'text-from-image/index.html',
 ];
 
 // ============================================
@@ -548,6 +549,29 @@ describe('Photo Privacy page structure', () => {
     });
 });
 
+describe('Text from Image page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('text-from-image/index.html');
+    });
+
+    test('takes images, HEIC and PDFs', () => {
+        expect(html).toMatch(/id="fileInput" accept="[^"]*\.heic[^"]*application\/pdf/);
+    });
+
+    test('has the language, run, progress and output controls', () => {
+        ['dropzone', 'browseBtn', 'notice', 'workspace', 'fileList', 'ocrLang', 'runBtn',
+            'progress', 'results', 'ocrOutput', 'copyBtn', 'downloadTxtBtn'].forEach((id) => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/text-from-image.js"></script>');
+    });
+});
+
 describe('Vendored libraries', () => {
     // Vendoring an MIT library carries an attribution obligation. A future
     // cleanup that deletes the licence file should fail the build.
@@ -612,6 +636,9 @@ describe('Required static assets exist', () => {
         'js/vendor/qrcode-generator-utf8.js',
         'js/vendor/qrcode-generator.LICENSE.txt',
         'photo-privacy/js/photo-privacy.js',
+        'text-from-image/js/text-from-image.js',
+        'js/shared/ocr.js',
+        'js/shared/ocr-text.js',
         'js/shared/metadata.js',
         'js/shared/heic.js',
         'js/vendor/libheif-bundle.js',

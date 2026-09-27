@@ -43,9 +43,9 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Ten tools: Instagram downloader (server-backed), file converter (the `convert/` hub), image
-editor, photo privacy, PDF tools, favicon generator, video converter, audio converter, colour
-converter, QR generator.
+Eleven tools: Instagram downloader (server-backed), file converter (the `convert/` hub), text from
+image, image editor, photo privacy, PDF tools, favicon generator, video converter, audio converter,
+colour converter, QR generator.
 
 **The YouTube downloader is retired from the hosted site, and should stay that way.** YouTube
 answers every datacenter IP (Vercel's included) with "confirm you're not a bot"; past that, Vercel
@@ -145,6 +145,24 @@ on exactly the devices this is for. **libheif is LGPL-3.0**: it stays a separate
 the page, then checks with **exiftool** that the identifying tags are gone, the P3 profile
 survived, and **ffmpeg decodes identical pixels**. `verify:convert-hub` converts a HEIC with an
 empty type through the hub.
+
+### Text from image (OCR)
+tesseract.js 7, **loaded from pinned jsdelivr URLs rather than vendored** — the one deliberate
+exception to `js/vendor/README.md`: ~5 MB of engine plus a few MB per language would sit in git
+for a feature most visits never touch. Every URL names an exact version and lives in a constant in
+`js/shared/ocr.js`, and is imported as `import(URL_CONSTANT)`; a literal URL fails
+`esm-conventions.test.js`, on purpose. tesseract caches language data in IndexedDB.
+
+Two traps, both found by `verify:text-from-image`: **the ESM build puts everything on the default
+export** (`(await import(url)).default.createWorker`), and **tesseract cannot read an
+`ImageBitmap`** — which is what `decodeImageFile` returns — so images go onto a canvas first.
+Only a real download failure is reworded as "check your connection"; the `TypeError` from the
+first trap was being reported as a network problem.
+
+Scanned PDFs are rendered through pdf.js at ~216 dpi and capped at 50 pages (a `ponytail:` note
+marks it). `js/shared/ocr-text.js` rejoins words hyphenated across lines only between lowercase
+letters, and keeps line breaks — they carry addresses and lists. `verify:text-from-image` draws
+known text, reads it back through the page as an image and as an image-only PDF, and scores words.
 
 ### PDF tools
 Merge, keep/remove pages, split, rotate, optimise, and images→PDF, on **vendored pdf-lib** (ESM
@@ -463,8 +481,8 @@ Agreed scope, in build order. Steps 1–3 are **done** (`download.js`, `site-url
 `result-card.js` — see *Done* above); what follows is what remains. Each step is its own commit,
 independently green and deployable.
 
-**Build order, September 2026: 10 (OCR), then 11 (transcribe), then 5–8.** Steps 4 (HEIC and
-photo privacy) and 9 (pdf.js: thumbnails, PDF→JPG, signing) are done — see *Done*. Photo privacy,
+**Build order, September 2026: 11 (transcribe), then 5–8.** Steps 4 (HEIC and photo privacy),
+9 (pdf.js: thumbnails, PDF→JPG, signing) and 10 (OCR) are done — see *Done*. Photo privacy,
 PDFs, OCR and transcription are the four a non-technical person hits most, and all four are
 otherwise "upload it to a stranger".
 
@@ -506,13 +524,6 @@ tooling — near-zero overlap with the people who want an Instagram downloader).
   Watch: Safari has no `getDisplayMedia` audio and different MIME support (probe, don't assume);
   `MediaRecorder` WebM carries no duration until remuxed, so seek bars misbehave; long recordings
   need `ondataavailable` chunking, not one in-memory blob.
-
-- **10 — text from an image (OCR).** A screenshot, a photo of a page or a scanned PDF → editable
-  text. tesseract.js plus language data are too big to vendor, so they load from **pinned-version
-  URLs held in constants**, as ffmpeg does (a literal URL in `import()` fails
-  `esm-conventions.test.js`, on purpose). Scanned PDFs render through step 9's pdf.js loader. Pure
-  text cleanup (hyphenated line joins, whitespace) in its own module with tests; verify by OCRing
-  text drawn onto a canvas and scoring word accuracy.
 
 - **11 — transcribe audio and video.** Whisper via transformers.js, in our own same-origin module
   worker, WebGPU when present and single-threaded wasm otherwise — so **no COOP/COEP**. One model,
@@ -652,7 +663,7 @@ SITE_URL=https://<preview>.vercel.app npm run test:e2e
 
 # Real browser, need `npm run dev` running: verify:converters (also ffprobe), verify:image-editor,
 # verify:convert-hub, verify:favicon, verify:pdf-tools (pdfinfo), verify:photo-privacy (exiftool),
-# verify:chrome,
+# verify:text-from-image (network), verify:chrome,
 # verify:downloaders (also `npm run dev:api`). No browser: verify:api.
 ```
 

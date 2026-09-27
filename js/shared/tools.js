@@ -60,6 +60,16 @@ export const TOOLS = Object.freeze([
         keywords: 'pdf merge split rotate combine join extract pages document images to pdf compress optimise sign signature jpg jpeg png picture convert thumbnails',
     }),
     Object.freeze({
+        id: 'text-from-image',
+        title: 'Text from Image',
+        href: 'text-from-image/index.html',
+        category: 'convert',
+        tone: 'tone-purple',
+        runs: 'browser',
+        desc: 'Copy the text out of a screenshot, a photo of a page or a scanned PDF',
+        keywords: 'ocr text from image picture photo screenshot scan scanned pdf copy extract read words recognise recognize document',
+    }),
+    Object.freeze({
         id: 'video-converter',
         title: 'Video Converter',
         href: 'video-converter/index.html',

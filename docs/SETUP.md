@@ -90,6 +90,7 @@ npm run verify:convert-hub   # convert/ hub: routing, rendered options, cancel, 
 npm run verify:favicon       # unzips the output with a DIFFERENT implementation
 npm run verify:pdf-tools     # pdfinfo/pdftoppm read the output: pages, rotation, where a signature landed
 npm run verify:photo-privacy # exiftool finds nothing identifying; ffmpeg decodes identical pixels
+npm run verify:text-from-image # OCRs known text back, from an image and a scanned PDF (needs network)
 npm run verify:chrome        # theming, mobile nav, focus, contrast on every page
 npm run verify:downloaders   # YouTube/Instagram pages; also needs `npm run dev:api`
 

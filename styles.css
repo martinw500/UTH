@@ -3038,6 +3038,16 @@ body::before {
     cursor: nwse-resize;
 }
 
+/* Text from image: the recognised text, editable before copying */
+.ocr-output {
+    width: 100%;
+    min-height: 240px;
+    margin-top: 12px;
+    resize: vertical;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
 /* Photo privacy: what each photo gives away */
 .privacy-card {
     padding: 16px 18px;

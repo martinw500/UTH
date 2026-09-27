@@ -154,6 +154,9 @@ describe('finding the obvious thing', () => {
         ['qr code', 'qr-generator'],
         ['merge pdf', 'pdf-tools'],
         ['instagram reel', 'instagram-downloader'],
+        ['copy text from screenshot', 'text-from-image'],
+        ['remove location from photo', 'photo-privacy'],
+        ['sign pdf', 'pdf-tools'],
         ['hex rgb', 'color-converter'],
         ['crop', 'image-converter'],
     ])('%p puts %s first', (query, id) => {

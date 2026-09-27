@@ -21,6 +21,7 @@ Will be updated with more tools as I build them out.
 | **Video Converter** | MP4 / WEBM / GIF, trim, resize, extract audio | browser |
 | **Audio Converter** | MP3 / M4A / OGG / Opus / WAV / FLAC, trim, extract from video | browser |
 | **Photo Privacy** | See what a photo gives away — location, camera, time — and remove it | browser |
+| **Text from Image** | Copy the text out of a screenshot, a photo of a page or a scanned PDF | browser |
 | **PDF Tools** | Merge, split, rotate, sign and trim PDFs, or save pages as JPG | browser |
 | **Favicon Generator** | One image into a full favicon set — .ico, PNGs, manifest | browser |
 | **Colour Picker** | Convert between HEX, RGB and HSL, or pick a colour from an image | browser |
@@ -86,6 +87,7 @@ npm run verify:convert-hub   # the convert/ hub: routing, options, cancel, a rea
 npm run verify:favicon       # unzips the output with a different implementation
 npm run verify:pdf-tools     # pdfinfo/pdftoppm read the output: pages, rotation, where a signature landed
 npm run verify:photo-privacy # exiftool finds nothing identifying; pixels unchanged
+npm run verify:text-from-image # OCRs known text back, from an image and a scanned PDF
 npm run verify:chrome        # theming, mobile nav, focus, real contrast in both themes
 npm run verify:downloaders   # YouTube/Instagram pages; also needs npm run dev:api
 npm run verify:api           # the Python API's input handling; no browser, no network

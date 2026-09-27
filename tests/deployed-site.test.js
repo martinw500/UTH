@@ -40,7 +40,7 @@ const HTML_PAGES = [
     'index.html', 'feedback.html', 'image-converter/index.html', 'video-converter/index.html',
     'color-converter/index.html', 'youtube-downloader/index.html', 'instagram-downloader/index.html',
     'qr-generator/index.html', 'audio-converter/index.html', 'convert/index.html',
-    'favicon-generator/index.html', 'pdf-tools/index.html', 'photo-privacy/index.html',
+    'favicon-generator/index.html', 'pdf-tools/index.html', 'photo-privacy/index.html', 'text-from-image/index.html',
 ];
 
 /** Local files the pages load, found by following script tags and imports. */
@@ -107,6 +107,7 @@ const PAGES = [
     { path: '/favicon-generator/', name: 'Favicon Generator' },
     { path: '/pdf-tools/', name: 'PDF Tools' },
     { path: '/photo-privacy/', name: 'Photo Privacy' },
+    { path: '/text-from-image/', name: 'Text from Image' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -918,6 +919,30 @@ describe('Photo Privacy — features present', () => {
 
     test('loads its script as a module, with the file:// guard', () => {
         expect(page.body).toContain('type="module" src="js/photo-privacy.js"');
+        expect(page.body).toContain('file-protocol-notice');
+    });
+});
+
+describe('Text from Image — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/text-from-image/');
+    });
+
+    test('takes images and PDFs, and says nothing is uploaded', () => {
+        expect(page.body).toContain('application/pdf');
+        expect(page.body).toContain('Your images are never uploaded');
+    });
+
+    test('has the language picker and the output', () => {
+        expect(page.body).toContain('id="ocrLang"');
+        expect(page.body).toContain('id="ocrOutput"');
+        expect(page.body).toContain('id="copyBtn"');
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module" src="js/text-from-image.js"');
         expect(page.body).toContain('file-protocol-notice');
     });
 });
