@@ -36,6 +36,7 @@ const PAGES = [
     'pdf-tools/index.html',
     'photo-privacy/index.html',
     'text-from-image/index.html',
+    'transcribe/index.html',
 ];
 
 // ============================================
@@ -572,6 +573,33 @@ describe('Text from Image page structure', () => {
     });
 });
 
+describe('Transcribe page structure', () => {
+    let html;
+
+    beforeAll(() => {
+        html = readHtml('transcribe/index.html');
+    });
+
+    test('takes audio and video', () => {
+        expect(html).toMatch(/id="fileInput" accept="audio\/\*,video\/\*/);
+    });
+
+    test('says how big the first download is, before it happens', () => {
+        expect(html).toContain('about 77 MB');
+    });
+
+    test('has the language, run, cancel, progress and every export', () => {
+        ['asrLang', 'runBtn', 'cancelBtn', 'progress', 'results', 'transcriptOutput', 'withTimes',
+            'copyBtn', 'downloadTxtBtn', 'downloadSrtBtn', 'downloadVttBtn'].forEach((id) => {
+            expect(html).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module', () => {
+        expect(html).toContain('<script type="module" src="js/transcribe.js"></script>');
+    });
+});
+
 describe('Vendored libraries', () => {
     // Vendoring an MIT library carries an attribution obligation. A future
     // cleanup that deletes the licence file should fail the build.
@@ -637,6 +665,10 @@ describe('Required static assets exist', () => {
         'js/vendor/qrcode-generator.LICENSE.txt',
         'photo-privacy/js/photo-privacy.js',
         'text-from-image/js/text-from-image.js',
+        'transcribe/js/transcribe.js',
+        'transcribe/js/worker.js',
+        'transcribe/js/audio.js',
+        'js/shared/subtitles.js',
         'js/shared/ocr.js',
         'js/shared/ocr-text.js',
         'js/shared/metadata.js',

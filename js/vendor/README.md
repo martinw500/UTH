@@ -8,10 +8,12 @@ bundler, and because a pinned CDN URL has already broken production once — see
 the `814.ffmpeg.js` note in `STATE.md`. A vendored file cannot 404, works
 offline, and can be unit-tested directly.
 
-**One deliberate exception: tesseract.js** (the OCR engine) loads from pinned
-jsdelivr URLs, because its wasm and language models run to tens of megabytes
-that would sit in git for one tool. Every URL names an exact version and lives
-in `js/shared/ocr.js` — look there, not here, to update it.
+**Two deliberate exceptions load from pinned CDN URLs instead:** tesseract.js
+(OCR; `js/shared/ocr.js`) and transformers.js with the Whisper model
+(`transcribe/js/worker.js`). Their wasm and models run to tens of megabytes —
+~77 MB for Whisper alone — that would sit in git for one tool each. Every URL
+names an exact version (the model an exact revision) and lives in a constant in
+those files; update them there, not here.
 
 **Vendor single files, never a whole package directory.** Jest ignores
 `js/vendor/`, but the rule keeps this folder auditable, and anywhere else a

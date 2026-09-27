@@ -70,6 +70,16 @@ export const TOOLS = Object.freeze([
         keywords: 'ocr text from image picture photo screenshot scan scanned pdf copy extract read words recognise recognize document',
     }),
     Object.freeze({
+        id: 'transcribe',
+        title: 'Transcribe',
+        href: 'transcribe/index.html',
+        category: 'convert',
+        tone: 'tone-emerald',
+        runs: 'browser',
+        desc: 'Turn a voice memo, lecture or video into text and subtitles',
+        keywords: 'transcribe transcription speech to text audio video voice memo recording lecture interview podcast subtitles captions srt vtt whisper dictation',
+    }),
+    Object.freeze({
         id: 'video-converter',
         title: 'Video Converter',
         href: 'video-converter/index.html',

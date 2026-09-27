@@ -38,6 +38,7 @@ npm run verify:favicon       # unzips the output with a DIFFERENT implementation
 npm run verify:pdf-tools     # pdfinfo/pdftoppm read the output: pages, rotation, where a signature landed
 npm run verify:photo-privacy # exiftool finds nothing identifying; pixels unchanged
 npm run verify:text-from-image # OCRs known text back, from an image and a scanned PDF
+npm run verify:transcribe    # transcribes spoken audio and video; checks words and SRT timing
 npm run verify:chrome        # theming, nav, focus, contrast on every page
 npm run verify:downloaders   # YouTube/Instagram pages; also needs npm run dev:api
 npm run verify:api           # Python API input handling; no browser, no network

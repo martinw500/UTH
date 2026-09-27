@@ -43,8 +43,8 @@ serverless functions under `api/` on Vercel. Dual-deployed to GitHub Pages
 (`https://martinw500.github.io/UTH/` — note the `/UTH/` subpath, so all hrefs must be relative)
 and Vercel (`https://useful-tool-hub.vercel.app`, which is the only host that runs the API).
 
-Eleven tools: Instagram downloader (server-backed), file converter (the `convert/` hub), text from
-image, image editor, photo privacy, PDF tools, favicon generator, video converter, audio converter,
+Twelve tools: Instagram downloader (server-backed), file converter (the `convert/` hub), text from
+image, transcribe, image editor, photo privacy, PDF tools, favicon generator, video converter, audio converter,
 colour converter, QR generator.
 
 **The YouTube downloader is retired from the hosted site, and should stay that way.** YouTube
@@ -145,6 +145,29 @@ on exactly the devices this is for. **libheif is LGPL-3.0**: it stays a separate
 the page, then checks with **exiftool** that the identifying tags are gone, the P3 profile
 survived, and **ffmpeg decodes identical pixels**. `verify:convert-hub` converts a HEIC with an
 empty type through the hub.
+
+### Transcribe
+Whisper (`onnx-community/whisper-base`, q8, **~77 MB**, revision pinned) through transformers.js 4.3,
+in **our own same-origin module worker** (`transcribe/js/worker.js`), so a long run never freezes
+the page. The library comes from a pinned jsdelivr URL — the same exception as OCR — and its bundled
+onnxruntime fetches wasm from a CDN path pinned to that build. **Single-threaded wasm, no
+COOP/COEP**: 9.7 s of speech transcribes in ~2.5 s on an M-series Mac, so WebGPU was skipped; it
+would mean a second model variant to download. Add it if long recordings prove slow.
+
+**A worker from this page cannot be started from a cross-origin-isolated page** such as
+`convert/`: COEP applies to the worker script. Keep the tool on its own non-isolated page.
+
+Decoding is the browser's (`AudioContext({ sampleRate: 16000 }).decodeAudioData`, which resamples),
+mixed to mono by averaging so a voice on one channel survives. What it cannot decode is sent to
+the File Converter by name, not given ffmpeg. The page says the download size before anything is
+fetched; Cancel terminates the worker and the next run starts a fresh one.
+
+`js/shared/subtitles.js` is ported from the unmerged transcript branch, minus its YouTube parser
+and the rolling-caption de-duplication (it would drop a real repeated "Yes."), and with its
+timestamp rounding fixed (1.9996 s printed as `00:00:01,1000`). `fromWhisperChunks` fills the null
+end Whisper leaves on a final chunk. `verify:transcribe` has macOS `say` speak a known sentence,
+transcribes it as M4A and as an MP4's soundtrack, and checks words, SRT order, cancel and a file the
+browser cannot decode.
 
 ### Text from image (OCR)
 tesseract.js 7, **loaded from pinned jsdelivr URLs rather than vendored** — the one deliberate
@@ -481,8 +504,8 @@ Agreed scope, in build order. Steps 1–3 are **done** (`download.js`, `site-url
 `result-card.js` — see *Done* above); what follows is what remains. Each step is its own commit,
 independently green and deployable.
 
-**Build order, September 2026: 11 (transcribe), then 5–8.** Steps 4 (HEIC and photo privacy),
-9 (pdf.js: thumbnails, PDF→JPG, signing) and 10 (OCR) are done — see *Done*. Photo privacy,
+**Next: 5–8, in order.** The September 2026 tools — HEIC and photo privacy, pdf.js thumbnails /
+PDF→JPG / signing, OCR, and transcription — are done; see *Done*. Photo privacy,
 PDFs, OCR and transcription are the four a non-technical person hits most, and all four are
 otherwise "upload it to a stranger".
 
@@ -524,13 +547,6 @@ tooling — near-zero overlap with the people who want an Instagram downloader).
   Watch: Safari has no `getDisplayMedia` audio and different MIME support (probe, don't assume);
   `MediaRecorder` WebM carries no duration until remuxed, so seek bars misbehave; long recordings
   need `ondataavailable` chunking, not one in-memory blob.
-
-- **11 — transcribe audio and video.** Whisper via transformers.js, in our own same-origin module
-  worker, WebGPU when present and single-threaded wasm otherwise — so **no COOP/COEP**. One model,
-  `whisper-base` quantised (~80 MB once, then cached); say the size before downloading. Decode with
-  `AudioContext({ sampleRate: 16000 }).decodeAudioData`, not ffmpeg; what the browser cannot decode
-  gets pointed at `convert/`. Text, `.srt` and `.vtt` via `toSrt`/`toVtt`/`toPlainText`, which exist
-  on the unmerged `youtube-error-recovery-and-transcript` branch in `js/shared/subtitles.js`.
 
 Deferred, deliberately: **fill PDF forms**, **image joiner**, and
 **PWA/offline** — the last collides with the `coi-serviceworker.js` in three directories and is its
@@ -663,7 +679,7 @@ SITE_URL=https://<preview>.vercel.app npm run test:e2e
 
 # Real browser, need `npm run dev` running: verify:converters (also ffprobe), verify:image-editor,
 # verify:convert-hub, verify:favicon, verify:pdf-tools (pdfinfo), verify:photo-privacy (exiftool),
-# verify:text-from-image (network), verify:chrome,
+# verify:text-from-image (network), verify:transcribe (network, macOS say), verify:chrome,
 # verify:downloaders (also `npm run dev:api`). No browser: verify:api.
 ```
 

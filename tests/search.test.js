@@ -157,6 +157,7 @@ describe('finding the obvious thing', () => {
         ['copy text from screenshot', 'text-from-image'],
         ['remove location from photo', 'photo-privacy'],
         ['sign pdf', 'pdf-tools'],
+        ['voice memo to text', 'transcribe'],
         ['hex rgb', 'color-converter'],
         ['crop', 'image-converter'],
     ])('%p puts %s first', (query, id) => {

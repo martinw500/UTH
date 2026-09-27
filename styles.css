@@ -1930,6 +1930,20 @@ body::before {
     width: 0%;
 }
 
+/* Work with no measurable progress (a Whisper run): full width, pulsing. */
+.progress-bar-fill.is-indeterminate {
+    width: 100%;
+    animation: progress-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-pulse {
+    50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .progress-bar-fill.is-indeterminate { animation: none; }
+}
+
 .progress-text {
     font-size: 0.9rem;
     color: var(--text-secondary);

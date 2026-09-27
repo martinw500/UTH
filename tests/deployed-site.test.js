@@ -40,7 +40,7 @@ const HTML_PAGES = [
     'index.html', 'feedback.html', 'image-converter/index.html', 'video-converter/index.html',
     'color-converter/index.html', 'youtube-downloader/index.html', 'instagram-downloader/index.html',
     'qr-generator/index.html', 'audio-converter/index.html', 'convert/index.html',
-    'favicon-generator/index.html', 'pdf-tools/index.html', 'photo-privacy/index.html', 'text-from-image/index.html',
+    'favicon-generator/index.html', 'pdf-tools/index.html', 'photo-privacy/index.html', 'text-from-image/index.html', 'transcribe/index.html',
 ];
 
 /** Local files the pages load, found by following script tags and imports. */
@@ -108,6 +108,7 @@ const PAGES = [
     { path: '/pdf-tools/', name: 'PDF Tools' },
     { path: '/photo-privacy/', name: 'Photo Privacy' },
     { path: '/text-from-image/', name: 'Text from Image' },
+    { path: '/transcribe/', name: 'Transcribe' },
 ];
 
 describe('All pages load with HTTP 200', () => {
@@ -944,6 +945,37 @@ describe('Text from Image — features present', () => {
     test('loads its script as a module, with the file:// guard', () => {
         expect(page.body).toContain('type="module" src="js/text-from-image.js"');
         expect(page.body).toContain('file-protocol-notice');
+    });
+});
+
+describe('Transcribe — features present', () => {
+    let page;
+
+    beforeAll(async () => {
+        page = await fetchPage('/transcribe/');
+    });
+
+    test('says the recording is never uploaded, and the download size', () => {
+        expect(page.body).toContain('Your recording is never uploaded');
+        expect(page.body).toContain('about 77 MB');
+    });
+
+    test('offers text and both subtitle formats', () => {
+        ['downloadTxtBtn', 'downloadSrtBtn', 'downloadVttBtn'].forEach((id) => {
+            expect(page.body).toContain(`id="${id}"`);
+        });
+    });
+
+    test('loads its script as a module, with the file:// guard', () => {
+        expect(page.body).toContain('type="module" src="js/transcribe.js"');
+        expect(page.body).toContain('file-protocol-notice');
+    });
+
+    // The worker must be served as JavaScript, or a module worker refuses it.
+    test('serves its worker as JavaScript', async () => {
+        const res = await fetch(`${SITE}/transcribe/js/worker.js`, { method: 'HEAD' });
+        expect(res.ok).toBe(true);
+        expect(res.headers.get('content-type')).toMatch(/javascript/);
     });
 });
 
